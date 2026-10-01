@@ -61,6 +61,9 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | Configure GitHub App | `GET /github/install` |
 | 프로젝트 Settings 이름·설명, Danger | `GET·PATCH·DELETE /projects/{id}` |
 | 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
+| Create 의 Deploy(첫 배포), Deploy·Redeploy·Rollback 버튼 | `POST /services/{id}/deployments` |
+| Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
+| 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
 
 웹훅(`POST /webhooks/github`)은 GitHub 가 was 를 호출하는 용도라서 웹에서는 쓰지 않습니다.
 
@@ -80,7 +83,7 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 
 실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 로그, 사용량 및 지표는 정적/샘플 데이터입니다.
 
-서비스의 online 여부는 was 가 프로젝트 단위로만 알려줘서, 프로젝트의 모든 서비스가 online 일 때만 각 서비스를 online 으로 표시합니다. Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
+서비스 상태는 was 가 서비스 응답에 붙여 주는 최근 배포(`latestDeployment`)로 정합니다. 성공·롤백됨은 online, 진행 중(QUEUED·BUILDING·DEPLOYING)은 Deploying, 실패·수동 개입은 crashed 로 표시합니다. 빌드·배포 로그는 API 가 없어서 비어 있고, Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
 
 주요 데스크톱 화면을 기준으로 맞췄습니다. 로고와 장식 그림은 자체 구현입니다. GitHub avatar에는 외부 네트워크가 필요합니다.
 
@@ -100,7 +103,7 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 ## 동작
 
 - Dashboard New, 커맨드 팔레트 New Project, 프로젝트 Create는 Create 흐름을 엽니다. 선택할 수 있는 항목은 GitHub Repository뿐이고 나머지는 Coming soon으로 표시됩니다.
-- Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(`local` 은 아직 지원하지 않아 비활성으로 표시) Deploy 를 누르면 프로젝트와 서비스를 만듭니다(서비스 생성이 실패하면 방금 만든 빈 프로젝트를 지웁니다). 실제 빌드·배포는 하지 않고 DB 에 기록만 합니다.
+- Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(`local` 은 아직 지원하지 않아 비활성으로 표시) Deploy 를 누르면 프로젝트와 서비스를 만들고 첫 배포(MANUAL)를 요청합니다(서비스 생성이 실패하면 방금 만든 빈 프로젝트를 지우고, 첫 배포 요청만 실패하면 서비스는 남기고 알려 줍니다). Control API 는 배포 요청을 DB 에 기록하고, 빌드·배포는 Worker 가 합니다. Worker 가 없는 로컬에서는 배포가 Queued 에서 멈춥니다. 진행 중인 배포는 3초마다 다시 불러옵니다.
 - 프로젝트와 서비스 삭제는 was 가 소프트 삭제로 처리합니다.
 - 세션이 만료돼 API 가 401 을 주면 `/login` 으로 이동합니다.
 - localStorage 키 `ll:plan-limit`을 `1`로 두면 업그레이드 한도 상태를 재현하고 Continue 버튼을 사용할 수 있습니다. 키를 지우면 기본 동작으로 돌아갑니다.
