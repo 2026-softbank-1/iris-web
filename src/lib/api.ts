@@ -32,16 +32,17 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   query?: Record<string, string | number | boolean | undefined>;
   json?: unknown;
+  headers?: Record<string, string>;
 };
 
-export async function request<T>(path: string, { method = 'GET', query, json }: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, { method = 'GET', query, json, headers }: RequestOptions = {}): Promise<T> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) if (value !== undefined && value !== '') params.set(key, String(value));
   const qs = params.size > 0 ? `?${params}` : '';
   const res = await fetch(apiUrl(`${path}${qs}`), {
     method,
     credentials: 'include',
-    headers: { Accept: 'application/json', ...(json !== undefined && { 'Content-Type': 'application/json' }) },
+    headers: { Accept: 'application/json', ...(json !== undefined && { 'Content-Type': 'application/json' }), ...headers },
     body: json === undefined ? undefined : JSON.stringify(json),
   });
   if (res.status === 204) return undefined as T;
@@ -60,6 +61,8 @@ export function describeError(error: unknown): string {
     case 'PROJECT_NAME_CONFLICT': return 'A project with this name already exists.';
     case 'SERVICE_NAME_CONFLICT': return 'A service with this name already exists in this project.';
     case 'REPOSITORY_NOT_ACCESSIBLE': return 'This repository is not accessible. Install the GitHub App and grant it access.';
+    case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
+    case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';
     case 'VALIDATION_ERROR': return error.details.map((d) => `${d.field}: ${d.reason}`).join(' · ') || 'Invalid input.';
