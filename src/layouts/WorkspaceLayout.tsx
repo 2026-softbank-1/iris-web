@@ -4,15 +4,12 @@ import {
   ChevronDown,
   ChevronUp,
   EllipsisVertical,
-  // FileText, // external links (disabled for now)
   LayoutGrid,
   LogOut,
-  // MessageSquare,
   Moon,
   PanelsTopLeft,
   Plus,
   Settings,
-  // TramFront,
   User,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -47,21 +44,6 @@ function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label
     </NavLink>
   );
 }
-
-/* External Railway links are disabled for now.
-function ExternalItem({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="side-link">
-      <div className="side-item external">
-        <span className="side-icon">{icon}</span>
-        <span>
-          {label} <span className="ext-arrow">↗</span>
-        </span>
-      </div>
-    </a>
-  );
-}
-*/
 
 function WorkspaceSwitcher() {
   const pop = usePopover();
@@ -204,16 +186,6 @@ export function WorkspaceLayout() {
               )}
             </nav>
           </div>
-          {/* External Railway links (Docs, Central Station, My support threads) are disabled for now.
-          <div className="side-divider" />
-          <div className="side-section">
-            <div className="side-nav">
-              <ExternalItem href="https://docs.railway.com" icon={<FileText size={16} />} label="Docs" />
-              <ExternalItem href="https://station.railway.com" icon={<TramFront size={16} />} label="Central Station" />
-              <ExternalItem href="https://station.railway.com" icon={<MessageSquare size={16} />} label="My support threads" />
-            </div>
-          </div>
-          */}
           <div className="side-fill" />
         </div>
         <div className="ws-aside-bottom">

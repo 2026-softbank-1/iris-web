@@ -120,8 +120,8 @@ export function Dashboard() {
   const revision = useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
   const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
-  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('rw:view') as 'grid' | 'list') || 'grid');
-  const [favs, setFavs] = useState<string[]>(() => JSON.parse(localStorage.getItem('rw:favs') || '[]'));
+  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('ll:view') as 'grid' | 'list') || 'grid');
+  const [favs, setFavs] = useState<string[]>(() => JSON.parse(localStorage.getItem('ll:favs') || '[]'));
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
   const filterPop = usePopover();
   const navigate = useNavigate();
@@ -129,7 +129,7 @@ export function Dashboard() {
   const toggleFav = (id: string) => {
     setFavs((f) => {
       const next = f.includes(id) ? f.filter((x) => x !== id) : [...f, id];
-      localStorage.setItem('rw:favs', JSON.stringify(next));
+      localStorage.setItem('ll:favs', JSON.stringify(next));
       return next;
     });
   };
@@ -147,7 +147,7 @@ export function Dashboard() {
 
   const setViewPersist = (v: 'grid' | 'list') => {
     setView(v);
-    localStorage.setItem('rw:view', v);
+    localStorage.setItem('ll:view', v);
   };
 
   return (
@@ -167,7 +167,7 @@ export function Dashboard() {
             </span>
           </button>
           <div>
-            <button type="button" className="btn btn-primary dash-new" onClick={() => localStorage.getItem('rw:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)}>
+            <button type="button" className="btn btn-primary dash-new" onClick={() => localStorage.getItem('ll:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)}>
               <div className="side-icon">
                 <Plus size={16} strokeWidth={2.25} />
               </div>
@@ -176,7 +176,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {localStorage.getItem('rw:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue</button>}
+        {localStorage.getItem('ll:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue</button>}
         <div className="trial-banner-wrap">
           <div className="trial-banner">
             <div className="trial-banner-row">

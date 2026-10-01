@@ -1,12 +1,10 @@
 import {
   ArrowRight,
-  // BookOpen, // Docs command (disabled for now)
   Box,
   Clock,
   FolderKanban,
   Globe,
   LayoutTemplate,
-  // MessagesSquare, // Central Station command (disabled for now)
   Palette,
   Plus,
   Search,
@@ -67,20 +65,17 @@ export function CommandPalette() {
 
   const base: Cmd[] = useMemo(
     () => [
-      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), localStorage.getItem('rw:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)) },
-      { id: 'new-ws', label: 'New Workspace', icon: Briefcase, group: 'Dashboard', run: () => (close(), toast('Workspaces are not available in this clone')) },
-      // External Railway links are disabled for now.
-      // { id: 'docs', label: 'Go to Docs', icon: BookOpen, group: 'General', run: () => (close(), window.open('https://docs.railway.com', '_blank')) },
+      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), localStorage.getItem('ll:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)) },
+      { id: 'new-ws', label: 'New Workspace', icon: Briefcase, group: 'Dashboard', run: () => (close(), toast('Workspaces are not available yet')) },
       { id: 'templates', label: 'Go to Templates', icon: LayoutTemplate, group: 'General', run: go('/workspace/templates') },
       // Usage is disabled for now (non-MVP)
       // { id: 'usage', label: 'Go to Usage', icon: ChartNoAxesColumn, group: 'General', run: go('/workspace/usage') },
       { id: 'search-projects', label: 'Search Projects...', icon: FolderKanban, group: 'General', run: () => setQ('project ') },
       { id: 'search-services', label: 'Search Services...', icon: Box, group: 'General', run: () => setQ('service ') },
       { id: 'workspace', label: 'Workspace', icon: Briefcase, group: 'General', run: go('/workspace') },
-      { id: 'account', label: 'Account', icon: User, group: 'General', run: () => (close(), toast('Account settings are mocked in this clone')) },
-      // { id: 'station', label: 'Central Station', icon: MessagesSquare, group: 'General', run: () => (close(), window.open('https://station.railway.com', '_blank')) },
-      { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toast('Only the dark theme is cloned')) },
-      { id: 'utils', label: 'Utilities', icon: Wrench, group: 'General', run: () => (close(), toast('Utilities are mocked in this clone')) },
+      { id: 'account', label: 'Account', icon: User, group: 'General', run: () => (close(), toast('Account settings are not available yet')) },
+      { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toast('Only the dark theme is available')) },
+      { id: 'utils', label: 'Utilities', icon: Wrench, group: 'General', run: () => (close(), toast('Utilities are not available yet')) },
       { id: 'region', label: 'Update Preferred Region', icon: Globe, group: 'General', run: () => (close(), toast('Preferred region: US West')) },
       { id: 'time', label: 'Time', icon: Clock, group: 'Internationalization', run: () => (close(), toast('Times are shown in GMT+9')) },
     ],

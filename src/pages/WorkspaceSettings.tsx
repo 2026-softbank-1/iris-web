@@ -31,7 +31,7 @@ function Empty({ title, desc, action }: { title: string; desc: string; action?: 
         <p className="tpl-empty-sub">{desc}</p>
       </div>
       {action && (
-        <button type="button" className="btn btn-outline" style={{ marginTop: 16 }} onClick={() => toast(`${action} is mocked in this clone`)}>
+        <button type="button" className="btn btn-outline" style={{ marginTop: 16 }} onClick={() => toast(`${action} is not available yet`)}>
           <Plus size={16} /> {action}
         </button>
       )}
@@ -78,7 +78,7 @@ export function WorkspaceSettings() {
               <div className="ws-set-card danger">
                 <p className="ws-set-label">Danger zone</p>
                 <p className="set-muted">Deleting a workspace removes all of its projects. This can't be undone.</p>
-                <button type="button" className="btn btn-danger" style={{ alignSelf: 'flex-start' }} onClick={() => toast('Deleting is disabled in the clone')}>
+                <button type="button" className="btn btn-danger" style={{ alignSelf: 'flex-start' }} onClick={() => toast('Deleting is disabled')}>
                   Delete workspace
                 </button>
               </div>

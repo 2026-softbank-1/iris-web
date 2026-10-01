@@ -212,7 +212,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
 type Var = { key: string; value: string };
 
 function useServiceVars(serviceId: string) {
-  const storageKey = `rw:vars:${serviceId}`;
+  const storageKey = `ll:vars:${serviceId}`;
   const [vars, setVars] = useState<Var[]>(() => JSON.parse(localStorage.getItem(storageKey) || '[]'));
   useEffect(() => localStorage.setItem(storageKey, JSON.stringify(vars)), [vars, storageKey]);
   return [vars, setVars] as const;

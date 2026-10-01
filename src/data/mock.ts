@@ -173,22 +173,22 @@ const dockerBuildLogs: LogLine[] = [
   { ts: '2026-09-30T20:23:02.000+09:00', message: 'scheduling build on Metal builder "builder-tvghxu"', level: 'info' },
 ];
 
-const railpackBuildLogs: LogLine[] = [
+const lionpackBuildLogs: LogLine[] = [
   { ts: '2026-09-30T20:34:00.100+09:00', message: 'scheduling build on Metal builder "builder-tdfars"', level: 'info' },
-  { ts: '2026-09-30T20:34:00.200+09:00', message: 'using build driver railpack-v0.40.1', level: 'info' },
+  { ts: '2026-09-30T20:34:00.200+09:00', message: 'using build driver lionpack-v0.40.1', level: 'info' },
   { ts: '2026-09-30T20:34:00.300+09:00', message: 'unpacking archive', level: 'info', step: true, duration: '5ms', attrs: [{ key: '', value: '630 KB' }] },
   { ts: '2026-09-30T20:34:00.400+09:00', message: 'uploading snapshot', level: 'info', attrs: [{ key: '', value: '338.5 KB' }] },
   { ts: '2026-09-30T20:34:01.000+09:00', message: 'local://prepare-driver', level: 'info', step: true, duration: '0ms' },
   { ts: '2026-09-30T20:34:01.100+09:00', message: 'local://prepare-context', level: 'info', step: true, duration: '0ms' },
   {
     ts: '2026-09-30T20:34:01.200+09:00',
-    message: 'prepare railpack-v0.40.1',
+    message: 'prepare lionpack-v0.40.1',
     level: 'info',
     step: true,
     duration: '3s',
     output: [
       '╭─────────────────╮',
-      '│ Railpack 0.40.1 │',
+      '│ Lionpack 0.40.1 │',
       '╰─────────────────╯',
       '',
       '  ↳ Detected Node',
@@ -199,7 +199,7 @@ const railpackBuildLogs: LogLine[] = [
       '  Packages',
       '  ──────────',
       '  node   │  24.21.0  │  idiomatic-version-file (24.21.0)',
-      '  caddy  │  2.11.4   │  railpack default (latest)',
+      '  caddy  │  2.11.4   │  lionpack default (latest)',
       '',
       '  Steps',
       '  ──────────',
@@ -213,9 +213,9 @@ const railpackBuildLogs: LogLine[] = [
       '    $ caddy run --config /Caddyfile --adapter caddyfile 2>&1',
     ],
   },
-  { ts: '2026-09-30T20:34:05.000+09:00', message: 'load build definition from ./railpack-plan.json', level: 'info', step: true, duration: '0ms' },
+  { ts: '2026-09-30T20:34:05.000+09:00', message: 'load build definition from ./lionpack-plan.json', level: 'info', step: true, duration: '0ms' },
   { ts: '2026-09-30T20:34:05.010+09:00', message: 'copy .nvmrc', level: 'info', step: true, cached: true, duration: '0ms' },
-  { ts: '2026-09-30T20:34:05.020+09:00', message: 'mise install-into caddy@2.11.4 /railpack/caddy', level: 'info', step: true, duration: '1s', output: ['mise caddy@2.11.4 ✓ installed'] },
+  { ts: '2026-09-30T20:34:05.020+09:00', message: 'mise install-into caddy@2.11.4 /lionpack/caddy', level: 'info', step: true, duration: '1s', output: ['mise caddy@2.11.4 ✓ installed'] },
   { ts: '2026-09-30T20:34:05.030+09:00', message: 'install mise packages: node', level: 'info', step: true, duration: '2s', output: ['mise ████████████████ 1/1 · installed 1 tool in 1.7s'] },
   { ts: '2026-09-30T20:34:05.040+09:00', message: 'mkfile /Caddyfile', level: 'info', step: true, duration: '493ms' },
   { ts: '2026-09-30T20:34:05.050+09:00', message: 'caddy fmt --overwrite /Caddyfile', level: 'info', step: true, duration: '864ms' },
@@ -224,7 +224,7 @@ const railpackBuildLogs: LogLine[] = [
   { ts: '2026-09-30T20:34:05.080+09:00', message: 'npm install', level: 'info', step: true, duration: '1s', output: ['found 0 vulnerabilities'] },
   { ts: '2026-09-30T20:34:05.090+09:00', message: 'copy / /app', level: 'info', step: true, duration: '235ms' },
   { ts: '2026-09-30T20:34:05.100+09:00', message: 'npm run build', level: 'info', step: true, duration: '1s', output: ['✓ built in 180ms'] },
-  { ts: '2026-09-30T20:34:05.110+09:00', message: 'copy /railpack/caddy', level: 'info', step: true, cached: true, duration: '0ms' },
+  { ts: '2026-09-30T20:34:05.110+09:00', message: 'copy /lionpack/caddy', level: 'info', step: true, cached: true, duration: '0ms' },
   { ts: '2026-09-30T20:34:05.120+09:00', message: 'copy /app/dist', level: 'info', step: true, duration: '145ms' },
   { ts: '2026-09-30T20:34:05.130+09:00', message: 'install apt packages: libatomic1', level: 'info', step: true, cached: true, duration: '0ms' },
   { ts: '2026-09-30T20:34:05.140+09:00', message: 'copy /Caddyfile', level: 'info', step: true, cached: true, duration: '0ms' },
@@ -336,10 +336,10 @@ export const projects: Project[] = [
             replicas: 1,
             restartPolicy: 'on failure',
             maxRetries: 10,
-            builder: { name: 'Railpack', version: '0.40.1' },
+            builder: { name: 'Lionpack', version: '0.40.1' },
             runtimes: ['node @ 24.21.0', 'caddy @ 2.11.4'],
             variablesCount: 0,
-            buildLogs: railpackBuildLogs,
+            buildLogs: lionpackBuildLogs,
             deployLogs: caddyDeployLogs,
             buildRange: { start: '2026-09-30 20:28', end: '2026-09-30 20:39' },
             deployRange: { start: '2026-09-30 20:33', end: '2026-10-01 21:01' },
@@ -489,7 +489,7 @@ export function fmtKstFull(iso: string): string {
 
 /* Local-only repository deployment demo. No network requests are made. */
 export const demoRepositories = ['ASTRANTIS', 'astrantis-editor', 'graph_astrantis', 'shared-ocean', 'astrantis-viewer', 'astrantis-developers', 'OS-Rust', 'Patent-AI-Atchitect', 'Astrantis_Android'].map(name => `astrantis3/${name}`);
-const demoKey = 'rw:demo-projects:v1';
+const demoKey = 'll:demo-projects:v1';
 const demoListeners = new Set<() => void>();
 let demoRevision = 0;
 export const subscribeDemoProjects = (listener: () => void) => { demoListeners.add(listener); return () => { demoListeners.delete(listener); }; };
@@ -508,20 +508,20 @@ export function createDemoDeployment(config: DemoConfig) {
   const now = new Date().toISOString();
   const id = `demo-${crypto.randomUUID()}`;
   const variables = config.variables.split('\n').filter(line => line.includes('=')).map(line => { const index = line.indexOf('='); return { key: line.slice(0, index).trim(), value: line.slice(index + 1) }; });
-  const deployment: Deployment = { id, shortId: id.slice(5, 13), status: 'BUILDING', message: 'Local simulation only', createdAt: now, author: user.name, authorAvatar: '', repo: config.repo, branch: config.branch, commitUrl: `https://github.com/${config.repo}`, region: config.region, replicas: 1, restartPolicy: 'on failure', maxRetries: 10, builder: { name: 'Railpack', version: 'local' }, runtimes: ['Simulated runtime'], variablesCount: variables.length, buildLogs: [{ ts: now, message: 'Queued local build simulation. No repository was fetched.', level: 'info' }, { ts: now, message: `Configuration: branch ${config.branch}, root ${config.root || '/'}`, level: 'info' }], deployLogs: [], buildRange: { start: now, end: now }, deployRange: { start: now, end: now } };
+  const deployment: Deployment = { id, shortId: id.slice(5, 13), status: 'BUILDING', message: 'Local simulation only', createdAt: now, author: user.name, authorAvatar: '', repo: config.repo, branch: config.branch, commitUrl: `https://github.com/${config.repo}`, region: config.region, replicas: 1, restartPolicy: 'on failure', maxRetries: 10, builder: { name: 'Lionpack', version: 'local' }, runtimes: ['Simulated runtime'], variablesCount: variables.length, buildLogs: [{ ts: now, message: 'Queued local build simulation. No repository was fetched.', level: 'info' }, { ts: now, message: `Configuration: branch ${config.branch}, root ${config.root || '/'}`, level: 'info' }], deployLogs: [], buildRange: { start: now, end: now }, deployRange: { start: now, end: now } };
   const service: Service = { id: `demo-${crypto.randomUUID()}`, shortId: id.slice(5, 11), name: config.name, repo: config.repo, region: config.region, regionLong: config.region, replicas: 1, state: 'offline', platformVariables: [], deployments: [deployment] };
-  try { localStorage.setItem(`rw:vars:${service.id}`, JSON.stringify(variables)); } catch { /* optional persistence */ }
+  try { localStorage.setItem(`ll:vars:${service.id}`, JSON.stringify(variables)); } catch { /* optional persistence */ }
   let project = getProject(config.projectId);
   if (!project) { project = { id: `demo-${crypto.randomUUID()}`, name: config.name, environment: 'production', createdAt: now, updatedAt: now, services: [] }; projects.unshift(project); }
   project.services.push(service);
   project.updatedAt = now;
   // Persist existing projects with locally added services as overlays too.
   saveDemoProjects();
-  try { localStorage.setItem('rw:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
+  try { localStorage.setItem('ll:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
   return { project, service };
 }
 try {
-  const overlays = JSON.parse(localStorage.getItem('rw:demo-service-overlays:v1') || '[]');
+  const overlays = JSON.parse(localStorage.getItem('ll:demo-service-overlays:v1') || '[]');
   for (const overlay of overlays) { const p = getProject(overlay.id); if (p && Array.isArray(overlay.services)) p.services.push(...overlay.services); }
 } catch { /* optional persistence */ }
 function advanceDemoDeployments() {
@@ -536,7 +536,7 @@ function advanceDemoDeployments() {
   }
   if (changed) {
     saveDemoProjects();
-    try { localStorage.setItem('rw:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
+    try { localStorage.setItem('ll:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
   }
 }
 advanceDemoDeployments();

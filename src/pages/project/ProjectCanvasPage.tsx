@@ -122,7 +122,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
   const addPop = usePopover();
   const settingsPop = usePopover();
   const layersPop = usePopover();
-  const [snap, setSnap] = useState(() => localStorage.getItem('rw:snap') === '1');
+  const [snap, setSnap] = useState(() => localStorage.getItem('ll:snap') === '1');
   const [showDomains, setShowDomains] = useState(true);
 
   const initial = useMemo<ServiceNodeType[]>(
@@ -235,7 +235,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
           onClick={() => {
             const v = !snap;
             setSnap(v);
-            localStorage.setItem('rw:snap', v ? '1' : '0');
+            localStorage.setItem('ll:snap', v ? '1' : '0');
           }}
         >
           <Grip size={16} className="menu-icon" /> Snap to grid

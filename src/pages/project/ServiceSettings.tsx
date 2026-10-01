@@ -179,20 +179,13 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                     <button type="button" className="st-icon-btn" aria-label="Edit" onClick={() => toast('Repository picker is mocked')}>
                       <PencilLine size={16} />
                     </button>
-                    <button type="button" className="st-mini-btn" onClick={() => toast('Disconnecting is disabled in the clone')}>
+                    <button type="button" className="st-mini-btn" onClick={() => toast('Disconnecting is disabled')}>
                       <span>Disconnect</span>
                     </button>
                   </div>
                 </div>
                 <div className="st-root-dir">
                   <button type="button">Add Root Directory</button> (used for build and deploy steps.
-                  {/* External Railway link is disabled for now.
-                  {' '}
-                  <a href="https://docs.railway.com" target="_blank" rel="noreferrer">
-                    <span>Docs</span>
-                    <span>↗</span>
-                  </a>
-                  */}
                   )
                 </div>
               </Item>
@@ -446,12 +439,12 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
             </Section>
           )}
 
-          {show('build', 'builder', 'watch', 'command', 'railpack') && (
+          {show('build', 'builder', 'watch', 'command', 'lionpack') && (
             <Section title="Build" icon={Hammer}>
               <Item title="Builder" id="builder">
                 <button type="button" className="st-box st-builder">
                   <div className="st-builder-top">
-                    <b>Railpack</b>
+                    <b>Lionpack</b>
                     <span className="st-tag">Default</span>
                     {service.runtime && (
                       <span className="st-runtime">
@@ -583,7 +576,7 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
             <section className="st-section danger" id="set-Danger">
               <Item title="Delete Service" desc="Permanently removes this service and every deployment in this environment." id="delete">
                 <div>
-                  <button type="button" className="btn st-delete" onClick={() => toast('Deleting is disabled in the clone')}>
+                  <button type="button" className="btn st-delete" onClick={() => toast('Deleting is disabled')}>
                     <TriangleAlert size={16} /> Delete service
                   </button>
                 </div>

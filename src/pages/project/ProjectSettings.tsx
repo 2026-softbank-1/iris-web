@@ -104,7 +104,7 @@ export function ProjectSettings() {
                 <section className="ps-section">
                   <h4>Danger</h4>
                   <p className="ps-p">Deleting the project removes every service, deployment and volume in it.</p>
-                  <button type="button" className="btn btn-danger ps-btn" onClick={() => toast('Deleting is disabled in the clone')}>
+                  <button type="button" className="btn btn-danger ps-btn" onClick={() => toast('Deleting is disabled')}>
                     Delete project
                   </button>
                 </section>

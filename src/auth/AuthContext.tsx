@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 type Status = 'authenticated' | 'logged-out';
 type Auth = { status: Status; login: () => void; logout: () => void };
 const AuthContext = createContext<Auth | null>(null);
-const KEY = 'railway-clone-auth';
+const KEY = 'likelion-auth';
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>(() => {
     try { return localStorage.getItem(KEY) === 'logged-out' ? 'logged-out' : 'authenticated'; } catch { return 'authenticated'; }
