@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, fetchMe, githubLoginUrl, requestLogout, type SessionUser } from '../lib/api';
+import { ApiError, setUnauthorizedHandler } from '../lib/api';
+import { fetchMe, githubLoginUrl, requestLogout, type SessionUser } from '../lib/endpoints';
 
 type Status = 'loading' | 'authenticated' | 'logged-out';
 type Auth = {
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('logged-out');
       });
     return () => { cancelled = true; };
+  }, []);
+
+  // 세션이 중간에 만료돼 API 가 401 을 주면 로그인 화면으로 보낸다.
+  useEffect(() => {
+    setUnauthorizedHandler(() => { setUser(null); setStatus('logged-out'); });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = useCallback(() => window.location.assign(githubLoginUrl()), []);
