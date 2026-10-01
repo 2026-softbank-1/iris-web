@@ -138,7 +138,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
             <DeploymentRow d={building} to={`${base}/deployment/${building.id}`} variant="active" />
             <div className="deps-success-wrap">
               <Link className="deps-success" to={`${base}/deployment/${building.id}`}>
-                <div className="deps-success-left"><Clock size={16} /><p>Building demo deployment</p></div>
+                <div className="deps-success-left"><Clock size={16} /><p>Building deployment</p></div>
                 <ChevronRight size={16} />
               </Link>
               <p style={{ padding: '0 16px 16px', color: 'var(--text-muted)', fontSize: 12 }}>Local simulation only. No repository is fetched or deployed.</p>
@@ -156,7 +156,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
                   <div className="side-icon">
                     <CircleCheckBig size={16} />
                   </div>
-                  <p>{active.id.startsWith('demo-') ? 'Demo deployment complete' : 'Deployment successful'}</p>
+                  <p>Deployment successful</p>
                 </div>
                 <div className="side-icon deps-success-chev">{stepsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
               </button>
@@ -363,12 +363,12 @@ function VariablesTab({ service }: { service: Service }) {
           <div>
             <button type="button" className="vars-system-btn" data-state={systemOpen ? 'open' : 'closed'} onClick={() => setSystemOpen((v) => !v)}>
               <div className="side-icon">{systemOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
-              <p>{service.railwayVariables.length} variables added by Railway</p>
+              <p>{service.platformVariables.length} variables added by LikeLion</p>
             </button>
           </div>
           {systemOpen && (
             <div className="vars-table system">
-              {service.railwayVariables.map((v) => (
+              {service.platformVariables.map((v) => (
                 <div key={v.key} className="vars-row">
                   <span className="vars-key mono">{v.key}</span>
                   <span className="vars-val mono">*******</span>

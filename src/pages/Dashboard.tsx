@@ -176,7 +176,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {localStorage.getItem('rw:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue with local demo</button>}
+        {localStorage.getItem('rw:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue</button>}
         <div className="trial-banner-wrap">
           <div className="trial-banner">
             <div className="trial-banner-row">

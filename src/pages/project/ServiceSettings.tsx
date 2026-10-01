@@ -324,7 +324,7 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                     <div className="st-private-text">
                       <div className="st-private-top">
                         <div className="st-private-name">
-                          <span>{service.name.toLowerCase()}.railway.internal</span>
+                          <span>{service.name.toLowerCase()}.likelion.internal</span>
                           <div className="st-ip-tag">
                             <Globe size={12} />
                             IPv4 &amp; IPv6
@@ -457,7 +457,7 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                     )}
                     <ChevronDown size={16} className="st-region-chev" />
                   </div>
-                  <p className="st-muted">Zero-config app builder maintained by Railway.</p>
+                  <p className="st-muted">Zero-config app builder maintained by LikeLion.</p>
                 </button>
               </Item>
               <Item title="Custom Build Command" desc="Override the command used to build your app." id="build-cmd">
@@ -557,7 +557,7 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
 
           {show('config', 'file', 'code') && (
             <Section title="Config-as-code" icon={FileCode2}>
-              <Item title="Railway Config File" desc="Deprecated in favor of Infrastructure as Code; existing files keep working for now." id="config-file">
+              <Item title="LikeLion Config File" desc="Deprecated in favor of Infrastructure as Code; existing files keep working for now." id="config-file">
                 <div>
                   <button type="button" className="btn btn-outline">
                     <Plus size={16} /> Add File Path

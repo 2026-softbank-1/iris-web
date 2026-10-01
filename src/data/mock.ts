@@ -1,4 +1,4 @@
-// Mock data for the Railway dashboard clone.
+// Mock data for the LikeLion dashboard.
 // Everything the UI renders comes from here, so you can swap it for a real API later.
 // Personal info (name / email / avatar) lives at the top of this file if you want to scrub it.
 
@@ -63,7 +63,7 @@ export interface Service {
   replicas: number;
   state: ServiceState;
   crashedBanner?: string;
-  railwayVariables: { key: string; value: string }[];
+  platformVariables: { key: string; value: string }[];
   deployments: Deployment[];
 }
 
@@ -247,9 +247,9 @@ const req = (ts: string, epoch: string, uri: string, port: string, size: string,
     { key: 'request.client_ip', value: '203.0.113.24' },
     { key: 'request.proto', value: 'HTTP/1.1' },
     { key: 'request.method', value: 'GET' },
-    { key: 'request.host', value: 'portpolio-production-production.up.railway.app' },
+    { key: 'request.host', value: 'portpolio-production-production.up.likelion.uk' },
     { key: 'request.uri', value: uri },
-    { key: 'request.headers.X-Railway-Edge[0]', value: 'sin1' },
+    { key: 'request.headers.X-LikeLion-Edge[0]', value: 'sin1' },
     { key: 'duration', value: duration },
     { key: 'size', value: size },
     { key: 'status', value: '200' },
@@ -287,16 +287,16 @@ const caddyDeployLogs: LogLine[] = [
 /* Projects                                                            */
 /* ------------------------------------------------------------------ */
 
-const railwayVars = (service: string, domain?: string) => [
-  { key: 'RAILWAY_ENVIRONMENT', value: 'production' },
-  { key: 'RAILWAY_ENVIRONMENT_ID', value: '7d1c2a40-…' },
-  { key: 'RAILWAY_ENVIRONMENT_NAME', value: 'production' },
-  { key: 'RAILWAY_PRIVATE_DOMAIN', value: `${service.toLowerCase()}.railway.internal` },
-  { key: 'RAILWAY_PROJECT_ID', value: '…' },
-  { key: 'RAILWAY_PROJECT_NAME', value: '…' },
-  { key: 'RAILWAY_SERVICE_ID', value: '…' },
-  { key: 'RAILWAY_SERVICE_NAME', value: service },
-  ...(domain ? [{ key: 'RAILWAY_PUBLIC_DOMAIN', value: domain }] : []),
+const platformVars = (service: string, domain?: string) => [
+  { key: 'LIKELION_ENVIRONMENT', value: 'production' },
+  { key: 'LIKELION_ENVIRONMENT_ID', value: '7d1c2a40-…' },
+  { key: 'LIKELION_ENVIRONMENT_NAME', value: 'production' },
+  { key: 'LIKELION_PRIVATE_DOMAIN', value: `${service.toLowerCase()}.likelion.internal` },
+  { key: 'LIKELION_PROJECT_ID', value: '…' },
+  { key: 'LIKELION_PROJECT_NAME', value: '…' },
+  { key: 'LIKELION_SERVICE_ID', value: '…' },
+  { key: 'LIKELION_SERVICE_NAME', value: service },
+  ...(domain ? [{ key: 'LIKELION_PUBLIC_DOMAIN', value: domain }] : []),
 ].slice(0, 8);
 
 export const projects: Project[] = [
@@ -312,14 +312,14 @@ export const projects: Project[] = [
         shortId: '3902d5',
         name: 'portpolio-production',
         repo: 'monitor5/portpolio-production',
-        domain: 'portpolio-production-production.up.railway.app',
+        domain: 'portpolio-production-production.up.likelion.uk',
         port: 8080,
         runtime: 'node@24.21.0',
         region: 'US West',
         regionLong: 'US West (California, USA)',
         replicas: 1,
         state: 'online',
-        railwayVariables: railwayVars('portpolio-production', 'portpolio-production-production.up.railway.app'),
+        platformVariables: platformVars('portpolio-production', 'portpolio-production-production.up.likelion.uk'),
         deployments: [
           {
             id: '647b8145-0c5e-4a9b-8a51-2f0d5e7c1a90',
@@ -367,7 +367,7 @@ export const projects: Project[] = [
         // so the service is now offline. Use 'crashed' to show the red dashboard state instead.
         state: 'offline',
         crashedBanner: "Deployment was removed because it's been crashed for too long",
-        railwayVariables: railwayVars('Temp_log'),
+        platformVariables: platformVars('Temp_log'),
         deployments: [
           {
             id: '8e31b2c0-77a4-4b0e-9d3f-1c2b3a4d5e6f',
@@ -474,7 +474,7 @@ export function timeAgo(iso: string, now = new Date()): string {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** Formats an ISO date in Asia/Seoul (GMT+9) like Railway does for this account. */
+/** Formats an ISO date in Asia/Seoul (GMT+9). */
 export function fmtKst(iso: string, withSeconds = true): string {
   const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
   const base = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
@@ -508,8 +508,8 @@ export function createDemoDeployment(config: DemoConfig) {
   const now = new Date().toISOString();
   const id = `demo-${crypto.randomUUID()}`;
   const variables = config.variables.split('\n').filter(line => line.includes('=')).map(line => { const index = line.indexOf('='); return { key: line.slice(0, index).trim(), value: line.slice(index + 1) }; });
-  const deployment: Deployment = { id, shortId: id.slice(5, 13), status: 'BUILDING', message: 'Demo deployment: local simulation only', createdAt: now, author: 'Demo', authorAvatar: '', repo: config.repo, branch: config.branch, commitUrl: `https://github.com/${config.repo}`, region: config.region, replicas: 1, restartPolicy: 'on failure', maxRetries: 10, builder: { name: 'Demo Railpack', version: 'local' }, runtimes: ['Simulated runtime'], variablesCount: variables.length, buildLogs: [{ ts: now, message: 'DEMO: Queued local build simulation. No repository was fetched.', level: 'info' }, { ts: now, message: `Configuration: branch ${config.branch}, root ${config.root || '/'}`, level: 'info' }], deployLogs: [], buildRange: { start: now, end: now }, deployRange: { start: now, end: now } };
-  const service: Service = { id: `demo-${crypto.randomUUID()}`, shortId: id.slice(5, 11), name: config.name, repo: config.repo, region: config.region, regionLong: config.region, replicas: 1, state: 'offline', railwayVariables: [], deployments: [deployment] };
+  const deployment: Deployment = { id, shortId: id.slice(5, 13), status: 'BUILDING', message: 'Local simulation only', createdAt: now, author: user.name, authorAvatar: '', repo: config.repo, branch: config.branch, commitUrl: `https://github.com/${config.repo}`, region: config.region, replicas: 1, restartPolicy: 'on failure', maxRetries: 10, builder: { name: 'Railpack', version: 'local' }, runtimes: ['Simulated runtime'], variablesCount: variables.length, buildLogs: [{ ts: now, message: 'Queued local build simulation. No repository was fetched.', level: 'info' }, { ts: now, message: `Configuration: branch ${config.branch}, root ${config.root || '/'}`, level: 'info' }], deployLogs: [], buildRange: { start: now, end: now }, deployRange: { start: now, end: now } };
+  const service: Service = { id: `demo-${crypto.randomUUID()}`, shortId: id.slice(5, 11), name: config.name, repo: config.repo, region: config.region, regionLong: config.region, replicas: 1, state: 'offline', platformVariables: [], deployments: [deployment] };
   try { localStorage.setItem(`rw:vars:${service.id}`, JSON.stringify(variables)); } catch { /* optional persistence */ }
   let project = getProject(config.projectId);
   if (!project) { project = { id: `demo-${crypto.randomUUID()}`, name: config.name, environment: 'production', createdAt: now, updatedAt: now, services: [] }; projects.unshift(project); }
@@ -530,9 +530,9 @@ function advanceDemoDeployments() {
     if (!d.id.startsWith('demo-') || d.status !== 'BUILDING') continue;
     const elapsed = Date.now() - Date.parse(d.createdAt);
     const ts = new Date().toISOString();
-    if (elapsed >= 2000 && d.buildLogs.length === 2) { d.buildLogs.push({ ts, message: 'DEMO: Simulating dependency installation and build', level: 'info' }); changed = true; }
-    if (elapsed >= 4500 && d.buildLogs.length === 3) { d.buildLogs.push({ ts, message: 'DEMO: Simulated build completed', level: 'info', step: true, duration: '2s' }); d.deployLogs.push({ ts, message: 'DEMO: Simulating container startup', level: 'info' }); changed = true; }
-    if (elapsed >= 7000) { d.status = 'ACTIVE'; s.state = 'online'; d.deployLogs.push({ ts, message: 'DEMO: Local simulation is online. No external service was deployed.', level: 'info' }); d.buildRange.end = ts; d.deployRange.end = ts; changed = true; }
+    if (elapsed >= 2000 && d.buildLogs.length === 2) { d.buildLogs.push({ ts, message: 'Simulating dependency installation and build', level: 'info' }); changed = true; }
+    if (elapsed >= 4500 && d.buildLogs.length === 3) { d.buildLogs.push({ ts, message: 'Simulated build completed', level: 'info', step: true, duration: '2s' }); d.deployLogs.push({ ts, message: 'Simulating container startup', level: 'info' }); changed = true; }
+    if (elapsed >= 7000) { d.status = 'ACTIVE'; s.state = 'online'; d.deployLogs.push({ ts, message: 'Local simulation is online. No external service was deployed.', level: 'info' }); d.buildRange.end = ts; d.deployRange.end = ts; changed = true; }
   }
   if (changed) {
     saveDemoProjects();

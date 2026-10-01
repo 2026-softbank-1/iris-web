@@ -127,7 +127,7 @@ export function WorkspaceSettings() {
               <p className="ws-set-label">Your referral link</p>
               <div className="ws-set-row">
                 <code className="set-code mono" style={{ flex: 1 }}>
-                  https://railway.com?referralCode=dause
+                  https://likelion.uk?referralCode=dause
                 </code>
                 <button type="button" className="btn btn-outline btn-icon-only" aria-label="Copy" onClick={() => toast('Referral link copied')}>
                   <Copy size={16} />

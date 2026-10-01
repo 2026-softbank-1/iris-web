@@ -77,7 +77,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               </div>
             </div>
           ) : (
-            <p className="svc-node-offline">{service.deployments[0]?.status === 'BUILDING' ? 'Building (demo)' : 'Service is offline'}</p>
+            <p className="svc-node-offline">{service.deployments[0]?.status === 'BUILDING' ? 'Building' : 'Service is offline'}</p>
           )}
         </a>
       </span>
@@ -284,7 +284,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
           className="menu-item"
           onClick={() => {
             addPop.close();
-            toast('Compose import is not available in this demo');
+            toast('Compose import is not available yet');
           }}
         >
           <FileCode2 size={16} className="menu-icon" /> Import from Compose

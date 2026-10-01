@@ -24,9 +24,9 @@ function respond(cmd: string, service: Service): string[] {
       return args[0] === '-v' || args[0] === '--version' ? ['v24.21.0'] : ['Welcome to Node.js v24.21.0. (interactive mode is not available here)'];
     case 'env':
       return [
-        `RAILWAY_SERVICE_NAME=${service.name}`,
-        'RAILWAY_ENVIRONMENT=production',
-        `RAILWAY_PUBLIC_DOMAIN=${service.domain ?? ''}`,
+        `LIKELION_SERVICE_NAME=${service.name}`,
+        'LIKELION_ENVIRONMENT=production',
+        `LIKELION_PUBLIC_DOMAIN=${service.domain ?? ''}`,
         'PORT=8080',
         'HOME=/root',
       ];
@@ -86,7 +86,7 @@ export function ServiceConsole({ service }: { service: Service }) {
             type="button"
             className="btn btn-outline btn-sm"
             onClick={() => {
-              navigator.clipboard?.writeText(`railway ssh --service ${service.name}`);
+              navigator.clipboard?.writeText(`likelion ssh --service ${service.name}`);
               toast('SSH command copied');
             }}
           >

@@ -1,16 +1,38 @@
 import { siGithub, siNodedotjs } from 'simple-icons';
 
-// Original marks used in the clone (not the real Railway / GitHub / Node brand assets).
+// Original marks used in the app (not the real GitHub / Node brand assets).
 
 type P = { size?: number; className?: string; title?: string };
 
-/** Rail-track mark used in place of the brand logo. */
-export function LogoMark({ size = 24, className, title = 'Railway Logo' }: P) {
+/** Lion-head mark used as the LikeLion brand logo. */
+export function LogoMark({ size = 24, className, title = 'LikeLion Logo' }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-label={title} role="img">
-      <rect x="0.75" y="0.75" width="22.5" height="22.5" rx="11.25" fill="#fff" />
-      <path d="M9.3 5.2 7.4 18.8M14.7 5.2l1.9 13.6" stroke="#13111c" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M8.3 9.3h7.4M7.8 13.2h8.4M7.4 16.9h9.2" stroke="#13111c" strokeWidth="1.5" strokeLinecap="round" />
+      <g fill="#fff">
+        <circle cx="5.4" cy="5.9" r="2.7" />
+        <circle cx="18.6" cy="5.9" r="2.7" />
+        <circle cx="12.00" cy="19.40" r="3.3" />
+        <circle cx="7.24" cy="17.67" r="3.3" />
+        <circle cx="4.71" cy="13.28" r="3.3" />
+        <circle cx="5.59" cy="8.30" r="3.3" />
+        <circle cx="9.47" cy="5.05" r="3.3" />
+        <circle cx="14.53" cy="5.05" r="3.3" />
+        <circle cx="18.41" cy="8.30" r="3.3" />
+        <circle cx="19.29" cy="13.28" r="3.3" />
+        <circle cx="16.76" cy="17.67" r="3.3" />
+        <circle cx="12" cy="12" r="8.2" />
+      </g>
+      <g fill="#13111c">
+        <circle cx="5.4" cy="5.9" r="1.1" />
+        <circle cx="18.6" cy="5.9" r="1.1" />
+        <circle cx="12" cy="12.4" r="5.9" />
+      </g>
+      <g fill="#fff">
+        <circle cx="9.7" cy="11" r="0.95" />
+        <circle cx="14.3" cy="11" r="0.95" />
+        <path d="M10.6 13.1h2.8l-1.4 1.6z" />
+      </g>
+      <path d="M12 14.7v1c-.5.9-1.7 1.1-2.4.3M12 15.7c.5.9 1.7 1.1 2.4.3" stroke="#fff" strokeWidth="1" strokeLinecap="round" />
     </svg>
   );
 }

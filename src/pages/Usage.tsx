@@ -61,7 +61,7 @@ function ProjectUsage({ project }: { project: Project }) {
   const cost = original ? '$0.0112' : '$0.0000';
   return <div className="usage-proj"><div className="usage-project-header">
     <Link to={`/project/${project.id}`} className="usage-proj-name">{project.name}<span className="usage-ext">↗</span></Link>
-    {project.id.startsWith('demo-') && <span className="usage-simulated">Local demo · zero simulated usage</span>}
+    {project.id.startsWith('demo-') && <span className="usage-simulated">Zero simulated usage</span>}
     <button className="usage-proj-btn usage-expand" type="button" aria-expanded={expanded} aria-label={`${expanded ? 'Collapse' : 'Expand'} usage for ${project.name}`} onClick={() => setExpanded(!expanded)}><span><span className="usage-cost-label">Current Cost</span><span className="usage-cost">{cost}</span></span><ChevronDown size={16} style={{ transform: expanded ? 'rotate(180deg)' : undefined }} /></button>
   </div>{expanded && <div className="usage-proj-detail">
     <div className="usage-detail-heading"><h3>{byService ? 'Cost by Service' : 'Project Cost'}</h3><button type="button" className="btn" onClick={() => setByService(!byService)}>{byService ? 'View Project Cost' : 'View Cost by Service'}</button></div>
