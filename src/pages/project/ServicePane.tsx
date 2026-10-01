@@ -104,22 +104,26 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
               </span>
             </div>
           )}
-          <div className="deps-meta">
-            <div className="side-icon">
-              <MapPin size={16} />
+          {service.region && (
+            <div className="deps-meta">
+              <div className="side-icon">
+                <MapPin size={16} />
+              </div>
+              <Link to={`${base}/settings`} title={service.region}>
+                {service.region}
+              </Link>
             </div>
-            <Link to={`${base}/settings`} title={service.region}>
-              {service.region}
-            </Link>
-          </div>
-          <div className="deps-meta">
-            <div className="side-icon">
-              <GalleryHorizontalEnd size={16} />
+          )}
+          {service.replicas > 0 && (
+            <div className="deps-meta">
+              <div className="side-icon">
+                <GalleryHorizontalEnd size={16} />
+              </div>
+              <Link to={`${base}/settings`}>
+                {service.replicas} Replica{service.replicas === 1 ? '' : 's'}
+              </Link>
             </div>
-            <Link to={`${base}/settings`}>
-              {service.replicas} Replica{service.replicas === 1 ? '' : 's'}
-            </Link>
-          </div>
+          )}
         </div>
       </div>
 
@@ -168,7 +172,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
         <div className="deps-empty">
           <p>There is no active deployment for this service.</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => toast('Deploys are disabled until a plan is chosen')}>
+            <button type="button" className="btn btn-ghost" onClick={() => toast('Deployments are not available yet')}>
               <span>
                 <span>
                   Deploy the repo <b>{service.repo}</b>

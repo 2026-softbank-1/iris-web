@@ -12,9 +12,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Navigate, NavLink, useParams } from 'react-router-dom';
+import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useUI } from '../../components/ui';
-import { getProject } from '../../data/mock';
+import { useProject, useProjects } from '../../data/ProjectsContext';
+import { describeError } from '../../lib/api';
+import type { ProjectUpdate } from '../../lib/endpoints';
 
 const NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: '', label: 'General', icon: Settings },
@@ -30,12 +32,45 @@ const NAV: { id: string; label: string; icon: LucideIcon }[] = [
 
 export function ProjectSettings() {
   const { projectId, section = '' } = useParams();
-  const project = getProject(projectId)!;
+  // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
+  const project = useProject(projectId).project!;
+  const { updateProject, removeProject } = useProjects();
+  const navigate = useNavigate();
   const { toast } = useUI();
   const [name, setName] = useState(project.name);
-  const [desc, setDesc] = useState('');
-  const dirty = name !== project.name || desc !== '';
+  const [desc, setDesc] = useState(project.description ?? '');
+  const [busy, setBusy] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const dirty = name.trim() !== project.name || desc.trim() !== (project.description ?? '');
   const base = `/project/${project.id}/settings`;
+
+  const save = async () => {
+    // 바뀐 것만 보낸다. 설명을 비우면 null 로 지운다.
+    const changes: ProjectUpdate = {};
+    if (name.trim() !== project.name) changes.name = name.trim();
+    if (desc.trim() !== (project.description ?? '')) changes.description = desc.trim() === '' ? null : desc.trim();
+    setBusy(true);
+    try {
+      await updateProject(project.id, changes);
+      toast('Project updated');
+    } catch (e) {
+      toast(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await removeProject(project.id);
+      toast('Project deleted');
+      navigate('/dashboard', { replace: true });
+    } catch (e) {
+      toast(describeError(e));
+      setBusy(false);
+    }
+  };
   if (section && !NAV.some((n) => n.id === section)) return <Navigate to={base} replace />;
 
   return (
@@ -78,7 +113,7 @@ export function ProjectSettings() {
                         <Copy size={16} />
                       </button>
                     </pre>
-                    <button type="button" className="btn btn-primary ps-update" disabled={!dirty} onClick={() => toast('Project updated (mock)')}>
+                    <button type="button" className="btn btn-primary ps-update" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
                       Update
                     </button>
                   </section>
@@ -103,8 +138,12 @@ export function ProjectSettings() {
               {section === 'danger' && (
                 <section className="ps-section">
                   <h4>Danger</h4>
-                  <p className="ps-p">Deleting the project removes every service, deployment and volume in it.</p>
-                  <button type="button" className="btn btn-danger ps-btn" onClick={() => toast('Deleting is disabled')}>
+                  <p className="ps-p">Deleting the project removes every service in it.</p>
+                  <label className="ps-label">
+                    Type <b>{project.name}</b> to confirm
+                  </label>
+                  <input className="input ps-input" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} />
+                  <button type="button" className="btn btn-danger ps-btn" disabled={confirmName !== project.name || busy} onClick={() => void remove()}>
                     Delete project
                   </button>
                 </section>

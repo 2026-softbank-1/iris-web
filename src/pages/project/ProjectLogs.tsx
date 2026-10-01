@@ -2,13 +2,15 @@ import { ArrowDown, ArrowUp, Clock, Download, Pause, Play, Search, Settings } fr
 import { useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Popover, usePopover, useUI } from '../../components/ui';
-import { fmtKst, fmtKstFull, getProject, type LogLine } from '../../data/mock';
+import { fmtKst, fmtKstFull, type LogLine } from '../../data/mock';
+import { useProject } from '../../data/ProjectsContext';
 
 const RANGES = ['Last 15 min', 'Last 1 hour', 'Last 6 hours', 'Last 1 day', 'Last 7 days'];
 
 export function ProjectLogs() {
   const { projectId } = useParams();
-  const project = getProject(projectId)!;
+  // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
+  const project = useProject(projectId).project!;
   const { toast } = useUI();
   const [q, setQ] = useState('');
   const [live, setLive] = useState(true);
