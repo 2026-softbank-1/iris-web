@@ -1,6 +1,6 @@
-# Railway dashboard frontend clone
+# LikeLion dashboard frontend
 
-React + TypeScript + Vite로 구현한 Railway 다크 대시보드 프론트엔드 데모입니다. 실제 계정/API에는 연결하지 않습니다.
+React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 실제 계정/API에는 연결하지 않습니다.
 
 ## 실행
 
@@ -30,7 +30,7 @@ CSS는 플랫폼별 Lightning CSS native 모듈에 의존하지 않도록 minify
 
 ## 구현 범위
 
-- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기, Templates, Usage, People, Settings
+- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기, Templates, Settings
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
 - 서비스: Deployments, Variables, Metrics, Console, Settings
 - 배포: Details, Build/Deploy/Network Logs, 검색, 단계 펼치기
@@ -62,8 +62,8 @@ CSS는 플랫폼별 Lightning CSS native 모듈에 의존하지 않도록 minify
 
 ## New local demo flows
 
-- Dashboard New, command New Project, and project Add open the Create flow. GitHub sample repos support search, URL validation, review, demo deployments, logs, and reload persistence. No remote repository is fetched or deployed.
-- Set localStorage key `rw:plan-limit` to `1` to reproduce the observed upgrade limit and use Continue with local demo. Remove the key to restore default behavior.
-- Account Logout opens /login. Protected deep routes remain blocked after refresh. /signup leads to two-step preview onboarding and the existing demo dashboard.
-- Auth/onboarding were unavailable in the authenticated reference session, so these screens explicitly identify themselves as unobserved demo reconstructions. No real auth, payment, or workspace creation.
+- Dashboard New, command New Project, and project Add open the Create flow. GitHub sample repos support search, URL validation, review, simulated deployments, logs, and reload persistence. No remote repository is fetched or deployed.
+- Set localStorage key `rw:plan-limit` to `1` to reproduce the observed upgrade limit and use Continue. Remove the key to restore default behavior.
+- Account Logout opens /login. Protected deep routes remain blocked after refresh. /login offers GitHub only (Start with GitHub) and goes straight to the dashboard; there is no signup or onboarding flow.
+- Login is a local simulation. No real GitHub OAuth, payment, or workspace creation.
 - Checked: typecheck, production build, auth click-through, deep-route guard, repository validation, variables, build logs and persisted deployment state.

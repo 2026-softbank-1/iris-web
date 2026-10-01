@@ -6,9 +6,8 @@ import { UpgradeDialog } from './components/UpgradeDialog';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { Dashboard } from './pages/Dashboard';
-import { People } from './pages/People';
 import { Templates } from './pages/Templates';
-import { Usage } from './pages/Usage';
+// import { Usage } from './pages/Usage'; // Usage is disabled for now (non-MVP)
 import { WorkspaceSettings } from './pages/WorkspaceSettings';
 import { ProjectCanvasPage } from './pages/project/ProjectCanvasPage';
 import { ProjectLogs } from './pages/project/ProjectLogs';
@@ -17,16 +16,16 @@ import { ProjectSettings } from './pages/project/ProjectSettings';
 import { Sandboxes } from './pages/project/Sandboxes';
 
 import { AuthProvider, useAuth } from './auth/AuthContext';
-import { AuthPage, OnboardingPage } from './pages/AuthPages';
+import { AuthPage } from './pages/AuthPages';
 
-function RequireAuth() { const { status } = useAuth(); return status === 'authenticated' ? <Outlet /> : <Navigate to={status === 'onboarding' ? '/onboarding' : '/login'} replace />; }
+function RequireAuth() { const { status } = useAuth(); return status === 'authenticated' ? <Outlet /> : <Navigate to="/login" replace />; }
 
 function AuthenticatedOverlays() { const { status } = useAuth(); return status === 'authenticated' ? <><CommandPalette /><UpgradeDialog /></> : null; }
 
 function TitleSync() {
   const { pathname } = useLocation();
   useEffect(() => {
-    if (!pathname.startsWith('/project/')) document.title = 'Railway';
+    if (!pathname.startsWith('/project/')) document.title = 'LikeLion';
   }, [pathname]);
   return null;
 }
@@ -38,14 +37,14 @@ export function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<AuthPage />} />
-        <Route path="/signup" element={<AuthPage signup />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route element={<RequireAuth />}>
         <Route element={<WorkspaceLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/workspace/templates" element={<Templates />} />
-          <Route path="/workspace/usage" element={<Usage />} />
-          <Route path="/workspace/people" element={<People />} />
+          {/* Usage is disabled for now (non-MVP). To restore: uncomment this route and the import, remove the redirect below. */}
+          {/* <Route path="/workspace/usage" element={<Usage />} /> */}
+          <Route path="/workspace/usage" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workspace/people" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workspace" element={<WorkspaceSettings />} />
           <Route path="/workspace/:section" element={<WorkspaceSettings />} />
         </Route>
