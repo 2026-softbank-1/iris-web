@@ -23,13 +23,15 @@ import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-
 import { LogoMark, RepoIcon } from '../components/brand';
 import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
-import { getProject, projects, timeAgo, workspace, type Project } from '../data/mock';
+import { timeAgo, workspace, type Project } from '../data/mock';
+import { useProject, useProjects } from '../data/ProjectsContext';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 
 function ProjectSwitcher({ project }: { project: Project }) {
   const pop = usePopover();
   const navigate = useNavigate();
   const user = useSessionUser();
+  const { projects } = useProjects();
   return (
     <div>
       <button type="button" className="ph-btn" aria-label={workspace.name} data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
@@ -129,6 +131,7 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
         </button>
       </div>
       <div className="side-drawer-body">
+        {items.length === 0 && <p className="activity-empty">No activity yet.</p>}
         {items.map(({ s, d }) => (
           <div key={d.id} className="activity-item">
             <div className="activity-icon">
@@ -196,7 +199,7 @@ function AgentDrawer({ onClose }: { onClose: () => void }) {
 
 export function ProjectLayout() {
   const { projectId } = useParams();
-  const project = getProject(projectId);
+  const { state, project, error } = useProject(projectId);
   const navigate = useNavigate();
   const [drawer, setDrawer] = useState<'activity' | 'agent' | null>(null);
   const accountPop = usePopover();
@@ -211,10 +214,12 @@ export function ProjectLayout() {
   if (!project) {
     return (
       <div className="not-found">
-        <p>Project not found</p>
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
-          Back to dashboard
-        </button>
+        <p>{state === 'loading' ? 'Loading project…' : state === 'error' ? `Couldn't load this project. ${error ?? ''}` : 'Project not found'}</p>
+        {state !== 'loading' && (
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
+            Back to dashboard
+          </button>
+        )}
       </div>
     );
   }

@@ -1,12 +1,9 @@
 import {
   ChevronDown,
-  CircleHelp,
-  CircleX,
   Code,
   LogOut,
   PencilLine,
   RefreshCw,
-  ZapOff,
   ArrowUpRight,
   ArrowRight,
   CircleCheck,
@@ -18,7 +15,6 @@ import {
   Earth,
   FileCode2,
   Flag,
-  GitBranch,
   Hammer,
   Info,
   Network,
@@ -31,11 +27,15 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { RepoIcon, RuntimeIcon } from '../../components/brand';
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { RepoIcon } from '../../components/brand';
 
 import { useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
+import { useProjects } from '../../data/ProjectsContext';
+import { describeError } from '../../lib/api';
+import { listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -53,6 +53,22 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
         </label>
       </div>
     </div>
+  );
+}
+
+/** 누르는 즉시 화면에 반영하고 저장은 뒤에서 한다. 저장이 실패하면 원래 값으로 되돌린다. */
+function SavedToggle({ value, label, onSave }: { value: boolean; label: string; onSave: (value: boolean) => Promise<boolean> }) {
+  const [shown, setShown] = useState(value);
+  useEffect(() => setShown(value), [value]);
+  return (
+    <Toggle
+      checked={shown}
+      label={label}
+      onChange={async (next) => {
+        setShown(next);
+        if (!(await onSave(next))) setShown(value);
+      }}
+    />
   );
 }
 
@@ -88,14 +104,74 @@ function InfoBox({ tone, children }: { tone: 'blue' | 'purple' | 'red'; children
   return <div className={`st-info ${tone}`}>{children}</div>;
 }
 
+/** 한 줄 값을 고쳐 저장하는 설정. 비우고 저장하면 null(값 지우기)을 넘긴다. onSave 는 저장에 성공했는지 돌려준다. */
+function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <form
+      className="st-watch"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        await onSave(draft.trim() === '' ? null : draft.trim());
+        setBusy(false);
+      }}
+    >
+      <input aria-label={label} placeholder={placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} {...inputProps} />
+      <button type="submit" className="btn btn-outline" disabled={busy || draft.trim() === value}>
+        Save
+      </button>
+    </form>
+  );
+}
+
 const SECTIONS = ['Source', 'Networking', 'Edge', 'Scale', 'Build', 'Deploy', 'Config-as-code', 'Feature-flags', 'Danger'];
 
 /* ------------------------------------------------------------------ */
 /* Settings tab                                                        */
 /* ------------------------------------------------------------------ */
 
-export function ServiceSettings({ service }: { project: Project; service: Service }) {
+export function ServiceSettings({ project, service }: { project: Project; service: Service }) {
   const { toast } = useUI();
+  const { targets, updateService, removeService } = useProjects();
+  const navigate = useNavigate();
+  const remote = service.remote;
+  const [branches, setBranches] = useState<string[]>([]);
+  const [deleteName, setDeleteName] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const save = async (changes: ServiceUpdate, message = 'Saved') => {
+    try {
+      await updateService(project.id, service.id, changes);
+      toast(message);
+      return true;
+    } catch (e) {
+      toast(describeError(e));
+      return false;
+    }
+  };
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      await removeService(project.id, service.id);
+      toast('Service deleted');
+      navigate(`/project/${project.id}`, { replace: true });
+    } catch (e) {
+      toast(describeError(e));
+      setDeleting(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    listBranches(service.repo).then(
+      (list) => { if (!cancelled) setBranches(list.map((b) => b.name)); },
+      () => { if (!cancelled) setBranches([]); },
+    );
+    return () => { cancelled = true; };
+  }, [service.repo]);
   const [filter, setFilter] = useState('');
   const [ipv6, setIpv6] = useState(false);
   const [cdn, setCdn] = useState(false);
@@ -167,6 +243,16 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
         <div className="st-main">
           {show('source', 'repo', 'branch', 'root directory', 'upstream') && (
             <Section title="Source" icon={Code}>
+              {remote && (
+                <Item title="Service Name" desc="Lowercase letters, digits and hyphens. It becomes part of the service's domain." id="service-name">
+                  <ValueSetting
+                    label="Service name"
+                    value={remote.name}
+                    inputProps={{ required: true, maxLength: 63, pattern: '[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?', title: 'Lowercase letters, digits and hyphens' }}
+                    onSave={(v) => (v ? save({ name: v }) : Promise.resolve(false))}
+                  />
+                </Item>
+              )}
               <Item title="Source Repo" id="source-repo">
                 <div className="st-repo error">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link tall">
@@ -184,10 +270,12 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                     </button>
                   </div>
                 </div>
-                <div className="st-root-dir">
-                  <button type="button">Add Root Directory</button> (used for build and deploy steps.
-                  )
-                </div>
+                {remote && (
+                  <div className="st-gap12">
+                    <p className="st-muted">Root directory (used for build and deploy steps)</p>
+                    <ValueSetting label="Root directory" value={remote.rootDirectory ?? ''} placeholder="Repository root" onSave={(v) => save({ rootDirectory: v })} />
+                  </div>
+                )}
               </Item>
               <Item title="Upstream Repo" id="upstream">
                 <div className="st-repo">
@@ -212,44 +300,35 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                 </div>
               </Item>
               <Item title="Branch connected to production" desc="New commits on this GitHub branch are pulled and deployed." id="branch">
-                <div className="st-branch">
-                  <div className="st-branch-top">
-                    <div className="st-branch-left">
-                      <GitBranch size={20} />
-                      <div className="st-branch-select">
-                        <span>main</span>
-                        <div className="st-branch-chev">
-                          <ChevronDown size={16} />
-                        </div>
-                      </div>
+                {remote && (
+                  <>
+                    <div className="st-watch">
+                      <select aria-label="Branch" value={remote.sourceBranch} onChange={(e) => void save({ sourceBranch: e.target.value })}>
+                        {(branches.includes(remote.sourceBranch) ? branches : [remote.sourceBranch, ...branches]).map((b) => (
+                          <option key={b}>{b}</option>
+                        ))}
+                      </select>
                     </div>
-                    <button type="button" className="st-mini-btn" disabled>
-                      <span>Disconnect</span>
-                    </button>
-                  </div>
-                  <div className="st-branch-bottom">
-                    <div className="st-branch-status">
-                      <ZapOff size={16} />
-                      <div>Auto deploy unavailable</div>
-                    </div>
-                    <div className="st-branch-info">
-                      <CircleHelp size={16} />
-                    </div>
-                  </div>
-                </div>
-                <div className="st-error">
-                  <CircleX size={20} />
-                  Could not load branches.
-                  <button type="button" className="st-retry" onClick={() => toast('Still unable to reach GitHub (mock)')}>
-                    Retry
-                  </button>
-                </div>
+                    <SavedToggle value={remote.isAutoDeploy} onSave={(v) => save({ isAutoDeploy: v })} label="Auto deploy on push" />
+                  </>
+                )}
               </Item>
             </Section>
           )}
 
           {show('networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
             <Section title="Networking" icon={Network}>
+              {remote && (
+                <Item title="Port" desc="The port your app listens on." id="port">
+                  <ValueSetting
+                    label="Port"
+                    value={remote.port ? String(remote.port) : ''}
+                    placeholder="e.g. 8080"
+                    inputProps={{ type: 'number', min: 1, max: 65535 }}
+                    onSave={(v) => save({ port: v === null ? null : Number(v) })}
+                  />
+                </Item>
+              )}
               <Item title="Public Networking" id="public-networking">
                 <h2 className="st-item-desc">Reach this service over HTTP with the domains below.</h2>
                 {service.domain ? (
@@ -381,13 +460,26 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
 
           {show('scale', 'region', 'replica', 'cpu', 'memory') && (
             <Section title="Scale" icon={Scaling}>
-              <Item title="Regions & Replicas" desc="Run replicas in one or more regions to scale horizontally." id="regions">
+              <Item title="Targets & Replicas" desc="Choose where this service is deployed." id="regions">
                 <div className="st-region-row">
-                  <button type="button" className="st-select st-region">
+                  <div className="st-checks" role="group" aria-label="Deploy targets">
                     <Earth size={16} />
-                    <span>{service.regionLong}</span>
-                    <ChevronDown size={16} className="st-region-chev" />
-                  </button>
+                    {targets.map((t) => (
+                      <label key={t.id}>
+                        <input
+                          type="checkbox"
+                          checked={remote?.targetIds.includes(t.id) ?? false}
+                          onChange={(e) => {
+                            const current = remote?.targetIds ?? [];
+                            const next = e.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id);
+                            if (next.length === 0) toast('At least one target is required');
+                            else void save({ targetIds: next });
+                          }}
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
                   <label className="st-replicas">
                     <input aria-label="Replicas" placeholder="1" value={replicas} onChange={(e) => setReplicas(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                     <span>Replica</span>
@@ -442,26 +534,23 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
           {show('build', 'builder', 'watch', 'command', 'lionpack') && (
             <Section title="Build" icon={Hammer}>
               <Item title="Builder" id="builder">
-                <button type="button" className="st-box st-builder">
-                  <div className="st-builder-top">
-                    <b>Lionpack</b>
-                    <span className="st-tag">Default</span>
-                    {service.runtime && (
-                      <span className="st-runtime">
-                        <RuntimeIcon size={14} /> {service.runtime}
-                      </span>
+                {remote && (
+                  <>
+                    <div className="st-watch">
+                      <select aria-label="Builder" value={remote.builder ?? ''} onChange={(e) => void save({ builder: (e.target.value || null) as Builder | null })}>
+                        <option value="">Auto-detect</option>
+                        <option value="railpack">Railpack</option>
+                        <option value="dockerfile">Dockerfile</option>
+                      </select>
+                    </div>
+                    {remote.builder === 'dockerfile' && (
+                      <ValueSetting label="Dockerfile path" value={remote.dockerfilePath ?? ''} placeholder="Dockerfile" onSave={(v) => save({ dockerfilePath: v })} />
                     )}
-                    <ChevronDown size={16} className="st-region-chev" />
-                  </div>
-                  <p className="st-muted">Zero-config app builder maintained by LikeLion.</p>
-                </button>
+                  </>
+                )}
               </Item>
               <Item title="Custom Build Command" desc="Override the command used to build your app." id="build-cmd">
-                <div>
-                  <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> Build Command
-                  </button>
-                </div>
+                {remote && <ValueSetting label="Build command" value={remote.buildCommand ?? ''} placeholder="e.g. npm run build" onSave={(v) => save({ buildCommand: v })} />}
               </Item>
               <Item title="Watch Paths" desc="Gitignore-style patterns; only matching changes trigger a deploy." id="watch">
                 <div className="st-watch">
@@ -504,11 +593,7 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
           {show('deploy', 'start', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
             <Section title="Deploy" icon={Rocket}>
               <Item title="Custom Start Command" desc="Command used to boot new deployments." id="start-cmd">
-                <div>
-                  <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> Start Command
-                  </button>
-                </div>
+                {remote && <ValueSetting label="Start command" value={remote.startCommand ?? ''} placeholder="e.g. npm start" onSave={(v) => save({ startCommand: v })} />}
                 <p className="st-muted">Add pre-deploy step</p>
               </Item>
               <Item title="Teardown" desc="How the previous deployment is stopped when a new one goes live." id="teardown">
@@ -574,9 +659,13 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
 
           {show('danger', 'delete') && (
             <section className="st-section danger" id="set-Danger">
-              <Item title="Delete Service" desc="Permanently removes this service and every deployment in this environment." id="delete">
-                <div>
-                  <button type="button" className="btn st-delete" onClick={() => toast('Deleting is disabled')}>
+              <Item title="Delete Service" desc="Removes this service from the project." id="delete">
+                <div className="st-delete-box">
+                  <label className="st-muted" htmlFor="delete-confirm">
+                    Type <b>{service.name}</b> to confirm
+                  </label>
+                  <input id="delete-confirm" className="st-delete-input" value={deleteName} onChange={(e) => setDeleteName(e.target.value)} />
+                  <button type="button" className="btn st-delete" disabled={deleteName !== service.name || deleting} onClick={() => void remove()}>
                     <TriangleAlert size={16} /> Delete service
                   </button>
                 </div>

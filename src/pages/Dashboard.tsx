@@ -1,17 +1,19 @@
 import { ChevronDown, CircleAlert, Folder, LayoutGrid, List, Plus, Search, Star } from 'lucide-react';
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
 import { Popover, usePopover, useUI } from '../components/ui';
-import { projects, subscribeDemoProjects, getDemoRevision, timeAgo, workspace, type Project } from '../data/mock';
+import { timeAgo, workspace, type Project } from '../data/mock';
+import { useProjects } from '../data/ProjectsContext';
 
 type Sort = 'updatedAt' | 'createdAt' | 'alphabetical';
 
 function projectSummary(p: Project) {
-  const total = p.services.length;
+  // was 가 센 값이 있으면 그것을 쓴다(서비스 목록과 상태 기준이 다를 수 있다).
+  const total = p.serviceCount ?? p.services.length;
   const crashed = p.services.filter((s) => s.state === 'crashed').length;
-  const online = p.services.filter((s) => s.state === 'online').length;
+  const online = p.onlineServiceCount ?? p.services.filter((s) => s.state === 'online').length;
   return { total, crashed, online };
 }
 
@@ -117,7 +119,7 @@ function ProjectRow({ p }: { p: Project }) {
 
 export function Dashboard() {
   const { setPaletteOpen, setUpgradeOpen } = useUI();
-  const revision = useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
+  const { status, error, projects, reload } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('ll:view') as 'grid' | 'list') || 'grid');
@@ -143,7 +145,7 @@ export function Dashboard() {
     // favorites float to the top like the original
     arr.sort((a, b) => Number(favs.includes(b.id)) - Number(favs.includes(a.id)));
     return arr;
-  }, [sort, favs, filter, revision]);
+  }, [sort, favs, filter, projects]);
 
   const setViewPersist = (v: 'grid' | 'list') => {
     setView(v);
@@ -202,7 +204,7 @@ export function Dashboard() {
                   <div className="side-icon dash-count-icon">
                     <LayoutGrid size={16} />
                   </div>
-                  {list.length} Projects
+                  {status === 'ready' ? list.length : '–'} Projects
                 </button>
               </div>
               <Popover anchor={filterPop.anchor} onClose={filterPop.close} width={200}>
@@ -266,10 +268,31 @@ export function Dashboard() {
             </div>
           </div>
 
-          {list.length === 0 ? (
+          {status === 'error' ? (
+            <div className="dash-empty" role="alert">
+              <p>Couldn't load projects</p>
+              <span>{error}</span>
+              <button type="button" className="btn btn-secondary" onClick={() => void reload()}>
+                Retry
+              </button>
+            </div>
+          ) : status !== 'ready' ? (
+            <div className="dash-empty" role="status">
+              <p>Loading projects…</p>
+            </div>
+          ) : list.length === 0 ? (
             <div className="dash-empty">
-              <p>No favorite projects yet</p>
-              <span>Star a project to pin it here.</span>
+              {filter === 'favorites' ? (
+                <>
+                  <p>No favorite projects yet</p>
+                  <span>Star a project to pin it here.</span>
+                </>
+              ) : (
+                <>
+                  <p>No projects yet</p>
+                  <span>Create a project from a GitHub repository to get started.</span>
+                </>
+              )}
             </div>
           ) : view === 'grid' ? (
             <div className="pc-grid">

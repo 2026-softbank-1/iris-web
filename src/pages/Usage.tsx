@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleArrowUp } from 'lucide-react';
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { projects, workspace, subscribeDemoProjects, getDemoRevision, type Project } from '../data/mock';
+import { projects, workspace, type Project } from '../data/mock';
 import '../styles/usage.css';
 
 const LINES = [
@@ -80,7 +80,6 @@ function ProjectUsage({ project }: { project: Project }) {
 }
 
 export function Usage() {
-  useSyncExternalStore(subscribeDemoProjects, getDemoRevision, getDemoRevision);
   const [breakdown, setBreakdown] = useState(false);
   return (
     <div className="page">
@@ -189,7 +188,7 @@ export function Usage() {
               <div className="usage-projects">
                 <h2 className="usage-h1">Usage by Project</h2>
                 <div className="usage-plist">
-                  {projects.filter(p => p.name === 'believable-playfulness' || p.id.startsWith('demo-')).map(p => <ProjectUsage key={p.id} project={p} />)}
+                  {projects.filter(p => p.name === 'believable-playfulness').map(p => <ProjectUsage key={p.id} project={p} />)}
                 </div>
               </div>
             </div>

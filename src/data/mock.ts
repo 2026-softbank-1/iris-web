@@ -1,6 +1,5 @@
-// Mock data for the LikeLion dashboard.
-// Everything the UI renders comes from here, so you can swap it for a real API later.
-// Personal info (name / email / avatar) lives at the top of this file if you want to scrub it.
+// Types for the dashboard plus sample data for what the API does not provide yet
+// (deployments, logs, metrics). Projects and services come from the API (see ProjectsContext).
 
 import type { ServiceDto } from '../lib/endpoints';
 
@@ -84,13 +83,6 @@ export interface Project {
   serviceCount?: number;
   onlineServiceCount?: number;
 }
-
-export const user = {
-  name: 'dause',
-  email: 'rladngus0017@gmail.com',
-  avatar: 'https://avatars.githubusercontent.com/u/108711890?v=4',
-  twoFactor: false,
-};
 
 export const workspace = {
   name: "dause's Projects",
@@ -494,58 +486,3 @@ export function fmtKstFull(iso: string): string {
   const ms = String(d.getUTCMilliseconds()).padStart(3, '0');
   return `${fmtKst(iso)}.${ms} GMT+9`;
 }
-
-/* Local-only repository deployment demo. No network requests are made. */
-export const demoRepositories = ['ASTRANTIS', 'astrantis-editor', 'graph_astrantis', 'shared-ocean', 'astrantis-viewer', 'astrantis-developers', 'OS-Rust', 'Patent-AI-Atchitect', 'Astrantis_Android'].map(name => `astrantis3/${name}`);
-const demoKey = 'll:demo-projects:v1';
-const demoListeners = new Set<() => void>();
-let demoRevision = 0;
-export const subscribeDemoProjects = (listener: () => void) => { demoListeners.add(listener); return () => { demoListeners.delete(listener); }; };
-export const getDemoRevision = () => demoRevision;
-function saveDemoProjects() {
-  try { localStorage.setItem(demoKey, JSON.stringify(projects.filter(p => p.id.startsWith('demo-')))); } catch { /* storage may be unavailable */ }
-  demoRevision++;
-  demoListeners.forEach(listener => listener());
-}
-try {
-  const stored = JSON.parse(localStorage.getItem(demoKey) || '[]');
-  if (Array.isArray(stored)) projects.push(...stored.filter((p: Project) => typeof p.id === 'string' && p.id.startsWith('demo-') && Array.isArray(p.services)));
-} catch { /* recover from malformed storage */ }
-export interface DemoConfig { repo: string; name: string; branch: string; region: string; root: string; variables: string; projectId?: string }
-export function createDemoDeployment(config: DemoConfig) {
-  const now = new Date().toISOString();
-  const id = `demo-${crypto.randomUUID()}`;
-  const variables = config.variables.split('\n').filter(line => line.includes('=')).map(line => { const index = line.indexOf('='); return { key: line.slice(0, index).trim(), value: line.slice(index + 1) }; });
-  const deployment: Deployment = { id, shortId: id.slice(5, 13), status: 'BUILDING', message: 'Local simulation only', createdAt: now, author: user.name, authorAvatar: '', repo: config.repo, branch: config.branch, commitUrl: `https://github.com/${config.repo}`, region: config.region, replicas: 1, restartPolicy: 'on failure', maxRetries: 10, builder: { name: 'Lionpack', version: 'local' }, runtimes: ['Simulated runtime'], variablesCount: variables.length, buildLogs: [{ ts: now, message: 'Queued local build simulation. No repository was fetched.', level: 'info' }, { ts: now, message: `Configuration: branch ${config.branch}, root ${config.root || '/'}`, level: 'info' }], deployLogs: [], buildRange: { start: now, end: now }, deployRange: { start: now, end: now } };
-  const service: Service = { id: `demo-${crypto.randomUUID()}`, shortId: id.slice(5, 11), name: config.name, repo: config.repo, region: config.region, regionLong: config.region, replicas: 1, state: 'offline', platformVariables: [], deployments: [deployment] };
-  try { localStorage.setItem(`ll:vars:${service.id}`, JSON.stringify(variables)); } catch { /* optional persistence */ }
-  let project = getProject(config.projectId);
-  if (!project) { project = { id: `demo-${crypto.randomUUID()}`, name: config.name, environment: 'production', createdAt: now, updatedAt: now, services: [] }; projects.unshift(project); }
-  project.services.push(service);
-  project.updatedAt = now;
-  // Persist existing projects with locally added services as overlays too.
-  saveDemoProjects();
-  try { localStorage.setItem('ll:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
-  return { project, service };
-}
-try {
-  const overlays = JSON.parse(localStorage.getItem('ll:demo-service-overlays:v1') || '[]');
-  for (const overlay of overlays) { const p = getProject(overlay.id); if (p && Array.isArray(overlay.services)) p.services.push(...overlay.services); }
-} catch { /* optional persistence */ }
-function advanceDemoDeployments() {
-  let changed = false;
-  for (const p of projects) for (const s of p.services) for (const d of s.deployments) {
-    if (!d.id.startsWith('demo-') || d.status !== 'BUILDING') continue;
-    const elapsed = Date.now() - Date.parse(d.createdAt);
-    const ts = new Date().toISOString();
-    if (elapsed >= 2000 && d.buildLogs.length === 2) { d.buildLogs.push({ ts, message: 'Simulating dependency installation and build', level: 'info' }); changed = true; }
-    if (elapsed >= 4500 && d.buildLogs.length === 3) { d.buildLogs.push({ ts, message: 'Simulated build completed', level: 'info', step: true, duration: '2s' }); d.deployLogs.push({ ts, message: 'Simulating container startup', level: 'info' }); changed = true; }
-    if (elapsed >= 7000) { d.status = 'ACTIVE'; s.state = 'online'; d.deployLogs.push({ ts, message: 'Local simulation is online. No external service was deployed.', level: 'info' }); d.buildRange.end = ts; d.deployRange.end = ts; changed = true; }
-  }
-  if (changed) {
-    saveDemoProjects();
-    try { localStorage.setItem('ll:demo-service-overlays:v1', JSON.stringify(projects.filter(p => !p.id.startsWith('demo-')).map(p => ({ id: p.id, services: p.services.filter(s => s.id.startsWith('demo-')) })))); } catch { /* optional persistence */ }
-  }
-}
-advanceDemoDeployments();
-if (typeof window !== 'undefined') window.setInterval(advanceDemoDeployments, 750);

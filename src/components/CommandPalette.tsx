@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projects } from '../data/mock';
+import { useProjects } from '../data/ProjectsContext';
 import { CreateDialog } from './CreateDialog';
 import { Dialog, useUI } from './ui';
 
@@ -32,6 +32,7 @@ interface Cmd {
 
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, setUpgradeOpen, toast } = useUI();
+  const { projects } = useProjects();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -105,7 +106,7 @@ export function CommandPalette() {
     if (!projectMode && !serviceMode) out.push(...base.filter((c) => c.label.toLowerCase().includes(query)));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, base]);
+  }, [q, base, projects]);
 
   useEffect(() => setIdx(0), [q]);
 

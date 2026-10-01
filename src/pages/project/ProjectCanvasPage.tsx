@@ -31,12 +31,13 @@ import {
   SquareFunction,
   Eye,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CreateDialog } from '../../components/CreateDialog';
 import { OnlineDot, RepoIcon } from '../../components/brand';
 import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
-import { getDeployment, getProject, getService, subscribeDemoProjects, getDemoRevision, type Project, type Service } from '../../data/mock';
+import type { Project, Service } from '../../data/mock';
+import { useProject } from '../../data/ProjectsContext';
 import { DeploymentPane } from './DeploymentPane';
 import { ServicePane } from './ServicePane';
 
@@ -118,7 +119,6 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
   const rf = useReactFlow();
   const { toast } = useUI();
   const [createOpen, setCreateOpen] = useState(false);
-  const revision = useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
   const addPop = usePopover();
   const settingsPop = usePopover();
   const layersPop = usePopover();
@@ -134,7 +134,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
         data: { service: s, projectId: project.id, selected: false },
         draggable: true,
       })),
-    [project, revision],
+    [project],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<ServiceNodeType>(initial);
 
@@ -302,10 +302,10 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
 export function ProjectCanvasPage() {
   const { projectId, serviceId, tab, deploymentId, dtab } = useParams();
   const navigate = useNavigate();
-  useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
-  const project = getProject(projectId)!;
-  const service = getService(project, serviceId);
-  const deployment = getDeployment(service, deploymentId);
+  // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
+  const project = useProject(projectId).project!;
+  const service = project.services.find((s) => s.id === serviceId || s.shortId === serviceId);
+  const deployment = service?.deployments.find((d) => d.id === deploymentId || d.shortId === deploymentId);
 
   useEffect(() => {
     document.title = deployment ? service!.name : service ? service.name : project.name;
