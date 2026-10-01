@@ -1,20 +1,19 @@
 import {
   Check,
-  ChartNoAxesColumn,
+  // ChartNoAxesColumn, // Usage nav item (disabled for now)
   ChevronDown,
   ChevronUp,
   EllipsisVertical,
-  FileText,
+  // FileText, // external links (disabled for now)
   LayoutGrid,
   LogOut,
-  MessageSquare,
+  // MessageSquare,
   Moon,
   PanelsTopLeft,
   Plus,
   Settings,
-  TramFront,
+  // TramFront,
   User,
-  Users,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -49,6 +48,7 @@ function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label
   );
 }
 
+/* External Railway links are disabled for now.
 function ExternalItem({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" className="side-link">
@@ -61,6 +61,7 @@ function ExternalItem({ href, icon, label }: { href: string; icon: ReactNode; la
     </a>
   );
 }
+*/
 
 function WorkspaceSwitcher() {
   const pop = usePopover();
@@ -175,8 +176,8 @@ export function WorkspaceLayout() {
               <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label="Projects" />
               <SideItem to="/workspace/templates" icon={<PanelsTopLeft size={16} />} label="Templates" />
               <div className="side-divider inset" />
-              <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" />
-              <SideItem to="/workspace/people" icon={<Users size={16} />} label="People" />
+              {/* Usage is disabled for now (non-MVP) */}
+              {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
               <button type="button" className={`side-item side-btn${settingsOpen ? ' open' : ''}`} onClick={() => setSettingsOpen((v) => !v)}>
                 <div className="side-icon">
                   <Settings size={16} />
@@ -203,6 +204,7 @@ export function WorkspaceLayout() {
               )}
             </nav>
           </div>
+          {/* External Railway links (Docs, Central Station, My support threads) are disabled for now.
           <div className="side-divider" />
           <div className="side-section">
             <div className="side-nav">
@@ -211,6 +213,7 @@ export function WorkspaceLayout() {
               <ExternalItem href="https://station.railway.com" icon={<MessageSquare size={16} />} label="My support threads" />
             </div>
           </div>
+          */}
           <div className="side-fill" />
         </div>
         <div className="ws-aside-bottom">

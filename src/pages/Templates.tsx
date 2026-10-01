@@ -18,10 +18,13 @@ export function Templates() {
         <div className="tpl-body">
           <div className="tpl-sub">
             <p>
-              Publish, edit and manage the templates you own.{' '}
+              Publish, edit and manage the templates you own.
+              {/* External Railway link is disabled for now.
+              {' '}
               <a href="https://docs.railway.com" target="_blank" rel="noreferrer">
                 Learn more <span>↗</span>
               </a>
+              */}
             </p>
           </div>
           <div className="tpl-empty">

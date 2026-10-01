@@ -185,11 +185,14 @@ export function ServiceSettings({ service }: { project: Project; service: Servic
                   </div>
                 </div>
                 <div className="st-root-dir">
-                  <button type="button">Add Root Directory</button> (used for build and deploy steps.{' '}
+                  <button type="button">Add Root Directory</button> (used for build and deploy steps.
+                  {/* External Railway link is disabled for now.
+                  {' '}
                   <a href="https://docs.railway.com" target="_blank" rel="noreferrer">
                     <span>Docs</span>
                     <span>↗</span>
                   </a>
+                  */}
                   )
                 </div>
               </Item>

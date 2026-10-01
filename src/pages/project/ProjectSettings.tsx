@@ -7,15 +7,14 @@ import {
   Server,
   Settings,
   TriangleAlert,
-  Users,
   Webhook,
   Coins,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink, useParams } from 'react-router-dom';
-import { Avatar, useUI } from '../../components/ui';
-import { getProject, user } from '../../data/mock';
+import { Navigate, NavLink, useParams } from 'react-router-dom';
+import { useUI } from '../../components/ui';
+import { getProject } from '../../data/mock';
 
 const NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: '', label: 'General', icon: Settings },
@@ -24,7 +23,6 @@ const NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'variables', label: 'Shared Variables', icon: Globe },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'feature-flags', label: 'Feature Flags', icon: Flag },
-  { id: 'members', label: 'Members', icon: Users },
   { id: 'tokens', label: 'Tokens', icon: Coins },
   { id: 'integrations', label: 'Integrations', icon: Package },
   { id: 'danger', label: 'Danger', icon: TriangleAlert },
@@ -38,6 +36,7 @@ export function ProjectSettings() {
   const [desc, setDesc] = useState('');
   const dirty = name !== project.name || desc !== '';
   const base = `/project/${project.id}/settings`;
+  if (section && !NAV.some((n) => n.id === section)) return <Navigate to={base} replace />;
 
   return (
     <div className="proj-page-region">
@@ -101,19 +100,6 @@ export function ProjectSettings() {
                   </section>
                 </>
               )}
-              {section === 'members' && (
-                <section className="ps-section">
-                  <h4>Members</h4>
-                  <div className="ps-member">
-                    <Avatar src={user.avatar} size={32} title={user.name} />
-                    <div>
-                      <p>{user.name}</p>
-                      <span className="set-muted">{user.email}</span>
-                    </div>
-                    <span className="ps-role">Owner</span>
-                  </div>
-                </section>
-              )}
               {section === 'danger' && (
                 <section className="ps-section">
                   <h4>Danger</h4>
@@ -123,7 +109,7 @@ export function ProjectSettings() {
                   </button>
                 </section>
               )}
-              {section !== '' && section !== 'members' && section !== 'danger' && (
+              {section !== '' && section !== 'danger' && (
                 <section className="ps-section">
                   <h4>{NAV.find((n) => n.id === section)?.label}</h4>
                   <p className="ps-p">Nothing configured here yet.</p>
