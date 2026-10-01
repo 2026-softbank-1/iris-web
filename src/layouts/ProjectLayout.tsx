@@ -23,9 +23,11 @@ import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-
 import { LogoMark, RepoIcon } from '../components/brand';
 import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
-import { timeAgo, workspace, type Project } from '../data/mock';
+import { apiStatusLabel } from '../data/deploymentModel';
+import { timeAgo, workspace, type Project, type Service } from '../data/mock';
 import { useProject, useProjects } from '../data/ProjectsContext';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
+import { listDeployments, type DeploymentDto } from '../lib/endpoints';
 
 function ProjectSwitcher({ project }: { project: Project }) {
   const pop = usePopover();
@@ -119,9 +121,18 @@ function RailItem({ to, label, icon, end, forceActive }: { to: string; label: st
 }
 
 function ActivityDrawer({ project, onClose }: { project: Project; onClose: () => void }) {
-  const items = project.services.flatMap((s) =>
-    s.deployments.map((d) => ({ s, d })),
-  );
+  // 서비스마다 최근 배포 요청을 받아 합친다(열 때 한 번).
+  const [items, setItems] = useState<{ s: Service; d: DeploymentDto }[] | null>(null);
+  const serviceKey = project.services.map((s) => s.id).join(',');
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(project.services.map(async (s) => (await listDeployments(s.id, 0, 10)).items.map((d) => ({ s, d })))).then(
+      (all) => { if (!cancelled) setItems(all.flat().sort((a, b) => +new Date(b.d.createdAt) - +new Date(a.d.createdAt))); },
+      () => { if (!cancelled) setItems([]); },
+    );
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceKey]);
   return (
     <div className="side-drawer">
       <div className="side-drawer-head">
@@ -131,18 +142,19 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
         </button>
       </div>
       <div className="side-drawer-body">
-        {items.length === 0 && <p className="activity-empty">No activity yet.</p>}
-        {items.map(({ s, d }) => (
+        {items === null && <p className="activity-empty">Loading…</p>}
+        {items?.length === 0 && <p className="activity-empty">No activity yet.</p>}
+        {items?.map(({ s, d }) => (
           <div key={d.id} className="activity-item">
             <div className="activity-icon">
               <RepoIcon size={16} />
             </div>
             <div className="activity-text">
               <p>
-                <b>{s.name}</b> deployment <span className={`activity-state ${d.status.toLowerCase()}`}>{d.status.toLowerCase()}</span>
+                <b>{s.name}</b> deployment <span className={`activity-state ${d.status.toLowerCase()}`}>{apiStatusLabel(d.status).toLowerCase()}</span>
               </p>
               <span>
-                {d.message} · {timeAgo(d.createdAt)}
+                {d.sourceCommitMessage?.split('\n')[0] ?? `Commit ${d.sourceSha.slice(0, 7)}`} · {timeAgo(d.createdAt)}
               </span>
             </div>
           </div>

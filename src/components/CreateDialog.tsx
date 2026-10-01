@@ -5,7 +5,7 @@ import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { isTargetSupported } from '../lib/endpoints';
-import { Dialog } from './ui';
+import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
 const options = ['GitHub Repository', 'Database', 'Template', 'Docker Image', 'Function', 'Bucket', 'Volume', 'Empty Service'];
@@ -20,7 +20,8 @@ type UrlCheck = { status: 'idle' | 'validating' | 'invalid' | 'valid'; repo?: ap
 
 export function CreateDialog({ open, onClose, projectId }: { open: boolean; onClose: () => void; projectId?: string }) {
   const navigate = useNavigate();
-  const { targets, createProject, createService, removeProject } = useProjects();
+  const { toast } = useUI();
+  const { targets, createProject, createService, removeProject, refreshService } = useProjects();
   const [step, setStep] = useState<'create' | 'repos' | 'review'>('create');
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
@@ -142,8 +143,18 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         // 타깃을 불러오지 못했으면 생략한다(서버는 모든 타깃에 배포한다).
         targetIds: targetIds.length > 0 ? targetIds : undefined,
       });
+      // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
+      let deploymentId: number | null = null;
+      try {
+        const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
+        deploymentId = deployment.id;
+        void refreshService(targetProject, service.id).catch(() => undefined);
+      } catch (e) {
+        toast(`Service created, but the first deployment couldn't start. ${describeError(e)}`);
+      }
       onClose();
-      navigate(`/project/${targetProject}/service/${service.id}`);
+      const base = `/project/${targetProject}/service/${service.id}`;
+      navigate(deploymentId === null ? base : `${base}/deployment/${deploymentId}`);
     } catch (e) {
       // 서비스 만들기가 실패했으면 방금 만든 빈 프로젝트를 되돌린다.
       if (createdProjectId) await removeProject(createdProjectId).catch(() => undefined);
@@ -193,7 +204,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       </div>
       {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => { const supported = isTargetSupported(t); return <label key={t.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : 'Not supported yet'}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}{!supported && <span className="create-soon">Not supported yet</span>}</label>; })}</fieldset>}
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />Deploy automatically when the branch is pushed</label>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Creating…' : 'Deploy'}</button>
+      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Deploying…' : 'Deploy'}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;

@@ -10,10 +10,10 @@ import { useProjects } from '../data/ProjectsContext';
 type Sort = 'updatedAt' | 'createdAt' | 'alphabetical';
 
 function projectSummary(p: Project) {
-  // was 가 센 값이 있으면 그것을 쓴다(서비스 목록과 상태 기준이 다를 수 있다).
+  // 서비스 수는 was 가 센 값을 쓰고, 상태는 서비스별 최근 배포(latestDeployment)로 센다.
   const total = p.serviceCount ?? p.services.length;
   const crashed = p.services.filter((s) => s.state === 'crashed').length;
-  const online = p.onlineServiceCount ?? p.services.filter((s) => s.state === 'online').length;
+  const online = p.services.filter((s) => s.state === 'online').length;
   return { total, crashed, online };
 }
 
