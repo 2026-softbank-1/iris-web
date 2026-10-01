@@ -23,12 +23,9 @@ export function ProjectLogs() {
   const lines = useMemo(() => {
     const out: (LogLine & { service: string })[] = [];
     for (const s of project.services) {
-      if (s.state === 'online') {
-        const d = s.deployments.find((x) => x.status === 'ACTIVE');
-        d?.deployLogs.slice(-3).forEach((l) => out.push({ ...l, service: s.name }));
-      } else {
-        out.push({ ts: '2026-10-01T21:01:27.000+09:00', message: 'Stopping Container', level: 'info', service: s.name });
-      }
+      // 배포 로그 API 가 아직 없어서 샘플 데이터가 있는 서비스만 보인다.
+      const d = s.deployments.find((x) => x.status === 'ACTIVE');
+      d?.deployLogs.slice(-3).forEach((l) => out.push({ ...l, service: s.name }));
     }
     const query = q.trim().toLowerCase();
     return out.filter((l) => !query || l.message.toLowerCase().includes(query) || l.service.toLowerCase().includes(query));
@@ -108,7 +105,7 @@ export function ProjectLogs() {
                 You reached the start of the range <span className="plogs-arrow">→</span> <span className="mono-ish">{fmtKst(from.toISOString(), false)}</span>
               </div>
             </div>
-            {lines.length === 0 && <div className="logs-empty">No logs match “{q}”</div>}
+            {lines.length === 0 && <div className="logs-empty">{q ? `No logs match “${q}”` : "Logs aren't available yet"}</div>}
             {lines.map((l, i) => (
               <div key={i} className={`plogs-row level-${l.level}`}>
                 <span className="plogs-time">

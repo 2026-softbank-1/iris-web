@@ -38,6 +38,7 @@ import { OnlineDot, RepoIcon } from '../../components/brand';
 import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
 import { useProject } from '../../data/ProjectsContext';
+import { useDeployments } from '../../data/useDeployments';
 import { DeploymentPane } from './DeploymentPane';
 import { ServicePane } from './ServicePane';
 
@@ -78,7 +79,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               </div>
             </div>
           ) : (
-            <p className="svc-node-offline">{service.deployments[0]?.status === 'BUILDING' ? 'Building' : 'Service is offline'}</p>
+            <p className="svc-node-offline">{service.deploying ? 'Deploying' : service.state === 'crashed' ? 'Deployment failed' : 'Service is offline'}</p>
           )}
         </a>
       </span>
@@ -305,7 +306,8 @@ export function ProjectCanvasPage() {
   // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
   const project = useProject(projectId).project!;
   const service = project.services.find((s) => s.id === serviceId || s.shortId === serviceId);
-  const deployment = service?.deployments.find((d) => d.id === deploymentId || d.shortId === deploymentId);
+  const deps = useDeployments(service);
+  const deployment = deps.items.find((d) => d.id === deploymentId || d.shortId === deploymentId);
 
   useEffect(() => {
     document.title = deployment ? service!.name : service ? service.name : project.name;
@@ -331,8 +333,8 @@ export function ProjectCanvasPage() {
         </ReactFlowProvider>
         {service && (
           <div className="pane-wrapper">
-            <ServicePane project={project} service={service} tab={tab} stacked={!!deployment} />
-            {deployment && <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} />}
+            <ServicePane project={project} service={service} tab={tab} stacked={!!deployment} deps={deps} />
+            {deployment && <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} deps={deps} />}
           </div>
         )}
       </div>

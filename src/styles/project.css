@@ -295,8 +295,14 @@
   color: var(--fg-subtle);
 }
 
-.activity-state.active {
+.activity-state.active,
+.activity-state.succeeded {
   color: var(--green-soft);
+}
+
+.activity-state.failed,
+.activity-state.manual_intervention {
+  color: #f0a3a1;
 }
 
 .agent-title {

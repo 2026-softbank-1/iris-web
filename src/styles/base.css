@@ -580,15 +580,24 @@ kbd {
   background: var(--green-line);
 }
 
-.status-pill.removed {
+.status-pill.removed,
+.status-pill.rolled_back {
   color: var(--fg-subtle);
   background: var(--border);
 }
 
 .status-pill.crashed,
-.status-pill.failed {
+.status-pill.failed,
+.status-pill.manual_intervention {
   color: #f0a3a1;
   background: #4a1a19;
+}
+
+.status-pill.queued,
+.status-pill.building,
+.status-pill.deploying {
+  color: var(--purple-text);
+  background: var(--purple-bg);
 }
 
 .round-pill {

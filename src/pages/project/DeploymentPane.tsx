@@ -1,9 +1,11 @@
-import { ChevronRight, CircleCheck, Code2, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
+import { ChevronRight, CircleCheck, Clock, Code2, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
+import { apiStatusLabel, deploymentLabel, failureText } from '../../data/deploymentModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
+import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
 import { LogTable } from './LogTable';
 
@@ -25,23 +27,32 @@ function KV({ label, children }: { label: string; children: React.ReactNode }) {
   );
 }
 
+/** 배포 상태를 한 줄로 설명한다. */
+function headlineOf(d: Deployment): string {
+  switch (d.status) {
+    case 'ACTIVE': return 'Deployment successful';
+    case 'REMOVED': return 'Deployment succeeded and was replaced by a newer one';
+    case 'FAILED': return failureText(d.failureCode) ?? 'Deployment failed';
+    case 'ROLLED_BACK': return 'Deployment failed and was rolled back';
+    case 'MANUAL_INTERVENTION': return 'Deployment needs manual intervention';
+    default: return `${deploymentLabel(d.status)}…`;
+  }
+}
+
 function Details({ d, service }: { d: Deployment; service: Service }) {
   const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
-  const [varsOpen, setVarsOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
-  const crashed = d.status !== 'ACTIVE';
-  const config = {
-    build: { builder: d.builder.name.toUpperCase(), buildCommand: null, watchPatterns: [] },
-    deploy: { region: d.region, numReplicas: d.replicas, restartPolicyType: 'ON_FAILURE', restartPolicyMaxRetries: d.maxRetries },
-  };
+  const { detail, error } = useDeploymentDetail(service.id, d.id);
+  const remote = service.remote;
+  const problem = d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION';
   return (
     <div className="details">
-      <div className={`details-status${crashed ? ' crashed' : ''}`}>
+      <div className={`details-status${problem ? ' crashed' : ''}`}>
         <div>
           <button type="button" className="details-status-btn" onClick={() => setStatusOpen((v) => !v)}>
             <div className="details-status-left">
-              <div className="side-icon">{crashed ? <TriangleAlert size={16} /> : <CircleCheck size={16} />}</div>
-              <p>{crashed ? 'Deployment crashed and was removed' : 'Deployment successful'}</p>
+              <div className="side-icon">{problem ? <TriangleAlert size={16} /> : d.isActive ? <Clock size={16} /> : <CircleCheck size={16} />}</div>
+              <p>{headlineOf(d)}</p>
             </div>
             <div className="details-status-right">
               <p>{statusOpen ? 'View less' : 'View more'}</p>
@@ -50,43 +61,28 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
           </button>
           {statusOpen && (
             <div className="details-timeline">
-              {[
-                ['Initialization', 'Completed'],
-                ['Build', 'Completed'],
-                ['Deploy', crashed ? 'Crashed (exited with code 1)' : 'Completed'],
-                ['Post-deploy', crashed ? 'Skipped' : 'Completed'],
-              ].map(([k, v]) => (
-                <div key={k} className="details-timeline-row">
-                  {v.startsWith('Crashed') ? <TriangleAlert size={14} className="red" /> : <CircleCheck size={14} />}
-                  <span>{k}</span>
-                  <span className="set-muted">{v}</span>
-                </div>
-              ))}
+              {error && <p className="set-muted">{error}</p>}
+              {!detail && !error && <p className="set-muted">Loading…</p>}
+              {detail?.history.map((h) => {
+                const bad = h.toStatus === 'FAILED' || h.toStatus === 'ROLLED_BACK' || h.toStatus === 'MANUAL_INTERVENTION';
+                return (
+                  <div key={`${h.toStatus}-${h.createdAt}`} className="details-timeline-row">
+                    {bad ? <TriangleAlert size={14} className="red" /> : <CircleCheck size={14} />}
+                    <span>{apiStatusLabel(h.toStatus)}</span>
+                    <span className="set-muted">
+                      {fmtKst(h.createdAt)}
+                      {h.failureCode ? ` · ${failureText(h.failureCode)}` : ''}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      <div className="details-vars">
-        <button type="button" className="details-vars-btn" onClick={() => setVarsOpen((v) => !v)}>
-          <div className="side-icon" style={{ opacity: d.variablesCount ? 1 : 0 }}>
-            {varsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </div>
-          <p>
-            {d.variablesCount} Variable{d.variablesCount === 1 ? '' : 's'}
-          </p>
-        </button>
-        {varsOpen && d.variablesCount > 0 && (
-          <div className="details-vars-list mono">
-            <div>NODE_ENV=*******</div>
-            <div>DATABASE_URL=*******</div>
-            <div className="red">SESSION_SECRET=******* (too short)</div>
-          </div>
-        )}
-      </div>
-
       <div className="details-source">
-        <p className="details-h">Deployed via GitHub</p>
+        <p className="details-h">Deployed via {d.via ?? 'GitHub'}</p>
         <div className="details-box">
           <a href={d.commitUrl} target="_blank" rel="noreferrer" className="details-commit">
             <AuthorAvatar d={d} />
@@ -96,12 +92,15 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
               </p>
               <div className="details-commit-meta">
                 <p>{d.repo}</p>
-                <div className="details-branch">
-                  <div className="side-icon">
-                    <GitBranch size={16} />
+                {d.branch && (
+                  <div className="details-branch">
+                    <div className="side-icon">
+                      <GitBranch size={16} />
+                    </div>
+                    <p>{d.branch}</p>
                   </div>
-                  <p>{d.branch}</p>
-                </div>
+                )}
+                {d.sourceSha && <p className="mono">{d.sourceSha.slice(0, 7)}</p>}
               </div>
             </div>
           </a>
@@ -138,21 +137,14 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
               <div className="details-col-body">
                 <KV label="Builder">
                   <div className="details-builder">
-                    <span>
-                      {d.builder.name}
-                      {d.builder.version && <span className="details-ver"> (v {d.builder.version} )</span>}
-                    </span>
+                    <span>{remote?.builder ?? 'Auto-detect'}</span>
                     <BuilderIcon size={20} />
                   </div>
                 </KV>
                 <hr />
-                <KV label="Executable versions">
-                  <div className="details-runtimes">
-                    {d.runtimes.map((r) => (
-                      <div key={r}>{r}</div>
-                    ))}
-                  </div>
-                </KV>
+                <KV label="Root directory">{remote?.rootDirectory ?? '/'}</KV>
+                <hr />
+                <KV label="Build command">{remote?.buildCommand ?? '—'}</KV>
               </div>
             </div>
             <div className="details-box col">
@@ -163,30 +155,30 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                 <p>Deploy</p>
               </div>
               <div className="details-col-body">
-                <KV label="Region">{d.region}</KV>
+                <KV label="Targets">{service.region || '—'}</KV>
                 <hr className="soft" />
-                <KV label="Number of replicas">{d.replicas}</KV>
+                <KV label="Port">{remote?.port ?? '—'}</KV>
                 <hr className="soft" />
-                <KV label="Restart policy">{d.restartPolicy}</KV>
-                <hr className="soft" />
-                <KV label="Restart policy max retries">{d.maxRetries}</KV>
+                <KV label="Start command">{remote?.startCommand ?? '—'}</KV>
               </div>
             </div>
           </div>
         ) : (
-          <pre className="details-code mono">{JSON.stringify({ service: service.name, ...config }, null, 2)}</pre>
+          <pre className="details-code mono">{JSON.stringify(detail ?? { id: d.id, status: d.status }, null, 2)}</pre>
         )}
       </div>
     </div>
   );
 }
 
-export function DeploymentPane({ project, service, deployment, tab }: { project: Project; service: Service; deployment: Deployment; tab?: string }) {
+export function DeploymentPane({ project, service, deployment, tab, deps }: { project: Project; service: Service; deployment: Deployment; tab?: string; deps: DeploymentsApi }) {
   const { toast } = useUI();
-  const current = DTABS.some((t) => t.id === tab) ? tab! : 'deploy';
+  const { run } = useRunner();
+  // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다.
+  const current = DTABS.some((t) => t.id === tab) ? tab! : 'details';
   const serviceBase = `/project/${project.id}/service/${service.id}`;
   const base = `${serviceBase}/deployment/${deployment.id}`;
-  const status = deployment.status === 'ACTIVE' ? 'Active' : deployment.status[0] + deployment.status.slice(1).toLowerCase();
+  const status = deploymentLabel(deployment.status);
 
   return (
     <div className="pane deployment-pane">
@@ -218,7 +210,14 @@ export function DeploymentPane({ project, service, deployment, tab }: { project:
                 </div>
               </div>
               <div className="dp-head-right">
-                <DeploymentActions size={16} horizontal className="btn btn-icon-only dp-action" />
+                <DeploymentActions
+                  size={16}
+                  horizontal
+                  className="btn btn-icon-only dp-action"
+                  deployment={deployment}
+                  onRedeploy={() => void run(() => deps.redeploy(deployment.id), 'Redeploy requested')}
+                  onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), 'Rollback requested') : undefined}
+                />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">
                   {fmtKst(deployment.createdAt, false)} GMT+9
                 </time>
@@ -229,15 +228,7 @@ export function DeploymentPane({ project, service, deployment, tab }: { project:
                 </Link>
               </div>
             </div>
-            <div className={`dp-sub${deployment.status === 'ACTIVE' && service.domain ? ' has' : ''}`}>
-              {deployment.status === 'ACTIVE' && service.domain && (
-                <div className="dp-sub-links">
-                  <a href={`https://${service.domain}`} target="_blank" rel="noreferrer" className="dp-domain">
-                    <span>{service.domain}</span>
-                  </a>
-                </div>
-              )}
-            </div>
+            <div className="dp-sub" />
           </div>
           <div role="tablist" className="dp-tabs">
             {DTABS.map((t) => (
@@ -257,30 +248,7 @@ export function DeploymentPane({ project, service, deployment, tab }: { project:
           </div>
           <div role="tabpanel" aria-label={`${DTABS.find((t) => t.id === current)!.label} Logs`} className="dp-panel" data-state="active">
             {current === 'details' && <Details d={deployment} service={service} />}
-            {current === 'build' && <LogTable key="build" kind="build" lines={deployment.buildLogs} range={deployment.buildRange} explorerHref={`/project/${project.id}/logs`} />}
-            {current === 'deploy' && <LogTable key="deploy" kind="deploy" lines={deployment.deployLogs} range={deployment.deployRange} explorerHref={`/project/${project.id}/logs`} />}
-            {current === 'http' && (
-              <LogTable
-                key="http"
-                kind="http"
-                lines={
-                  deployment.status === 'ACTIVE'
-                    ? deployment.deployLogs
-                        .filter((l) => l.message === 'handled request')
-                        .map((l) => ({
-                          ...l,
-                          message: `GET ${l.attrs?.find((a) => a.key === 'request.uri')?.value} 200`,
-                          attrs: [
-                            { key: 'duration', value: `${Math.round(Number(l.attrs?.find((a) => a.key === 'duration')?.value ?? 0) * 1000)}ms` },
-                            { key: 'edge', value: 'sin1' },
-                          ],
-                        }))
-                    : []
-                }
-                emptyLabel="No network logs for this deployment"
-                explorerHref={`/project/${project.id}/logs`}
-              />
-            )}
+            {current !== 'details' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel="Logs aren't available yet" />}
           </div>
         </div>
       </div>

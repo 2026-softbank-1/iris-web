@@ -23,7 +23,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import type { Project, Service } from '../../data/mock';
+import { apiStatusLabel, deploymentLabel, formatDuration } from '../../data/deploymentModel';
+import type { Deployment, Project, Service } from '../../data/mock';
+import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
+import { isDeploymentInProgress } from '../../lib/endpoints';
 import { DeploymentRow } from './DeploymentRow';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
@@ -41,31 +44,31 @@ const TABS = [
 /* Deployments tab                                                     */
 /* ------------------------------------------------------------------ */
 
-function SuccessSteps() {
-  const steps = [
-    ['Initialization', '00:01'],
-    ['Build', '00:18'],
-    ['Deploy', '00:09'],
-    ['Post-deploy', 'Not started'],
-  ];
+/** 배포 요청의 단계(대기·빌드·배포)와 단계별 소요 시간. 상세 API 에서 받는다. */
+function SuccessSteps({ service, deployment }: { service: Service; deployment: Deployment }) {
+  const { detail, error } = useDeploymentDetail(service.id, deployment.id);
+  if (error) return <p className="st-muted">{error}</p>;
+  if (!detail) return <p className="st-muted">Loading…</p>;
+  // 마지막 단계(성공·실패 등)는 끝난 상태라서 소요 시간이 없다. 진행하는 단계만 보여준다.
+  const stages = detail.stages.filter((stage) => isDeploymentInProgress(stage.status));
   return (
     <div className="dep-steps">
-      {steps.map(([name, t]) => (
-        <div key={name} className="dep-step">
+      {stages.map((stage) => (
+        <div key={stage.status} className="dep-step">
           <CircleCheck size={16} />
-          <span>{name}</span>
-          <span className="dep-step-time">{t}</span>
+          <span>{apiStatusLabel(stage.status)}</span>
+          <span className="dep-step-time">{formatDuration(stage.durationSeconds)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function DeploymentsTab({ project, service }: { project: Project; service: Service }) {
-  const { toast } = useUI();
-  const active = service.deployments.find((d) => d.status === 'ACTIVE');
-  const building = service.deployments.find((d) => d.status === 'BUILDING');
-  const history = service.deployments.filter((d) => d !== active && d !== building);
+function DeploymentsTab({ project, service, deps }: { project: Project; service: Service; deps: DeploymentsApi }) {
+  const { busy, run } = useRunner();
+  const active = deps.items.find((d) => d.status === 'ACTIVE');
+  const building = deps.items.find((d) => d.isActive);
+  const history = deps.items.filter((d) => d !== active && d !== building);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
@@ -96,6 +99,9 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
           )}
         </div>
         <div className="deps-info-right">
+          <button type="button" className="btn btn-purple-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, 'Deployment requested')}>
+            Deploy
+          </button>
           {service.runtime && (
             <div className="deps-meta">
               <span className="deps-runtime">
@@ -142,10 +148,9 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
             <DeploymentRow d={building} to={`${base}/deployment/${building.id}`} variant="active" />
             <div className="deps-success-wrap">
               <Link className="deps-success" to={`${base}/deployment/${building.id}`}>
-                <div className="deps-success-left"><Clock size={16} /><p>Building deployment</p></div>
+                <div className="deps-success-left"><Clock size={16} /><p>{deploymentLabel(building.status)} deployment</p></div>
                 <ChevronRight size={16} />
               </Link>
-              <p style={{ padding: '0 16px 16px', color: 'var(--text-muted)', fontSize: 12 }}>Local simulation only. No repository is fetched or deployed.</p>
             </div>
           </div>
         </div>
@@ -153,7 +158,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
       {active ? (
         <div className="deps-active-wrap">
           <div className="deps-active">
-            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" />
+            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" onRedeploy={() => void run(() => deps.redeploy(active.id), 'Redeploy requested')} />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
                 <div className="deps-success-left">
@@ -164,15 +169,15 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
                 </div>
                 <div className="side-icon deps-success-chev">{stepsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
               </button>
-              {stepsOpen && <SuccessSteps />}
+              {stepsOpen && <SuccessSteps service={service} deployment={active} />}
             </div>
           </div>
         </div>
       ) : !building ? (
         <div className="deps-empty">
-          <p>There is no active deployment for this service.</p>
+          <p>{deps.loading ? 'Loading deployments…' : (deps.error ?? 'There is no active deployment for this service.')}</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => toast('Deployments are not available yet')}>
+            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, 'Deployment requested')}>
               <span>
                 <span>
                   Deploy the repo <b>{service.repo}</b>
@@ -199,7 +204,14 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
               {history
                 .filter((d) => !hideSkipped || d.status !== 'SKIPPED')
                 .map((d) => (
-                  <DeploymentRow key={d.id} d={d} to={`${base}/deployment/${d.id}`} variant="history" />
+                  <DeploymentRow
+                    key={d.id}
+                    d={d}
+                    to={`${base}/deployment/${d.id}`}
+                    variant="history"
+                    onRedeploy={() => void run(() => deps.redeploy(d.id), 'Redeploy requested')}
+                    onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), 'Rollback requested') : undefined}
+                  />
                 ))}
             </div>
           )}
@@ -390,7 +402,7 @@ function VariablesTab({ service }: { service: Service }) {
 /* Pane                                                                */
 /* ------------------------------------------------------------------ */
 
-export function ServicePane({ project, service, tab, stacked }: { project: Project; service: Service; tab?: string; stacked: boolean }) {
+export function ServicePane({ project, service, tab, stacked, deps }: { project: Project; service: Service; tab?: string; stacked: boolean; deps: DeploymentsApi }) {
   const navigate = useNavigate();
   const current = TABS.some((t) => t.id === tab) ? tab! : 'deployments';
   const base = `/project/${project.id}/service/${service.id}`;
@@ -433,7 +445,7 @@ export function ServicePane({ project, service, tab, stacked }: { project: Proje
         </div>
         <div className="pane-content">
           <div className={`pane-content-inner${current === 'settings' ? ' flush' : ''}`}>
-            {current === 'deployments' && <DeploymentsTab project={project} service={service} />}
+            {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
             {current === 'variables' && <VariablesTab service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}
