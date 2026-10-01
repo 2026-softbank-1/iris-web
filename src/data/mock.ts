@@ -1,7 +1,7 @@
 // Types for the dashboard plus sample data for what the API does not provide yet
 // (deployments, logs, metrics). Projects and services come from the API (see ProjectsContext).
 
-import type { ServiceDto } from '../lib/endpoints';
+import type { DeploymentTrigger, FailureCode, ServiceDto } from '../lib/endpoints';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
@@ -23,7 +23,7 @@ export interface LogLine {
   marker?: 'start' | 'end';
 }
 
-export type DeploymentStatus = 'ACTIVE' | 'REMOVED' | 'CRASHED' | 'FAILED' | 'SKIPPED' | 'BUILDING';
+export type DeploymentStatus = 'ACTIVE' | 'REMOVED' | 'CRASHED' | 'FAILED' | 'SKIPPED' | 'BUILDING' | 'QUEUED' | 'DEPLOYING' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
 
 export interface Deployment {
   id: string;
@@ -47,6 +47,15 @@ export interface Deployment {
   deployLogs: LogLine[];
   buildRange: { start: string; end: string };
   deployRange: { start: string; end: string };
+  /** 아래는 was 의 배포 요청에서 온 값이다. 샘플 데이터에는 없다. */
+  sourceSha?: string;
+  trigger?: DeploymentTrigger;
+  /** 화면에 보여줄 시작 방식("GitHub", "Manual" 등). */
+  via?: string;
+  failureCode?: FailureCode;
+  requestedBy?: number;
+  /** 진행 중(QUEUED·BUILDING·DEPLOYING)인지. */
+  isActive?: boolean;
 }
 
 export type ServiceState = 'online' | 'offline' | 'crashed';
@@ -66,6 +75,8 @@ export interface Service {
   crashedBanner?: string;
   platformVariables: { key: string; value: string }[];
   deployments: Deployment[];
+  /** 최근 배포가 진행 중인지(QUEUED·BUILDING·DEPLOYING). */
+  deploying?: boolean;
   /** was 에서 온 서비스의 원본 값. 설정 화면이 이 값을 읽고 고친다. */
   remote?: ServiceDto;
 }

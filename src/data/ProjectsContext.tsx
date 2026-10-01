@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useAuth } from '../auth/AuthContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
+import { serviceStatusOf } from './deploymentModel';
 import type { Project, Service } from './mock';
 
 /* ------------------------------------------------------------------ */
@@ -10,7 +11,7 @@ import type { Project, Service } from './mock';
 
 const repoFullName = (url: string) => url.replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/, '').replace(/\/$/, '');
 
-function toService(dto: api.ServiceDto, targets: api.TargetDto[], online: boolean): Service {
+function toService(dto: api.ServiceDto, targets: api.TargetDto[]): Service {
   // 서비스가 배포되는 타깃(aws·local)을 지역 자리에 보여준다.
   const where = dto.targetIds.map((id) => targets.find((t) => t.id === id)?.name ?? `#${id}`).join(', ');
   return {
@@ -22,8 +23,8 @@ function toService(dto: api.ServiceDto, targets: api.TargetDto[], online: boolea
     region: where,
     regionLong: where,
     replicas: 0, // 서버에 없는 값이라 화면에서 숨긴다
-    // 서비스별 상태 API 가 없어서, 프로젝트의 online 수가 서비스 수와 같을 때만 online 으로 본다.
-    state: online ? 'online' : 'offline',
+    // 서비스 응답의 latestDeployment(가장 최근 배포 요청)로 상태를 정한다.
+    ...serviceStatusOf(dto.latestDeployment),
     platformVariables: [],
     deployments: [],
     remote: dto,
@@ -31,7 +32,6 @@ function toService(dto: api.ServiceDto, targets: api.TargetDto[], online: boolea
 }
 
 function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api.TargetDto[]): Project {
-  const online = dto.serviceCount > 0 && dto.onlineServiceCount === dto.serviceCount;
   return {
     id: String(dto.id),
     name: dto.name,
@@ -41,7 +41,7 @@ function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api
     updatedAt: dto.updatedAt,
     serviceCount: dto.serviceCount,
     onlineServiceCount: dto.onlineServiceCount,
-    services: services.map((s) => toService(s, targets, online)),
+    services: services.map((s) => toService(s, targets)),
   };
 }
 
@@ -64,6 +64,8 @@ type ProjectsApi = {
   removeProject: (id: string) => Promise<void>;
   createService: (projectId: string, body: api.ServiceCreate) => Promise<Service>;
   updateService: (projectId: string, serviceId: string, body: api.ServiceUpdate) => Promise<Service>;
+  /** 서비스 하나를 다시 받아 상태(최근 배포)를 갱신한다. */
+  refreshService: (projectId: string, serviceId: string) => Promise<Service>;
   removeService: (projectId: string, serviceId: string) => Promise<void>;
 };
 
@@ -152,18 +154,43 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const createService = useCallback(async (projectId: string, body: api.ServiceCreate) => {
     const dto = await api.createService(projectId, body);
-    const service = toService(dto, targetsRef.current, false);
+    const service = toService(dto, targetsRef.current);
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: [...p.services, service], serviceCount: (p.serviceCount ?? p.services.length) + 1 } : p)));
     return service;
   }, []);
 
   const updateService = useCallback((projectId: string, serviceId: string, body: api.ServiceUpdate) => serial(`service:${serviceId}`, async () => {
     const dto = await api.updateService(serviceId, body);
-    const previous = projectsRef.current.find((p) => p.id === projectId)?.services.find((s) => s.id === serviceId);
-    const next = { ...toService(dto, targetsRef.current, previous?.state === 'online'), deployments: previous?.deployments ?? [] };
+    const next = toService(dto, targetsRef.current);
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: p.services.map((s) => (s.id === serviceId ? next : s)) } : p)));
     return next;
   }), [serial]);
+
+  const refreshService = useCallback(async (projectId: string, serviceId: string) => {
+    const dto = await api.getService(serviceId);
+    const previous = projectsRef.current.find((p) => p.id === projectId)?.services.find((s) => s.id === serviceId);
+    const next = toService(dto, targetsRef.current);
+    setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: p.services.map((s) => (s.id === serviceId ? next : s)) } : p)));
+    // 배포가 끝나면 프로젝트의 online 서비스 수도 달라질 수 있다.
+    if (previous?.deploying && !next.deploying) {
+      void api.getProject(projectId).then((project) => {
+        setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, serviceCount: project.serviceCount, onlineServiceCount: project.onlineServiceCount, updatedAt: project.updatedAt } : p)));
+      }).catch(() => undefined);
+    }
+    return next;
+  }, []);
+
+  // 배포가 진행 중인 서비스는 3초마다 다시 받아서 캔버스·Dashboard 의 상태가 바뀌게 한다.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      for (const project of projectsRef.current) {
+        for (const service of project.services) {
+          if (service.deploying) void refreshService(project.id, service.id).catch(() => undefined);
+        }
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [refreshService]);
 
   const removeService = useCallback(async (projectId: string, serviceId: string) => {
     await api.deleteService(serviceId);
@@ -171,8 +198,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<ProjectsApi>(
-    () => ({ status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, removeService }),
-    [status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, removeService],
+    () => ({ status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, removeService }),
+    [status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, removeService],
   );
   return <ProjectsCtx.Provider value={value}>{children}</ProjectsCtx.Provider>;
 }

@@ -18,6 +18,39 @@ export type ProjectDto = {
 
 export type Builder = 'dockerfile' | 'railpack';
 
+export type DeploymentStatus = 'QUEUED' | 'BUILDING' | 'DEPLOYING' | 'SUCCEEDED' | 'FAILED' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
+export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK';
+export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED';
+
+/** 서비스 응답에 붙는 가장 최근 배포 요청. */
+export type LatestDeploymentDto = {
+  id: number;
+  status: DeploymentStatus;
+  triggerType: DeploymentTrigger;
+  sourceSha: string;
+  sourceCommitMessage?: string;
+  failureCode?: FailureCode;
+  createdAt: string;
+  updatedAt: string;
+};
+export type DeploymentDto = LatestDeploymentDto & {
+  serviceId: number;
+  /** 요청한 사용자 id. 푸시 웹훅이 만든 요청에는 없다. */
+  requestedBy?: number;
+  /** QUEUED·BUILDING·DEPLOYING 이면 진행 중이다. */
+  isActive: boolean;
+};
+export type DeploymentStageDto = { status: DeploymentStatus; startedAt: string; finishedAt?: string; durationSeconds?: number };
+export type DeploymentHistoryDto = { fromStatus?: DeploymentStatus; toStatus: DeploymentStatus; failureCode?: FailureCode; createdAt: string };
+export type DeploymentDetailDto = DeploymentDto & { stages: DeploymentStageDto[]; history: DeploymentHistoryDto[] };
+export type DeploymentCreate = {
+  triggerType: 'MANUAL' | 'REDEPLOY' | 'ROLLBACK';
+  /** REDEPLOY·ROLLBACK 에서 필수. ROLLBACK 은 SUCCEEDED 인 배포여야 한다. */
+  sourceDeploymentId?: number;
+  /** MANUAL 에서만 쓴다. 없으면 서버가 브랜치의 최신 커밋을 읽는다. */
+  sourceSha?: string;
+};
+
 export type ServiceDto = {
   id: number;
   projectId: number;
@@ -33,6 +66,8 @@ export type ServiceDto = {
   buildCommand?: string;
   startCommand?: string;
   targetIds: number[];
+  /** 가장 최근 배포 요청. 배포한 적이 없으면 없다. */
+  latestDeployment?: LatestDeploymentDto;
   createdAt: string;
   updatedAt: string;
 };
@@ -99,6 +134,16 @@ export const createService = (projectId: number | string, json: ServiceCreate) =
 export const getService = (id: number | string) => request<ServiceDto>(`/services/${id}`);
 export const updateService = (id: number | string, json: ServiceUpdate) => request<ServiceDto>(`/services/${id}`, { method: 'PATCH', json });
 export const deleteService = (id: number | string) => request<void>(`/services/${id}`, { method: 'DELETE' });
+
+/* deployments */
+export const isDeploymentInProgress = (status: DeploymentStatus) => status === 'QUEUED' || status === 'BUILDING' || status === 'DEPLOYING';
+export const listDeployments = (serviceId: number | string, page = 0, size = 20) =>
+  request<Page<DeploymentDto>>(`/services/${serviceId}/deployments`, { query: { page, size } });
+/** idempotencyKey 가 같으면 서버가 새로 만들지 않고 처음 만든 요청을 돌려준다(더블 클릭·재시도 대비). */
+export const createDeployment = (serviceId: number | string, json: DeploymentCreate, idempotencyKey?: string) =>
+  request<DeploymentDto>(`/services/${serviceId}/deployments`, { method: 'POST', json, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
+export const getDeployment = (serviceId: number | string, deploymentId: number | string) =>
+  request<DeploymentDetailDto>(`/services/${serviceId}/deployments/${deploymentId}`);
 
 /* targets */
 export const listTargets = () => request<TargetDto[]>('/targets');
