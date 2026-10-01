@@ -17,6 +17,7 @@ import { Sandboxes } from './pages/project/Sandboxes';
 
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPages';
+import { ProjectsProvider } from './data/ProjectsContext';
 
 function RequireAuth() {
   const { status } = useAuth();
@@ -36,7 +37,7 @@ function TitleSync() {
 
 export function App() {
   return (
-    <AuthProvider><UIProvider>
+    <AuthProvider><UIProvider><ProjectsProvider>
       <TitleSync />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -68,6 +69,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       <AuthenticatedOverlays />
-    </UIProvider></AuthProvider>
+    </ProjectsProvider></UIProvider></AuthProvider>
   );
 }

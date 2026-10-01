@@ -2,6 +2,8 @@
 // Everything the UI renders comes from here, so you can swap it for a real API later.
 // Personal info (name / email / avatar) lives at the top of this file if you want to scrub it.
 
+import type { ServiceDto } from '../lib/endpoints';
+
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 export interface LogAttr {
@@ -65,6 +67,8 @@ export interface Service {
   crashedBanner?: string;
   platformVariables: { key: string; value: string }[];
   deployments: Deployment[];
+  /** was 에서 온 서비스의 원본 값. 설정 화면이 이 값을 읽고 고친다. */
+  remote?: ServiceDto;
 }
 
 export interface Project {
@@ -75,6 +79,10 @@ export interface Project {
   updatedAt: string;
   services: Service[];
   favorite?: boolean;
+  description?: string;
+  /** was 가 계산한 서비스 수와 online 서비스 수. */
+  serviceCount?: number;
+  onlineServiceCount?: number;
 }
 
 export const user = {
