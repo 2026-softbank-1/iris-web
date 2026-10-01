@@ -1812,6 +1812,19 @@ button.st-box {
   cursor: pointer;
 }
 
+.st-checks label.st-unsupported {
+  opacity: 0.6;
+}
+
+.st-checks label.st-unsupported input:disabled {
+  cursor: not-allowed;
+}
+
+.st-note {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
 .st-delete-box {
   display: flex;
   flex-direction: column;

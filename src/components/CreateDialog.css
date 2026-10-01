@@ -2,3 +2,4 @@
 .create-checks{display:flex;gap:18px;flex-wrap:wrap;margin:0;padding:0;border:0;font-size:13px}.create-checks legend{padding:0;margin-bottom:8px}.create-review .create-check,.create-review .create-checks label{display:flex;align-items:center;gap:8px;cursor:pointer}.create-dialog .create-checks input,.create-dialog .create-check input{width:auto;padding:0;margin:0}.create-repo-actions{align-items:center;gap:12px}.create-repo-actions select{width:auto;padding:6px 8px}.create-options button svg:last-child:not(:first-child){margin-left:auto;opacity:.6}
 .create-review select{height:48px}
 .create-notice{margin-top:12px}
+.create-review .create-checks label.create-unsupported{opacity:.6;cursor:not-allowed}

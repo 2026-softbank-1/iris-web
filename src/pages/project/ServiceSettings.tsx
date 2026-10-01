@@ -35,7 +35,7 @@ import { useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
 import { useProjects } from '../../data/ProjectsContext';
 import { describeError } from '../../lib/api';
-import { listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
+import { isTargetSupported, listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -464,21 +464,32 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                 <div className="st-region-row">
                   <div className="st-checks" role="group" aria-label="Deploy targets">
                     <Earth size={16} />
-                    {targets.map((t) => (
-                      <label key={t.id}>
-                        <input
-                          type="checkbox"
-                          checked={remote?.targetIds.includes(t.id) ?? false}
-                          onChange={(e) => {
-                            const current = remote?.targetIds ?? [];
-                            const next = e.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id);
-                            if (next.length === 0) toast('At least one target is required');
-                            else void save({ targetIds: next });
-                          }}
-                        />
-                        {t.name}
-                      </label>
-                    ))}
+                    {targets.map((t) => {
+                      const supported = isTargetSupported(t);
+                      const checked = remote?.targetIds.includes(t.id) ?? false;
+                      return (
+                        <label key={t.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : 'Not supported yet'}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            // 지원하지 않는 타깃은 새로 고를 수 없다. 이미 들어 있으면 뺄 수는 있다.
+                            disabled={!supported && !checked}
+                            onChange={(e) => {
+                              const current = remote?.targetIds ?? [];
+                              const next = e.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id);
+                              const hasSupported = next.some((id) => {
+                                const target = targets.find((x) => x.id === id);
+                                return target ? isTargetSupported(target) : false;
+                              });
+                              if (!hasSupported) toast('At least one supported target is required');
+                              else void save({ targetIds: next });
+                            }}
+                          />
+                          {t.name}
+                          {!supported && <span className="st-note">Not supported yet</span>}
+                        </label>
+                      );
+                    })}
                   </div>
                   <label className="st-replicas">
                     <input aria-label="Replicas" placeholder="1" value={replicas} onChange={(e) => setReplicas(e.target.value.replace(/\D/g, '').slice(0, 2))} />
