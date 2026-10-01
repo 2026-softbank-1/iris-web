@@ -1,7 +1,8 @@
 import { ChevronDown, ChevronLeft, ChevronRight, CircleArrowUp } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
-import { projects, workspace } from '../data/mock';
+import { projects, workspace, subscribeDemoProjects, getDemoRevision, type Project } from '../data/mock';
+import '../styles/usage.css';
 
 const LINES = [
   { name: 'Memory', usage: '44.08 minutely GB', price: '$0.000231 / GB / Minute', cost: '$0.0102' },
@@ -29,10 +30,57 @@ function Stairs() {
   );
 }
 
-const PROJECT_COSTS: Record<string, string> = { 'believable-playfulness': '$0.0109' };
+// Deterministic local fixtures approximate accumulated usage, not live billing data.
+const RESOURCES = [
+  { name: 'CPU', amount: .04, unit: 'vCPU', cost: '$0.0000', rate: '$0.000463 / vCPU / Minute' },
+  { name: 'RAM', amount: 48.17, unit: 'GB', cost: '$0.0111', rate: '$0.000231 / GB / Minute' },
+  { name: 'Network Egress', amount: 0, unit: 'GB', cost: '$0.0000', rate: '$0.05 / GB' },
+  { name: 'Volume', amount: 0, unit: 'GB', cost: '$0.0000', rate: '$0.000003472 / GB / Minute' },
+];
+const TIMES = ['Sep 30 20:34', 'Sep 30 20:35', 'Sep 30 20:36', 'Sep 30 20:37', 'Sep 30 20:38', 'Sep 30 20:39', 'Oct 01 12:00', 'Oct 02 00:00'];
+function UsageChart({ title, total, unit }: { title: string; total: number; unit: string }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const values = [0, .025, .05, .08, .11, .15, .64, 1].map(f => f * total);
+  const format = (value: number) => unit === '$' ? '$' + value.toFixed(4) : value.toFixed(2) + ' ' + unit;
+  return <div className="usage-chart"><h3>{title}</h3><p className="usage-chart-caption">Minutely accumulated {unit === '$' ? 'cost' : 'usage'}</p>
+    <svg viewBox="0 0 560 180" role="img" aria-label={title + ' accumulated chart'}>
+      {[30, 87, 145].map(y => <line key={y} x1="30" x2="530" y1={y} y2={y} className="usage-chart-grid" />)}
+      <polyline points={values.map((v, i) => `${30 + i * 500 / 7},${145 - (total ? v / total : 0) * 115}`).join(' ')} fill="none" stroke="#a777e8" strokeWidth="2" />
+      {values.map((v, i) => <circle key={i} cx={30 + i * 500 / 7} cy={145 - (total ? v / total : 0) * 115} r={hover === i ? 5 : 3} fill="#a777e8" />)}
+      <text x="30" y="173">Sep 30</text><text x="260" y="173">Oct 01</text><text x="487" y="173">Oct 02</text>
+    </svg>
+    <div className="usage-chart-targets">{values.map((v, i) => <button key={i} type="button" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} onClick={() => setHover(i)} aria-label={TIMES[i] + ': ' + format(v)} />)}</div>
+    {hover !== null && <div className="usage-chart-tooltip" role="status"><span>{TIMES[hover]}</span><strong>{format(values[hover])}</strong></div>}
+  </div>;
+}
+function ProjectUsage({ project }: { project: Project }) {
+  const [expanded, setExpanded] = useState(false);
+  const [byService, setByService] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState<string[]>([]);
+  const original = project.name === 'believable-playfulness';
+  const cost = original ? '$0.0112' : '$0.0000';
+  return <div className="usage-proj"><div className="usage-project-header">
+    <Link to={`/project/${project.id}`} className="usage-proj-name">{project.name}<span className="usage-ext">↗</span></Link>
+    {project.id.startsWith('demo-') && <span className="usage-simulated">Local demo · zero simulated usage</span>}
+    <button className="usage-proj-btn usage-expand" type="button" aria-expanded={expanded} aria-label={`${expanded ? 'Collapse' : 'Expand'} usage for ${project.name}`} onClick={() => setExpanded(!expanded)}><span><span className="usage-cost-label">Current Cost</span><span className="usage-cost">{cost}</span></span><ChevronDown size={16} style={{ transform: expanded ? 'rotate(180deg)' : undefined }} /></button>
+  </div>{expanded && <div className="usage-proj-detail">
+    <div className="usage-detail-heading"><h3>{byService ? 'Cost by Service' : 'Project Cost'}</h3><button type="button" className="btn" onClick={() => setByService(!byService)}>{byService ? 'View Project Cost' : 'View Cost by Service'}</button></div>
+    <p className="usage-chart-caption">Local mock data for Sep 30 to Oct 02. Not live account usage.</p>
+    {byService ? <><div className="usage-resource-charts">{RESOURCES.map(r => <UsageChart key={r.name} title={r.name} total={original ? r.amount : 0} unit={r.unit} />)}</div>
+      {project.services.map(service => {
+        const recorded = original && !service.id.startsWith('demo-');
+        const isOpen = servicesOpen.includes(service.id);
+        return <div className="usage-service" key={service.id}>
+          <div className="usage-service-heading"><Link to={`/project/${project.id}/service/${service.id}`}>{service.name} ↗</Link><span>{recorded ? cost : '$0.0000'}</span><button type="button" className="btn btn-icon-only" aria-label={`${isOpen ? 'Hide' : 'Show'} resource breakdown for ${service.name}`} aria-expanded={isOpen} onClick={() => setServicesOpen(isOpen ? servicesOpen.filter(id => id !== service.id) : [...servicesOpen, service.id])}><ChevronDown size={16} style={{ transform: isOpen ? 'rotate(180deg)' : undefined }} /></button></div>
+          <div className="usage-service-summary">{RESOURCES.map(r => <span key={r.name}>{r.name} <strong>{recorded ? r.amount : 0} {r.unit}</strong> {recorded ? r.cost : '$0.0000'}</span>)}</div>
+          {isOpen && <div className="usage-resource-table"><div className="usage-resource-table-head"><span>Resource</span><span>Accumulated usage</span><span>Rate</span><span>Cost</span></div>{RESOURCES.map(r => <div key={r.name}><span>{r.name}</span><span>{recorded ? r.amount : 0} {r.unit}</span><span>{r.rate}</span><span>{recorded ? r.cost : '$0.0000'}</span></div>)}<p>Displayed costs are rounded independently; total {recorded ? cost : '$0.0000'}.</p></div>}
+        </div>;
+      })}</> : <UsageChart title="Project Cost" total={original ? .0112 : 0} unit="$" />}
+  </div>}</div>;
+}
 
 export function Usage() {
-  const [open, setOpen] = useState<string | null>(null);
+  useSyncExternalStore(subscribeDemoProjects, getDemoRevision, getDemoRevision);
   const [breakdown, setBreakdown] = useState(false);
   return (
     <div className="page">
@@ -141,37 +189,7 @@ export function Usage() {
               <div className="usage-projects">
                 <h2 className="usage-h1">Usage by Project</h2>
                 <div className="usage-plist">
-                  {projects.filter((p) => PROJECT_COSTS[p.name]).map((p, i) => (
-                    <div key={p.id} className="usage-proj">
-                      <button type="button" className="usage-proj-btn" onClick={() => setOpen(open === p.id ? null : p.id)}>
-                        <Link to={`/project/${p.id}`} className="usage-proj-name" onClick={(e) => e.stopPropagation()}>
-                          <span>{p.name}</span>
-                          <span className="usage-ext">↗</span>
-                        </Link>
-                        <div className="usage-proj-right">
-                          <div>
-                            <p className="usage-cost-label">Current Cost</p>
-                            <p className="usage-cost">{PROJECT_COSTS[p.name]}</p>
-                          </div>
-                          <div className="tool-icon">
-                            <ChevronDown size={16} style={{ transform: open === p.id ? 'rotate(180deg)' : undefined }} />
-                          </div>
-                        </div>
-                      </button>
-                      {open === p.id && (
-                        <div className="usage-proj-detail">
-                          {p.services.map((s) => (
-                            <div key={s.id} className="usage-bd-line">
-                              <p>{s.name}</p>
-                              <p className="muted">Memory · CPU · Egress</p>
-                              <p className="muted">{s.state === 'online' ? 'running' : 'stopped'}</p>
-                              <p className="right">{i === 0 ? PROJECT_COSTS[p.name] : '$0.0000'}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {projects.filter(p => p.name === 'believable-playfulness' || p.id.startsWith('demo-')).map(p => <ProjectUsage key={p.id} project={p} />)}
                 </div>
               </div>
             </div>

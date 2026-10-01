@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { CommandPalette } from './components/CommandPalette';
 import { UIProvider } from './components/ui';
 import { UpgradeDialog } from './components/UpgradeDialog';
@@ -16,6 +16,13 @@ import { Observability } from './pages/project/Observability';
 import { ProjectSettings } from './pages/project/ProjectSettings';
 import { Sandboxes } from './pages/project/Sandboxes';
 
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import { AuthPage, OnboardingPage } from './pages/AuthPages';
+
+function RequireAuth() { const { status } = useAuth(); return status === 'authenticated' ? <Outlet /> : <Navigate to={status === 'onboarding' ? '/onboarding' : '/login'} replace />; }
+
+function AuthenticatedOverlays() { const { status } = useAuth(); return status === 'authenticated' ? <><CommandPalette /><UpgradeDialog /></> : null; }
+
 function TitleSync() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -26,10 +33,14 @@ function TitleSync() {
 
 export function App() {
   return (
-    <UIProvider>
+    <AuthProvider><UIProvider>
       <TitleSync />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/signup" element={<AuthPage signup />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route element={<RequireAuth />}>
         <Route element={<WorkspaceLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/workspace/templates" element={<Templates />} />
@@ -50,10 +61,10 @@ export function App() {
           <Route path="settings" element={<ProjectSettings />} />
           <Route path="settings/:section" element={<ProjectSettings />} />
         </Route>
+        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-      <CommandPalette />
-      <UpgradeDialog />
-    </UIProvider>
+      <AuthenticatedOverlays />
+    </UIProvider></AuthProvider>
   );
 }

@@ -1,4 +1,5 @@
 import {
+  Clock,
   ChevronDown,
   ChevronRight,
   CircleCheck,
@@ -63,7 +64,8 @@ function SuccessSteps() {
 function DeploymentsTab({ project, service }: { project: Project; service: Service }) {
   const { toast } = useUI();
   const active = service.deployments.find((d) => d.status === 'ACTIVE');
-  const history = service.deployments.filter((d) => d !== active);
+  const building = service.deployments.find((d) => d.status === 'BUILDING');
+  const history = service.deployments.filter((d) => d !== active && d !== building);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
@@ -130,6 +132,20 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
         </div>
       )}
 
+      {building && (
+        <div className="deps-active-wrap">
+          <div className="deps-active">
+            <DeploymentRow d={building} to={`${base}/deployment/${building.id}`} variant="active" />
+            <div className="deps-success-wrap">
+              <Link className="deps-success" to={`${base}/deployment/${building.id}`}>
+                <div className="deps-success-left"><Clock size={16} /><p>Building demo deployment</p></div>
+                <ChevronRight size={16} />
+              </Link>
+              <p style={{ padding: '0 16px 16px', color: 'var(--text-muted)', fontSize: 12 }}>Local simulation only. No repository is fetched or deployed.</p>
+            </div>
+          </div>
+        </div>
+      )}
       {active ? (
         <div className="deps-active-wrap">
           <div className="deps-active">
@@ -140,7 +156,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
                   <div className="side-icon">
                     <CircleCheckBig size={16} />
                   </div>
-                  <p>Deployment successful</p>
+                  <p>{active.id.startsWith('demo-') ? 'Demo deployment complete' : 'Deployment successful'}</p>
                 </div>
                 <div className="side-icon deps-success-chev">{stepsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
               </button>
@@ -148,7 +164,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
             </div>
           </div>
         </div>
-      ) : (
+      ) : !building ? (
         <div className="deps-empty">
           <p>There is no active deployment for this service.</p>
           <div className="deps-empty-actions">
@@ -161,7 +177,7 @@ function DeploymentsTab({ project, service }: { project: Project; service: Servi
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
       {history.length > 0 && (
         <div className="deps-history">

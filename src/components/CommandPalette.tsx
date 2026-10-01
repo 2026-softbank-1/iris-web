@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projects } from '../data/mock';
+import { CreateDialog } from './CreateDialog';
 import { Dialog, useUI } from './ui';
 
 interface Cmd {
@@ -35,6 +36,7 @@ interface Cmd {
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, setUpgradeOpen, toast } = useUI();
   const navigate = useNavigate();
+  const [createOpen, setCreateOpen] = useState(false);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -66,7 +68,7 @@ export function CommandPalette() {
 
   const base: Cmd[] = useMemo(
     () => [
-      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), setUpgradeOpen(true)) },
+      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), localStorage.getItem('rw:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)) },
       { id: 'new-ws', label: 'New Workspace', icon: Briefcase, group: 'Dashboard', run: () => (close(), toast('Workspaces are not available in this clone')) },
       { id: 'docs', label: 'Go to Docs', icon: BookOpen, group: 'General', run: () => (close(), window.open('https://docs.railway.com', '_blank')) },
       { id: 'templates', label: 'Go to Templates', icon: LayoutTemplate, group: 'General', run: go('/workspace/templates') },
@@ -138,6 +140,8 @@ export function CommandPalette() {
 
   let flat = -1;
   return (
+    <>
+    <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     <Dialog open={paletteOpen} onClose={close} className="cmdk" label="Enter a command">
       <h3 className="sr-only">Enter a command</h3>
       <button type="button" className="sr-only" onClick={close}>
@@ -204,5 +208,6 @@ export function CommandPalette() {
         ))}
       </div>
     </Dialog>
+    </>
   );
 }

@@ -59,3 +59,11 @@ CSS는 플랫폼별 Lightning CSS native 모듈에 의존하지 않도록 minify
 - TypeScript 검사 통과
 - WASI 환경에서 프로덕션 빌드 통과
 - 브라우저에서 대시보드, 커맨드 팔레트, 서비스 패널 및 removed 배포 오류 로그 확인
+
+## New local demo flows
+
+- Dashboard New, command New Project, and project Add open the Create flow. GitHub sample repos support search, URL validation, review, demo deployments, logs, and reload persistence. No remote repository is fetched or deployed.
+- Set localStorage key `rw:plan-limit` to `1` to reproduce the observed upgrade limit and use Continue with local demo. Remove the key to restore default behavior.
+- Account Logout opens /login. Protected deep routes remain blocked after refresh. /signup leads to two-step preview onboarding and the existing demo dashboard.
+- Auth/onboarding were unavailable in the authenticated reference session, so these screens explicitly identify themselves as unobserved demo reconstructions. No real auth, payment, or workspace creation.
+- Checked: typecheck, production build, auth click-through, deep-route guard, repository validation, variables, build logs and persisted deployment state.

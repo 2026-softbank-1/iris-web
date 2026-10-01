@@ -1,9 +1,10 @@
 import { ChevronDown, CircleAlert, Folder, LayoutGrid, List, Plus, Search, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
 import { Popover, usePopover, useUI } from '../components/ui';
-import { projects, timeAgo, workspace, type Project } from '../data/mock';
+import { projects, subscribeDemoProjects, getDemoRevision, timeAgo, workspace, type Project } from '../data/mock';
 
 type Sort = 'updatedAt' | 'createdAt' | 'alphabetical';
 
@@ -116,6 +117,8 @@ function ProjectRow({ p }: { p: Project }) {
 
 export function Dashboard() {
   const { setPaletteOpen, setUpgradeOpen } = useUI();
+  const revision = useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
+  const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('rw:view') as 'grid' | 'list') || 'grid');
   const [favs, setFavs] = useState<string[]>(() => JSON.parse(localStorage.getItem('rw:favs') || '[]'));
@@ -140,7 +143,7 @@ export function Dashboard() {
     // favorites float to the top like the original
     arr.sort((a, b) => Number(favs.includes(b.id)) - Number(favs.includes(a.id)));
     return arr;
-  }, [sort, favs, filter]);
+  }, [sort, favs, filter, revision]);
 
   const setViewPersist = (v: 'grid' | 'list') => {
     setView(v);
@@ -149,6 +152,7 @@ export function Dashboard() {
 
   return (
     <div className="page">
+      <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <div className="page-inner">
         <div className="dash-title-row">
           <h1 className="page-title dash-h1">Projects</h1>
@@ -163,7 +167,7 @@ export function Dashboard() {
             </span>
           </button>
           <div>
-            <button type="button" className="btn btn-primary dash-new" onClick={() => setUpgradeOpen(true)}>
+            <button type="button" className="btn btn-primary dash-new" onClick={() => localStorage.getItem('rw:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)}>
               <div className="side-icon">
                 <Plus size={16} strokeWidth={2.25} />
               </div>
@@ -172,6 +176,7 @@ export function Dashboard() {
           </div>
         </div>
 
+        {localStorage.getItem('rw:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue with local demo</button>}
         <div className="trial-banner-wrap">
           <div className="trial-banner">
             <div className="trial-banner-row">

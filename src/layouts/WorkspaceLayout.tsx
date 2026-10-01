@@ -22,6 +22,7 @@ import { LogoMark } from '../components/brand';
 import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
 import { user, workspace } from '../data/mock';
+import { useAuth } from '../auth/AuthContext';
 
 const SETTINGS_LINKS = [
   { to: '/workspace', label: 'General', end: true },
@@ -112,6 +113,8 @@ function WorkspaceSwitcher() {
 
 function AccountButton() {
   const pop = usePopover();
+  const auth = useAuth();
+  const navigate = useNavigate();
   return (
     <>
       <button type="button" className="account-btn" data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
@@ -135,7 +138,7 @@ function AccountButton() {
           <span className="menu-right">Dark</span>
         </button>
         <div className="menu-sep" />
-        <button type="button" className="menu-item" onClick={pop.close}>
+        <button type="button" className="menu-item" onClick={() => { pop.close(); auth.logout(); navigate('/login'); }}>
           <LogOut size={16} className="menu-icon" />
           Logout
         </button>

@@ -31,11 +31,12 @@ import {
   SquareFunction,
   Eye,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { CreateDialog } from '../../components/CreateDialog';
 import { OnlineDot, RepoIcon } from '../../components/brand';
 import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
-import { getDeployment, getProject, getService, type Project, type Service } from '../../data/mock';
+import { getDeployment, getProject, getService, subscribeDemoProjects, getDemoRevision, type Project, type Service } from '../../data/mock';
 import { DeploymentPane } from './DeploymentPane';
 import { ServicePane } from './ServicePane';
 
@@ -76,7 +77,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               </div>
             </div>
           ) : (
-            <p className="svc-node-offline">Service is offline</p>
+            <p className="svc-node-offline">{service.deployments[0]?.status === 'BUILDING' ? 'Building (demo)' : 'Service is offline'}</p>
           )}
         </a>
       </span>
@@ -107,6 +108,7 @@ const ADD_OPTIONS = [
   { icon: LayoutTemplate, label: 'Template' },
   { icon: Container, label: 'Docker Image' },
   { icon: SquareFunction, label: 'Function' },
+  { icon: HardDrive, label: 'Bucket' },
   { icon: HardDrive, label: 'Volume' },
   { icon: Box, label: 'Empty Service' },
 ];
@@ -114,7 +116,9 @@ const ADD_OPTIONS = [
 function Canvas({ project, selectedId }: { project: Project; selectedId?: string }) {
   const navigate = useNavigate();
   const rf = useReactFlow();
-  const { setUpgradeOpen } = useUI();
+  const { toast } = useUI();
+  const [createOpen, setCreateOpen] = useState(false);
+  const revision = useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
   const addPop = usePopover();
   const settingsPop = usePopover();
   const layersPop = usePopover();
@@ -130,7 +134,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
         data: { service: s, projectId: project.id, selected: false },
         draggable: true,
       })),
-    [project],
+    [project, revision],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<ServiceNodeType>(initial);
 
@@ -173,6 +177,8 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
   );
 
   return (
+    <>
+    <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} projectId={project.id} />
     <ReactFlow
       nodes={nodes}
       edges={[]}
@@ -248,11 +254,11 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
       </Popover>
       <Panel position="top-right" className="toolbar-right" style={selectedId ? { visibility: 'hidden' } : undefined}>
         <div className="add-wrap">
-          <button type="button" className="btn btn-secondary add-btn" onClick={(e) => addPop.toggle(e.currentTarget)}>
+          <button type="button" className="btn btn-secondary add-btn" onClick={() => setCreateOpen(true)}>
             <div className="tool-icon">
               <Plus size={16} />
             </div>
-            <span>Add</span>
+            <span>Create</span>
           </button>
         </div>
       </Panel>
@@ -265,7 +271,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
             className="menu-item"
             onClick={() => {
               addPop.close();
-              setUpgradeOpen(true);
+              setCreateOpen(true);
             }}
           >
             <o.icon size={16} className="menu-icon" />
@@ -278,13 +284,14 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
           className="menu-item"
           onClick={() => {
             addPop.close();
-            setUpgradeOpen(true);
+            toast('Compose import is not available in this demo');
           }}
         >
           <FileCode2 size={16} className="menu-icon" /> Import from Compose
         </button>
       </Popover>
     </ReactFlow>
+    </>
   );
 }
 
@@ -295,6 +302,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
 export function ProjectCanvasPage() {
   const { projectId, serviceId, tab, deploymentId, dtab } = useParams();
   const navigate = useNavigate();
+  useSyncExternalStore(subscribeDemoProjects, getDemoRevision);
   const project = getProject(projectId)!;
   const service = getService(project, serviceId);
   const deployment = getDeployment(service, deploymentId);
