@@ -2,7 +2,8 @@ import { Check, Copy, KeyRound, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Avatar, useUI } from '../components/ui';
-import { user, workspace } from '../data/mock';
+import { workspace } from '../data/mock';
+import { useSessionUser } from '../auth/AuthContext';
 
 const TITLES: Record<string, string> = {
   '': 'General',
@@ -42,6 +43,7 @@ function Empty({ title, desc, action }: { title: string; desc: string; action?: 
 export function WorkspaceSettings() {
   const { section = '' } = useParams();
   const { toast } = useUI();
+  const user = useSessionUser();
   const [name, setName] = useState(workspace.name);
   const title = TITLES[section] ?? 'Settings';
 
@@ -57,7 +59,7 @@ export function WorkspaceSettings() {
               <div className="ws-set-card">
                 <p className="ws-set-label">Workspace Name</p>
                 <div className="ws-set-row">
-                  <Avatar src={user.avatar} size={32} title={workspace.name} />
+                  <Avatar src={user.avatarUrl} size={32} title={workspace.name} />
                   <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
                   <button type="button" className="btn btn-primary" disabled={name === workspace.name} onClick={() => toast('Workspace renamed (mock)')}>
                     Update

@@ -17,8 +17,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogoMark } from '../components/brand';
 import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
-import { user, workspace } from '../data/mock';
-import { useAuth } from '../auth/AuthContext';
+import { workspace } from '../data/mock';
+import { useAuth, useSessionUser } from '../auth/AuthContext';
 
 const SETTINGS_LINKS = [
   { to: '/workspace', label: 'General', end: true },
@@ -48,11 +48,12 @@ function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label
 function WorkspaceSwitcher() {
   const pop = usePopover();
   const navigate = useNavigate();
+  const user = useSessionUser();
   return (
     <div>
       <button type="button" className="ws-switch" data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
         <div className="ws-switch-inner">
-          <Avatar src={user.avatar} size={24} title={workspace.name} />
+          <Avatar src={user.avatarUrl} size={24} title={workspace.name} />
           <div className="ws-switch-text">
             <div className="ws-name-row">
               <span className="ws-name truncate">{workspace.name}</span>
@@ -69,7 +70,7 @@ function WorkspaceSwitcher() {
       <Popover anchor={pop.anchor} onClose={pop.close} width={240}>
         <div className="menu-label">Workspaces</div>
         <button type="button" className="menu-item" data-active="true" onClick={pop.close}>
-          <Avatar src={user.avatar} size={20} title={workspace.name} />
+          <Avatar src={user.avatarUrl} size={20} title={workspace.name} />
           <span className="truncate">{workspace.name}</span>
           <Check size={14} className="menu-right" />
         </button>
@@ -97,20 +98,21 @@ function WorkspaceSwitcher() {
 function AccountButton() {
   const pop = usePopover();
   const auth = useAuth();
+  const user = useSessionUser();
   const navigate = useNavigate();
   return (
     <>
       <button type="button" className="account-btn" data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
         <div className="account-inner">
-          <Avatar src={user.avatar} size={24} title={user.name} />
-          <p className="truncate">{user.name}</p>
+          <Avatar src={user.avatarUrl} size={24} title={user.login} />
+          <p className="truncate">{user.login}</p>
           <div className="account-chevron">
             <EllipsisVertical size={16} />
           </div>
         </div>
       </button>
       <Popover anchor={pop.anchor} onClose={pop.close} side="top" width={204}>
-        <div className="menu-label">{user.email}</div>
+        <div className="menu-label">@{user.login}</div>
         <button type="button" className="menu-item" onClick={pop.close}>
           <User size={16} className="menu-icon" />
           Account Settings
@@ -121,7 +123,7 @@ function AccountButton() {
           <span className="menu-right">Dark</span>
         </button>
         <div className="menu-sep" />
-        <button type="button" className="menu-item" onClick={() => { pop.close(); auth.logout(); navigate('/login'); }}>
+        <button type="button" className="menu-item" onClick={async () => { pop.close(); await auth.logout(); navigate('/login'); }}>
           <LogOut size={16} className="menu-icon" />
           Logout
         </button>

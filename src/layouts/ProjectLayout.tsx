@@ -23,15 +23,17 @@ import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-
 import { LogoMark, RepoIcon } from '../components/brand';
 import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
-import { getProject, projects, timeAgo, user, workspace, type Project } from '../data/mock';
+import { getProject, projects, timeAgo, workspace, type Project } from '../data/mock';
+import { useAuth, useSessionUser } from '../auth/AuthContext';
 
 function ProjectSwitcher({ project }: { project: Project }) {
   const pop = usePopover();
   const navigate = useNavigate();
+  const user = useSessionUser();
   return (
     <div>
       <button type="button" className="ph-btn" aria-label={workspace.name} data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
-        <Avatar src={user.avatar} size={16} title={workspace.name} />
+        <Avatar src={user.avatarUrl} size={16} title={workspace.name} />
         <div className="ph-btn-text">{project.name}</div>
         <div className="ph-chevron">
           <ChevronDown size={16} />
@@ -198,6 +200,8 @@ export function ProjectLayout() {
   const navigate = useNavigate();
   const [drawer, setDrawer] = useState<'activity' | 'agent' | null>(null);
   const accountPop = usePopover();
+  const auth = useAuth();
+  const user = useSessionUser();
   const onService = useMatch('/project/:projectId/service/*');
 
   useEffect(() => {
@@ -276,10 +280,10 @@ export function ProjectLayout() {
           <div className="rail-fill" />
           <div>
             <button type="button" className="rail-avatar" data-state={accountPop.isOpen ? 'open' : 'closed'} onClick={(e) => accountPop.toggle(e.currentTarget)}>
-              <Avatar src={user.avatar} size={24} title={user.name} />
+              <Avatar src={user.avatarUrl} size={24} title={user.login} />
             </button>
             <Popover anchor={accountPop.anchor} onClose={accountPop.close} side="right" align="end" width={210}>
-              <div className="menu-label">{user.email}</div>
+              <div className="menu-label">@{user.login}</div>
               <button
                 type="button"
                 className="menu-item"
@@ -296,7 +300,15 @@ export function ProjectLayout() {
                 Account Settings
               </button>
               <div className="menu-sep" />
-              <button type="button" className="menu-item" onClick={accountPop.close}>
+              <button
+                type="button"
+                className="menu-item"
+                onClick={async () => {
+                  accountPop.close();
+                  await auth.logout();
+                  navigate('/login');
+                }}
+              >
                 <LogOut size={16} className="menu-icon" />
                 Logout
               </button>
