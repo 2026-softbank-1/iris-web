@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
+import { isTargetSupported } from '../lib/endpoints';
 import { Dialog } from './ui';
 import './CreateDialog.css';
 
@@ -114,7 +115,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setBranch(value.defaultBranch);
     setRoot('/');
     setAutoDeploy(true);
-    setTargetIds(targets.map((t) => t.id));
+    setTargetIds(targets.filter(isTargetSupported).map((t) => t.id));
     setStep('review');
     setNotice('');
   };
@@ -190,7 +191,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         <label>Branch<select required value={branch} onChange={e => setBranch(e.target.value)}>{branchOptions.map(b => <option key={b}>{b}</option>)}</select></label>
         <label>Root directory<input value={root} onChange={e => setRoot(e.target.value)} /></label>
       </div>
-      {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => <label key={t.id}><input type="checkbox" checked={targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}</label>)}</fieldset>}
+      {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => { const supported = isTargetSupported(t); return <label key={t.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : 'Not supported yet'}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}{!supported && <span className="create-soon">Not supported yet</span>}</label>; })}</fieldset>}
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />Deploy automatically when the branch is pushed</label>
       <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Creating…' : 'Deploy'}</button>
     </form>}

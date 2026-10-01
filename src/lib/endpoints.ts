@@ -38,6 +38,8 @@ export type ServiceDto = {
 };
 
 export type TargetDto = { id: number; name: string; kind: string; region?: string; domainSuffix?: string };
+/** was 에 로컬 타깃(LOCAL)으로 배포하는 구현이 아직 없다. 화면에는 보여주되 고를 수 없게 한다. */
+export const isTargetSupported = (target: TargetDto) => target.kind !== 'LOCAL';
 export type InstallationDto = { installationId: number; accountLogin: string; accountType: string };
 export type RepositoryDto = { fullName: string; url: string; defaultBranch: string; isPrivate: boolean; installationId: number };
 export type BranchDto = { name: string; isDefault: boolean };
