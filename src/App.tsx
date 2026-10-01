@@ -18,7 +18,11 @@ import { Sandboxes } from './pages/project/Sandboxes';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPages';
 
-function RequireAuth() { const { status } = useAuth(); return status === 'authenticated' ? <Outlet /> : <Navigate to="/login" replace />; }
+function RequireAuth() {
+  const { status } = useAuth();
+  if (status === 'loading') return null; // 세션(/me) 확인 중에는 로그인 화면으로 튕기지 않는다.
+  return status === 'authenticated' ? <Outlet /> : <Navigate to="/login" replace />;
+}
 
 function AuthenticatedOverlays() { const { status } = useAuth(); return status === 'authenticated' ? <><CommandPalette /><UpgradeDialog /></> : null; }
 
