@@ -139,6 +139,12 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
             <TriangleAlert size={20} />
           </div>
           {service.crashedBanner}
+          {service.remote?.latestDeployment?.failureCode === 'BUILD_CONFIG_REQUIRED' && (
+            <>
+              {' '}
+              <Link to={`${base}/settings`}>Open Settings</Link>
+            </>
+          )}
         </div>
       )}
 
