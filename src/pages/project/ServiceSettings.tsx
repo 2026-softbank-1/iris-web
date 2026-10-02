@@ -4,19 +4,16 @@ import {
   LogOut,
   PencilLine,
   RefreshCw,
-  ArrowUpRight,
   ArrowRight,
   CircleCheck,
   Globe,
   Zap,
   ShieldAlert,
-  Sparkles,
   Copy,
   Earth,
   FileCode2,
   Flag,
   Hammer,
-  Info,
   Network,
   Pencil,
   Plus,
@@ -98,10 +95,6 @@ function Section({ title, icon: Icon, children }: { title: string; icon?: Lucide
       <div className="st-section-body">{children}</div>
     </section>
   );
-}
-
-function InfoBox({ tone, children }: { tone: 'blue' | 'purple' | 'red'; children: ReactNode }) {
-  return <div className={`st-info ${tone}`}>{children}</div>;
 }
 
 /** 한 줄 값을 고쳐 저장하는 설정. 비우고 저장하면 null(값 지우기)을 넘긴다. onSave 는 저장에 성공했는지 돌려준다. */
@@ -447,14 +440,6 @@ export function ServiceSettings({ project, service }: { project: Project; servic
               <Item title="CDN Caching" desc="Serve static assets from the edge to cut latency and origin load." id="cdn">
                 <Toggle checked={cdn} onChange={setCdn} label="Enable CDN Caching" />
               </Item>
-              <Item title="Edge Rules" desc="Block, redirect or challenge requests before they reach the service." id="edge-rules">
-                <InfoBox tone="blue">
-                  <Info size={20} className="st-info-icon" />
-                  <p>
-                    Edge rules are not included in your plan. <a href="/workspace/plans">Upgrade to use them.</a>
-                  </p>
-                </InfoBox>
-              </Item>
             </Section>
           )}
 
@@ -496,16 +481,6 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                     <span>Replica</span>
                   </label>
                 </div>
-                <div className="st-gap12">
-                  <InfoBox tone="purple">
-                    <div className="st-info-row">
-                      <p>Multi-region replicas are only available on the Pro plan.</p>
-                      <a href="/workspace/plans">
-                        Learn More <ArrowUpRight size={14} />
-                      </a>
-                    </div>
-                  </InfoBox>
-                </div>
               </Item>
               <Item title="Replica Limits" desc="Maximum vCPU and memory for each replica." id="limits">
                 <div className="st-limits">
@@ -520,9 +495,6 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                           <span>
                             {name}: <b>{v}</b> {unit}
                           </span>
-                          <span className="st-muted">
-                            Plan limit: {v} {unit}
-                          </span>
                         </div>
                         <div className="st-slider">
                           <div />
@@ -531,12 +503,6 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="st-upgrade-row">
-                  <Sparkles size={20} />
-                  <a href="/workspace/plans" className="st-upgrade-link">
-                    Upgrade for higher limits
-                  </a>
                 </div>
               </Item>
             </Section>
@@ -635,10 +601,6 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                   </div>
                   <ChevronDown size={16} className="st-region-chev" />
                 </button>
-                <InfoBox tone="purple">
-                  <span>Your plan supports up to 10 retries</span>
-                  <a href="/workspace/plans">Upgrade</a>
-                </InfoBox>
                 <label className="st-retries">
                   <span>Max restart retries</span>
                   <input value={retries} onChange={(e) => setRetries(e.target.value.replace(/\D/g, '').slice(0, 2))} />

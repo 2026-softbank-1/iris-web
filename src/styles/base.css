@@ -354,37 +354,6 @@ kbd {
   color: var(--fg);
 }
 
-/* Trial badge ------------------------------------------------------ */
-.trial-badge {
-  display: flex;
-  align-items: center;
-  height: 34px;
-  border-radius: 6px;
-}
-
-.trial-badge > div {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 30px;
-  padding: 0 8px;
-  background: var(--green-bg);
-  border: 1px solid var(--green-bg-border);
-  border-radius: 6px;
-  transition: border-color 0.12s ease;
-}
-
-.trial-badge:hover > div {
-  border-color: var(--green-line);
-}
-
-.trial-badge p {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--green);
-  white-space: nowrap;
-}
-
 /* Tooltip ---------------------------------------------------------- */
 .tooltip-anchor {
   position: relative;

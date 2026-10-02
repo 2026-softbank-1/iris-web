@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, CircleArrowUp } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { projects, workspace, type Project } from '../data/mock';
@@ -9,26 +9,6 @@ const LINES = [
   { name: 'CPU', usage: '0.04 minutely vCPU', price: '$0.000463 / vCPU / Minute', cost: '$0.0000' },
   { name: 'Egress', usage: '0.00 GB', price: '$0.05 GB', cost: '$0.0000' },
 ];
-
-function Stairs() {
-  // decorative ascending steps (original artwork)
-  const steps = Array.from({ length: 16 }, (_, i) => i);
-  return (
-    <svg className="usage-stairs" width="600" height="180" viewBox="0 0 600 180" aria-hidden>
-      <defs>
-        <linearGradient id="stairs-fade" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#853bce" stopOpacity="0" />
-          <stop offset="0.55" stopColor="#853bce" stopOpacity="0.22" />
-          <stop offset="1" stopColor="#853bce" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {steps.map((i) => {
-        const h = 6 + Math.pow(i / 15, 2.2) * 168;
-        return <rect key={i} x={i * 20} y={180 - h} width={20} height={h} fill="url(#stairs-fade)" />;
-      })}
-    </svg>
-  );
-}
 
 // Deterministic local fixtures approximate accumulated usage, not live billing data.
 const RESOURCES = [
@@ -164,24 +144,6 @@ export function Usage() {
                       <p>$0.00</p>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="usage-plan">
-                <Stairs />
-                <div className="usage-plan-left">
-                  <p>Trial Plan</p>
-                </div>
-                <div className="usage-plan-right">
-                  <p>Your trial includes a one-time $5.00 credit grant, with 1 GB of RAM, 2 vCPU and 1 GB of disk per service. Need more?</p>
-                  <Link to="/workspace/plans" className="btn btn-primary usage-unlock">
-                    <span>
-                      <div className="usage-unlock-inner">
-                        <CircleArrowUp size={20} />
-                        <p>Unlock Hobby Plan</p>
-                      </div>
-                    </span>
-                  </Link>
                 </div>
               </div>
 

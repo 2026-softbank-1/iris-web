@@ -226,14 +226,12 @@ export function Dialog({
 }
 
 /* ------------------------------------------------------------------ */
-/* Global UI state (command palette, upgrade dialog)                   */
+/* Global UI state (command palette, toasts)                          */
 /* ------------------------------------------------------------------ */
 
 interface UIState {
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
-  upgradeOpen: boolean;
-  setUpgradeOpen: (v: boolean) => void;
   toast: (msg: string) => void;
 }
 
@@ -241,7 +239,6 @@ const UICtx = createContext<UIState | null>(null);
 
 export function UIProvider({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const toast = useCallback((msg: string) => {
     const id = Date.now() + Math.random();
@@ -249,7 +246,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
   }, []);
   return (
-    <UICtx.Provider value={{ paletteOpen, setPaletteOpen, upgradeOpen, setUpgradeOpen, toast }}>
+    <UICtx.Provider value={{ paletteOpen, setPaletteOpen, toast }}>
       {children}
       {createPortal(
         <div className="toasts">

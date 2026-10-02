@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { CommandPalette } from './components/CommandPalette';
 import { UIProvider } from './components/ui';
-import { UpgradeDialog } from './components/UpgradeDialog';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { Dashboard } from './pages/Dashboard';
@@ -25,7 +24,7 @@ function RequireAuth() {
   return status === 'authenticated' ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
-function AuthenticatedOverlays() { const { status } = useAuth(); return status === 'authenticated' ? <><CommandPalette /><UpgradeDialog /></> : null; }
+function AuthenticatedOverlays() { const { status } = useAuth(); return status === 'authenticated' ? <CommandPalette /> : null; }
 
 function TitleSync() {
   const { pathname } = useLocation();
@@ -50,6 +49,8 @@ export function App() {
           {/* <Route path="/workspace/usage" element={<Usage />} /> */}
           <Route path="/workspace/usage" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workspace/people" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workspace/plans" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workspace/billing" element={<Navigate to="/dashboard" replace />} />
           {/* General is removed. /workspace goes back to the dashboard. */}
           <Route path="/workspace" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workspace/:section" element={<WorkspaceSettings />} />
