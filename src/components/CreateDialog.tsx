@@ -5,6 +5,7 @@ import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { isTargetSupported } from '../lib/endpoints';
+import { startAnalysis, type AnalysisMode } from '../lib/analysisApi';
 import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
@@ -21,7 +22,7 @@ type UrlCheck = { status: 'idle' | 'validating' | 'invalid' | 'valid'; repo?: ap
 export function CreateDialog({ open, onClose, projectId }: { open: boolean; onClose: () => void; projectId?: string }) {
   const navigate = useNavigate();
   const { toast } = useUI();
-  const { targets, createProject, createService, removeProject, refreshService } = useProjects();
+  const { targets, createProject, createService, removeProject } = useProjects();
   const [step, setStep] = useState<'create' | 'repos' | 'review'>('create');
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
@@ -36,7 +37,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const [branch, setBranch] = useState('main');
   const [branches, setBranches] = useState<string[]>([]);
   const [root, setRoot] = useState('/');
-  const [autoDeploy, setAutoDeploy] = useState(true);
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('opencode');
   const [targetIds, setTargetIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -115,7 +116,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setServiceName(slugify(name));
     setBranch(value.defaultBranch);
     setRoot('/');
-    setAutoDeploy(true);
+    setAnalysisMode('opencode');
     setTargetIds(targets.filter(isTargetSupported).map((t) => t.id));
     setStep('review');
     setNotice('');
@@ -123,7 +124,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
 
   const goInstall = () => window.location.assign(api.githubInstallUrl());
 
-  const deploy = async () => {
+  const createAndAnalyze = async () => {
     if (!repo || !serviceName.trim() || !branch.trim() || submitting) return;
     setSubmitting(true);
     setNotice('');
@@ -139,22 +140,19 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         name: serviceName.trim(),
         branch: branch.trim(),
         rootDirectory: root.trim() || undefined,
-        isAutoDeploy: autoDeploy,
+        isAutoDeploy: false,
         // 타깃을 불러오지 못했으면 생략한다(서버는 모든 타깃에 배포한다).
         targetIds: targetIds.length > 0 ? targetIds : undefined,
       });
-      // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
-      let deploymentId: number | null = null;
+      // Analyze a fixed source before configuration review. Deployment is a separate explicit action.
       try {
-        const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
-        deploymentId = deployment.id;
-        void refreshService(targetProject, service.id).catch(() => undefined);
+        await startAnalysis(service.id, analysisMode);
       } catch (e) {
-        toast(`Service created, but the first deployment couldn't start. ${describeError(e)}`);
+        toast(`Service created, but analysis couldn't start. ${describeError(e)}`);
       }
       onClose();
       const base = `/project/${targetProject}/service/${service.id}`;
-      navigate(deploymentId === null ? base : `${base}/deployment/${deploymentId}`);
+      navigate(`${base}/analysis`);
     } catch (e) {
       // 서비스 만들기가 실패했으면 방금 만든 빈 프로젝트를 되돌린다.
       if (createdProjectId) await removeProject(createdProjectId).catch(() => undefined);
@@ -168,7 +166,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const branchOptions = branches.includes(branch) ? branches : [branch, ...branches];
 
   return <Dialog open={open} onClose={onClose} className="create-dialog" label="Create">
-    <header><h2>{step === 'review' ? 'Review deployment' : 'Create'}</h2><button className="create-icon" aria-label="Dismiss" onClick={onClose}><X size={18} /></button></header>
+    <header><h2>{step === 'review' ? 'Create & analyze service' : 'Create'}</h2><button className="create-icon" aria-label="Dismiss" onClick={onClose}><X size={18} /></button></header>
     {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> Back</button>}
     {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label="What would you like to create?" placeholder="What would you like to create?" value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => o.toLowerCase().includes(query.toLowerCase())).map(option => option === 'GitHub Repository'
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{option}</button>
@@ -194,7 +192,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
               ? <div className="create-empty" role="status"><p>Loading repositories…</p></div>
               : <div className="create-options">{repos.items.map(r => <button key={r.fullName} onClick={() => select(r)}><FolderGit2 size={17} />{r.fullName}{r.isPrivate && <Lock size={13} />}</button>)}{repos.items.length === 0 && <p className="create-empty">No repositories found. Try another search.</p>}</div>}
     </>}
-    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void deploy(); }} className="create-review">
+    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void createAndAnalyze(); }} className="create-review">
       <div className="create-source"><FolderGit2 size={18} />{repo.fullName}</div>
       {!projectId && <label>Project name<input required maxLength={100} value={projectName} onChange={e => setProjectName(e.target.value)} /></label>}
       <label>Service name<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title="Lowercase letters, digits and hyphens" value={serviceName} onChange={e => setServiceName(e.target.value)} /></label>
@@ -203,8 +201,9 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         <label>Root directory<input value={root} onChange={e => setRoot(e.target.value)} /></label>
       </div>
       {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => { const supported = isTargetSupported(t); return <label key={t.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : 'Not supported yet'}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}{!supported && <span className="create-soon">Not supported yet</span>}</label>; })}</fieldset>}
-      <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />Deploy automatically when the branch is pushed</label>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Deploying…' : 'Deploy'}</button>
+      <label>Analysis mode<select value={analysisMode} onChange={e => setAnalysisMode(e.target.value as AnalysisMode)}><option value="opencode">AI analysis (OpenCode)</option><option value="static">Static analysis</option></select></label>
+      <p className="st-muted">Create the service, review source analysis and confirm build settings before deploying. Automatic deployment starts disabled; enable it in Settings after review.</p>
+      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Creating & analyzing…' : 'Create & analyze'}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;

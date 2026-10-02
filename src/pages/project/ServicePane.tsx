@@ -31,9 +31,11 @@ import { DeploymentRow } from './DeploymentRow';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
 import { ServiceConsole } from './ServiceConsole';
+import { ServiceAnalysis } from './ServiceAnalysis';
 
 const TABS = [
   { id: 'deployments', label: 'Deployments' },
+  { id: 'analysis', label: 'Analysis' },
   { id: 'variables', label: 'Variables' },
   { id: 'metrics', label: 'Metrics' },
   { id: 'console', label: 'Console' },
@@ -414,7 +416,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
   const base = `/project/${project.id}/service/${service.id}`;
 
   return (
-    <div className={`pane service-pane${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === 'deployments' ? '' : `/${current}`))}>
+    <div className={`pane service-pane${current === 'analysis' ? ' analysis-view' : ''}${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === 'deployments' ? '' : `/${current}`))}>
       <div className="pane-inner">
         <div className="pane-head">
           <div className="pane-title-row">
@@ -452,6 +454,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
         <div className="pane-content">
           <div className={`pane-content-inner${current === 'settings' ? ' flush' : ''}`}>
             {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
+            {current === 'analysis' && <ServiceAnalysis key={service.id} project={project} service={service} />}
             {current === 'variables' && <VariablesTab service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}

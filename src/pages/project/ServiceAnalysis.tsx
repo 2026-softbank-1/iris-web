@@ -1,0 +1,154 @@
+import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
+import { CircleCheck, FileSearch, LoaderCircle, RotateCw, Square, TriangleAlert } from 'lucide-react';
+import { useProjects } from '../../data/ProjectsContext';
+import { useAnalysis } from '../../data/useAnalysis';
+import { displayAnalysisValue, candidateBuildAdvice, fillEmptyRecommendations, initialReviewDraft, reviewAnswers, type AnalysisReviewDraft } from '../../data/analysisReview';
+import type { Project, Service } from '../../data/mock';
+import type { AnalysisCandidate, AnalysisDto, AnalysisEvidence, AnalysisField, AnalysisMode, JsonValue, VerificationDecision } from '../../lib/analysisApi';
+import { describeError } from '../../lib/api';
+import '../../styles/analysis.css';
+
+const statusLabel = { QUEUED: 'Queued', RUNNING: 'Analyzing', SUCCEEDED: 'Analysis finished', FAILED: 'Analysis failed', CANCELLED: 'Cancelled' };
+const analysisLabel = { complete: 'Source analysis complete', needs_input: 'Additional review required', unsupported: 'Source is unsupported' };
+const executionError = (code?: string) => code === 'ANALYSIS_TIMED_OUT' ? 'Analysis timed out. Try again, or choose Static analysis.'
+  : code === 'INVALID_ANALYZER_RESULT' ? 'The analyzer returned an invalid result. No settings were saved.'
+    : code === 'MODEL_NOT_CONFIGURED' ? 'AI model credentials are missing. Choose Static analysis or ask the operator to configure AI analysis.'
+      : 'The analysis could not finish. Existing service settings remain available. Try again or ask the operator to inspect the analysis worker.';
+
+function Evidence({ ids, evidence }: { ids: string[]; evidence: AnalysisEvidence[] }) {
+  if (!ids.length) return <span className="analysis-muted">No source evidence</span>;
+  return <ul className="analysis-evidence">{ids.map((id) => {
+    const item = evidence.find((entry) => entry.evidenceId === id);
+    return <li key={id}>{item?.text ? <details><summary><code>{item.path}:{item.startLine}{item.endLine !== item.startLine ? `–${item.endLine}` : ''}</code>{item.redacted && <span> · redacted</span>}</summary><pre className="analysis-snippet">{item.text}</pre></details> : <code>{item ? `${item.path}:${item.startLine}–${item.endLine}` : id}</code>}</li>;
+  })}</ul>;
+}
+
+function Field({ label, field, evidence }: { label: string; field: AnalysisField; evidence: AnalysisEvidence[] }) {
+  return <div className="analysis-field">
+    <div className="analysis-field-title"><b>{label}</b><span className={`analysis-badge ${field.status}`}>{field.status}</span><span className="analysis-muted">{field.scope}</span></div>
+    <code className="analysis-value">{displayAnalysisValue(field.value)}</code>
+    <p className="analysis-muted">{field.reason}</p>
+    <Evidence ids={field.evidenceIds} evidence={evidence} />
+  </div>;
+}
+
+function Candidate({ candidate, evidence }: { candidate: AnalysisCandidate; evidence: AnalysisEvidence[] }) {
+  return <details className="analysis-card" open>
+    <summary><FileSearch size={16} /><b>{candidate.serviceId}</b><code>{displayAnalysisValue(candidate.root.value)}</code></summary>
+    <div className="analysis-fields">
+      <Field label="Source root" field={candidate.root} evidence={evidence} />
+      <Field label="Role" field={candidate.role} evidence={evidence} />
+      <Field label="Runtime" field={candidate.runtime} evidence={evidence} />
+      <Field label="Build command" field={candidate.buildCommand} evidence={evidence} />
+      <Field label="Start command" field={candidate.startCommand} evidence={evidence} />
+      <Field label="Output directory" field={candidate.outputDirectory} evidence={evidence} />
+      {candidate.workingDirectory && <Field label="Working directory" field={candidate.workingDirectory} evidence={evidence} />}
+      {candidate.ports.map((field, index) => <Field key={`port-${index}`} label="Port" field={field} evidence={evidence} />)}
+      {candidate.healthchecks.map((field, index) => <Field key={`health-${index}`} label="Healthcheck" field={field} evidence={evidence} />)}
+    </div>
+  </details>;
+}
+
+function Verification({ decisions, evidence }: { decisions: VerificationDecision[]; evidence: AnalysisEvidence[] }) {
+  return <details className="analysis-card">
+    <summary><b>Verification</b><span className="analysis-muted">{decisions.filter((d) => d.decision === 'supported').length} supported · {decisions.filter((d) => d.decision === 'rejected').length} rejected · {decisions.filter((d) => d.decision === 'deferred').length} deferred</span></summary>
+    <div className="analysis-card-body">{decisions.length === 0 && <p className="analysis-muted">No AI proposals required semantic verification.</p>}{decisions.map((decision, index) => <div className="analysis-decision" key={`${decision.fieldPath}-${index}`}>
+      <div className="analysis-field-title"><code>{decision.fieldPath.join('.')}</code><span className={`analysis-badge ${decision.decision}`}>{decision.decision}</span></div>
+      <p>{decision.reason}</p><p className="analysis-muted">{decision.reasonCode}</p>
+      <Evidence ids={decision.evidenceIds} evidence={evidence} />
+      {decision.supportingLocators?.map((locator, i) => <code className="analysis-locator" key={i}>{locator.path}:{locator.startLine}–{locator.endLine}</code>)}
+      {decision.missingObligations?.map((obligation, i) => <p className="analysis-muted" key={i}>{obligation}</p>)}
+    </div>)}</div>
+  </details>;
+}
+
+function Artifact({ label, value }: { label: string; value?: Record<string, JsonValue> }) {
+  return value ? <details className="analysis-card"><summary><b>{label}</b></summary><pre className="analysis-json">{JSON.stringify(value, null, 2)}</pre></details> : null;
+}
+
+function Review({ job, project, service, busy, answer }: { job: AnalysisDto; project: Project; service: Service; busy: boolean; answer: (answers: ReturnType<typeof reviewAnswers>) => Promise<boolean> }) {
+  const { refreshService } = useProjects();
+  const [draft, setDraft] = useState(() => initialReviewDraft(service.remote, job));
+  const [confirmed, setConfirmed] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const candidates = job.analysisResult?.services ?? [];
+  const selected = candidates.find((candidate) => candidate.serviceId === draft.candidateId);
+  const advice = selected ? candidateBuildAdvice(job, selected) : {};
+  const change = (field: keyof AnalysisReviewDraft, value: string) => {
+    setDraft((old) => ({ ...old, [field]: value })); setConfirmed(false); setMessage(null);
+  };
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!confirmed || saving || busy) return;
+    setSaving(true); setMessage(null);
+    try {
+      if (await answer(reviewAnswers(job, draft))) {
+        setConfirmed(false);
+        setMessage('Reviewed settings saved. Open Deployments when you are ready to deploy.');
+        try { await refreshService(project.id, service.id); }
+        catch (e) { setMessage(`Settings saved, but the service view could not refresh. ${describeError(e)}`); }
+      }
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Check the settings.'); }
+    finally { setSaving(false); }
+  };
+
+  if (job.confirmedAt) return <section className="analysis-card analysis-review"><div className="analysis-card-body"><h3>Build settings saved</h3><p className="analysis-notice success"><CircleCheck size={16} /> Settings for {job.selectedServiceCandidateId} were saved after review.</p><p className="analysis-muted">Outstanding source questions remain visible below. Run a new analysis to review a different candidate or settings.</p><Link className="btn btn-outline" to={`/project/${project.id}/service/${service.id}`}>Open Deployments</Link></div></section>;
+
+  return <section className="analysis-card analysis-review">
+    <div className="analysis-card-body"><h3>Review build settings</h3><p className="analysis-muted">Choose one deployed service and confirm its settings. Existing configuration is shown first. Saving settings does not start a deployment.</p>
+      {!job.reviewRequired && <p className="analysis-notice success"><CircleCheck size={16} /> Settings from this analysis have been reviewed.</p>}
+      <form onSubmit={(event) => void save(event)}>
+        <label>Service candidate<select required value={draft.candidateId} disabled={busy || saving} onChange={(e) => change('candidateId', e.target.value)}><option value="">Choose a candidate</option>{candidates.map((candidate) => <option value={candidate.serviceId} key={candidate.serviceId}>{candidate.serviceId} · {displayAnalysisValue(candidate.root.value)}</option>)}</select></label>
+        {selected && <p className="analysis-muted">Selected source root: <code>{displayAnalysisValue(selected.root.value)}</code> relative to the repository. Saving will set the service root directory to this path.</p>}
+        <div className="analysis-review-actions"><span className="analysis-muted">Recommended builder: {advice.builder ?? 'Choose a service candidate'}</span><button type="button" className="btn btn-outline" disabled={!selected || busy || saving} onClick={() => {
+          if (selected) { setDraft((old) => fillEmptyRecommendations(old, selected, advice.builder, advice.dockerfilePath)); setConfirmed(false); setMessage(null); }
+        }}>Fill empty settings from analysis</button></div>
+        <div className="analysis-form-grid">
+          <label>Builder<select required value={draft.builder} disabled={busy || saving} onChange={(e) => change('builder', e.target.value)}><option value="">Choose a builder</option><option value="dockerfile">Dockerfile</option><option value="railpack">Railpack</option></select></label>
+          <label>Container port<input type="number" min={1} max={65535} step={1} placeholder="e.g. 8080" value={draft.port} disabled={busy || saving} onChange={(e) => change('port', e.target.value)} /></label>
+        </div>
+        {draft.builder === 'dockerfile' && <label>Dockerfile path (relative to selected service root)<input required placeholder="Dockerfile" value={draft.dockerfilePath} disabled={busy || saving} onChange={(e) => change('dockerfilePath', e.target.value)} /></label>}
+        <label>Build command<input placeholder="Use the builder default" value={draft.buildCommand} disabled={busy || saving} onChange={(e) => change('buildCommand', e.target.value)} /></label>
+        <label>Start command<input placeholder="Use the builder default" value={draft.startCommand} disabled={busy || saving} onChange={(e) => change('startCommand', e.target.value)} /></label>
+        <p className="analysis-muted">Empty port or command fields keep existing saved settings. Review environment key requirements below; secret values must be configured through your deployment environment.</p>
+        <label className="analysis-confirm"><input type="checkbox" checked={confirmed} disabled={busy || saving || !selected || !draft.builder} onChange={(e) => setConfirmed(e.target.checked)} />I have reviewed the selected source root, builder, port and commands.</label>
+        <div className="analysis-review-actions"><button type="submit" className="btn btn-primary" disabled={!confirmed || busy || saving || !selected || !draft.builder}>{saving ? 'Saving…' : 'Save reviewed settings'}</button><Link className="btn btn-outline" to={`/project/${project.id}/service/${service.id}`}>Open Deployments</Link></div>
+        {message && <p className="analysis-notice" role="status">{message}</p>}
+      </form>
+    </div>
+  </section>;
+}
+
+export function ServiceAnalysis({ project, service }: { project: Project; service: Service }) {
+  const { job, active, loading, busy, error, reload, start, cancel, answer } = useAnalysis(service.id);
+  const [mode, setMode] = useState<AnalysisMode>('opencode');
+  const result = job?.analysisResult;
+  const analysisStatus = job?.analysisStatus ?? result?.status;
+  const evidence = job?.evidence ?? [];
+  return <div className="analysis">
+    <header className="analysis-header"><div><h2>Source analysis</h2><p className="analysis-muted">Inspect repository evidence, review suggestions and configure your service before deployment.</p></div><button type="button" className="btn btn-outline btn-icon-only" aria-label="Refresh analysis" disabled={loading || busy} onClick={() => void reload()}><RotateCw size={16} /></button></header>
+    <div className="analysis-toolbar"><label>Analysis mode<select value={mode} disabled={active || busy} onChange={(e) => setMode(e.target.value as AnalysisMode)}><option value="opencode">AI analysis (OpenCode)</option><option value="static">Static analysis</option></select></label><button type="button" className="btn btn-primary" disabled={active || busy || loading} onClick={() => void start(mode)}>{busy ? 'Submitting…' : job ? 'Run again' : 'Analyze repository'}</button>{active && <button type="button" className="btn btn-outline" disabled={busy} onClick={() => void cancel()}><Square size={14} /> Cancel analysis</button>}</div>
+    <p className="analysis-muted">AI analysis uses the configured model to review source evidence. Static analysis runs without model credentials. Each run analyzes a fixed commit.</p>
+    {error && <p className="analysis-notice error" role="alert"><TriangleAlert size={16} />{error}</p>}
+    {loading && !job && <p className="analysis-muted" role="status">Loading analysis…</p>}
+    {!loading && !job && !error && <div className="analysis-empty"><FileSearch size={32} /><h3>No analysis yet</h3><p className="analysis-muted">Analyze this repository to see service candidates, build settings, source evidence and questions.</p></div>}
+    {job && <>
+      <div className="analysis-card analysis-progress" role="status"><div className="analysis-field-title">{active ? <LoaderCircle size={18} className="analysis-spinner" /> : job.status === 'SUCCEEDED' ? <CircleCheck size={18} /> : <TriangleAlert size={18} />}<b>{statusLabel[job.status]}</b><span className="analysis-muted">{job.stage}</span></div>{analysisStatus && <p>{analysisLabel[analysisStatus]}</p>}<p className="analysis-muted">Commit <code>{job.sourceSha || 'Resolving…'}</code> · Updated {new Date(job.updatedAt).toLocaleString()}</p>{job.rootDirectory && <p className="analysis-muted">Requested source root: <code>{job.rootDirectory}</code></p>}{job.status === 'FAILED' && <p className="analysis-notice error">{executionError(job.errorCode)}{job.errorCode && <code>{job.errorCode}</code>}</p>}{job.status === 'CANCELLED' && <p className="analysis-muted">This run was cancelled. Start a new analysis when ready.</p>}</div>
+      {result && <>
+        <div className="analysis-legend"><span className="analysis-badge detected">detected</span><span>Observed in source</span><span className="analysis-badge suggested">suggested</span><span>Requires review</span><span className="analysis-badge unknown">unknown</span><span>Unresolved</span></div>
+        {result.services.map((candidate) => <Candidate key={candidate.serviceId} candidate={candidate} evidence={evidence} />)}
+        {job.status === 'SUCCEEDED' && analysisStatus !== 'unsupported' && result.services.length > 0 && <Review key={job.id} job={job} project={project} service={service} busy={busy} answer={answer} />}
+        <section className="analysis-card"><div className="analysis-card-body"><h3>Questions & coverage</h3>{result.questions.length === 0 ? <p className="analysis-muted">No outstanding analysis questions.</p> : <ul className="analysis-questions">{result.questions.map((question, index) => <li key={`${question.key}-${index}`}><div className="analysis-field-title"><code>{question.key}</code><span className="analysis-badge unknown">{question.kind === 'user_configuration' ? 'Configuration' : 'Code review'}</span></div><p>{question.reason}</p></li>)}</ul>}<p className="analysis-muted">{result.coverage.completeForProfile ? 'Source coverage is complete for this analysis profile.' : 'Source coverage has gaps that need review.'}</p>{result.coverage.limitations.map((limitation, index) => <p className="analysis-muted" key={index}>{limitation}</p>)}<p className="analysis-muted">Required environment keys are shown without asking for secret values.</p></div></section>
+        {([['Environment keys', result.environmentKeys], ['Dependencies', result.dependencies], ['API routes', result.apiRoutes], ['Connections', result.connections]] as const).map(([label, fields]) => fields.length > 0 && <details className="analysis-card" key={label}><summary><b>{label}</b><span className="analysis-muted">{fields.length}</span></summary><div className="analysis-fields">{fields.map((field, index) => <Field key={index} label={label} field={field} evidence={evidence} />)}</div></details>)}
+        <Verification decisions={job.verificationReport?.decisions ?? []} evidence={evidence} />
+        {job.verificationReport?.reviewFindings?.length ? <details className="analysis-card"><summary><b>Verification review findings</b></summary><ul className="analysis-questions analysis-card-body">{job.verificationReport.reviewFindings.map((finding, index) => <li key={index}><code>{finding.key ?? finding.fieldPath ?? finding.reasonCode ?? 'Review finding'}</code><p>{finding.reason}</p><p className="analysis-muted">{finding.origin}</p></li>)}</ul></details> : null}
+        <Artifact label="Source readiness" value={job.sourceReadiness} /><Artifact label="Deployment planning" value={job.deploymentDossier} /><Artifact label="Analysis run report" value={job.runReport} />
+        <details className="analysis-card"><summary><b>Source identity</b></summary><dl className="analysis-identity analysis-card-body"><dt>Snapshot</dt><dd>{job.sourceSnapshotId ?? result.sourceSnapshotId}</dd><dt>Context hash</dt><dd>{job.contextHash ?? result.contextHash}</dd><dt>Result digest</dt><dd>{job.resultDigest ?? 'Not provided'}</dd></dl></details>
+        <p className="analysis-muted">Analysis completion and verification do not authorize deployment. Start deployment explicitly from the Deployments tab after reviewing settings.</p>
+      </>}
+    </>}
+  </div>;
+}

@@ -63,6 +63,11 @@ export function describeError(error: unknown): string {
     case 'REPOSITORY_NOT_ACCESSIBLE': return 'This repository is not accessible. Install the GitHub App and grant it access.';
     case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
     case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';
+    case 'MODEL_NOT_CONFIGURED': return 'AI analysis is unavailable because the server has no configured model credentials. Choose Static analysis to inspect source evidence, or ask the operator to configure AI analysis.';
+    case 'ANALYSIS_IN_PROGRESS': return 'An analysis is already running. Its progress will appear here.';
+    case 'ANALYSIS_NOT_READY': return 'Wait for the analysis to finish before saving reviewed settings.';
+    case 'ANALYSIS_STALE': return 'The repository, branch, root or commit changed. Run analysis again before saving settings.';
+    case 'ANALYSIS_CANDIDATE_INVALID': return 'Choose a candidate from the latest analysis result.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';
     case 'VALIDATION_ERROR': return error.details.map((d) => `${d.field}: ${d.reason}`).join(' · ') || 'Invalid input.';
