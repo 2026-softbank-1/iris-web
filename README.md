@@ -21,6 +21,7 @@ http://localhost:5173/dashboard
 
 - dev 서버는 브라우저 요청을 같은 origin(`/api`)으로 받아 이 주소로 프록시합니다. was 에 CORS 설정이 필요 없습니다.
 - `npm run build` 결과물은 이 주소로 직접 호출합니다. 이때는 was 가 CORS(credentials)를 허용해야 합니다. 비우면 같은 origin 으로 호출합니다.
+- build 기본값은 커밋된 `.env.production` 의 `https://api.likelion.uk` 입니다. Amplify 환경 변수에 `VITE_API_BASE_URL` 을 넣으면 그 값이 우선합니다. 값을 빈 문자열로 넣으면 같은 origin(`likelion.uk/api/...`)으로 호출하니 비워 두지 마세요.
 
 ### 로그인 주의
 
