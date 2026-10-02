@@ -61,7 +61,9 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | Configure GitHub App | `GET /github/install` |
 | 프로젝트 Settings 이름·설명, Danger | `GET·PATCH·DELETE /projects/{id}` |
 | 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
-| Deploy·Redeploy·Rollback 버튼 | `POST /services/{id}/deployments` |
+| Analyze & deploy | `POST /services/{id}/pipelines` |
+| 파이프라인 진행·부족 정보·취소 | `GET /services/{id}/pipelines`, `POST /services/{id}/pipelines/{pipelineId}/answers·cancel` |
+| 실패 실행 회차 로그 진단 | `POST·GET /services/{id}/deployments/{deploymentId}/diagnosis` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
 | 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
 
@@ -81,7 +83,7 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 
 ## 제한 사항
 
-실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 로그, 사용량 및 지표는 정적/샘플 데이터입니다.
+실제 분석·계획·빌드·배포에는 WAS의 해당 Worker와 모델·빌드·클러스터 설정이 필요합니다. 과거 commit 재배포와 수동 rollback UI는 실행 계약이 준비되지 않아 제공하지 않습니다. Analyze & deploy는 현재 선택한 브랜치의 head를 새로 분석하고 계획합니다. 실패 시 Worker의 자동 rollback은 별도의 배포 정책에 따릅니다. 결제·초대·일부 보조 설정 화면은 샘플이며, 사용량과 지표도 정적/샘플 데이터입니다. 실패 로그 진단은 수집된 실제 로그를 사용하는 WAS API에 연결되어 있습니다. 일반 Build/Deploy/Network 로그 탭은 아직 비어 있습니다.
 
 서비스 상태는 was 가 서비스 응답에 붙여 주는 최근 배포(`latestDeployment`)로 정합니다. 성공·롤백됨은 online, 진행 중(QUEUED·BUILDING·DEPLOYING)은 Deploying, 실패·수동 개입은 crashed 로 표시합니다. 빌드·배포 로그는 API 가 없어서 비어 있고, Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
 
@@ -103,7 +105,7 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 ## 동작
 
 - Dashboard New, 커맨드 팔레트 New Project, 프로젝트 Create는 Create 흐름을 엽니다. 선택할 수 있는 항목은 GitHub Repository뿐이고 나머지는 Coming soon으로 표시됩니다.
-- Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(`local` 은 아직 지원하지 않아 비활성으로 표시) Create & analyze를 누르면 프로젝트와 서비스를 만들고 선택한 AI/static 분석을 접수합니다. 분석 탭에서 결과·근거·질문을 확인하고 실행 설정을 저장한 뒤 Deployments에서 직접 배포를 요청합니다. 자동 배포는 처음에는 꺼져 있으며 Settings에서 켤 수 있습니다. 분석 접수가 실패하면 서비스를 보존하고 안내합니다. Control API 는 배포 요청을 DB 에 기록하고, 빌드·배포는 Worker 가 합니다. Worker 가 없는 로컬에서는 배포가 Queued 에서 멈춥니다. 진행 중인 배포는 3초마다 다시 불러옵니다.
+- Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(`local` 은 아직 지원하지 않아 비활성으로 표시) Analyze & deploy를 누르면 프로젝트와 서비스를 만들고 선택한 AI/static 분석→부족 정보 확인→분석 에이전트 계획 생성→Dockerfile/Railpack 빌드→배포 워크플로를 접수합니다. 단일 앱의 필요한 정보가 충분하면 자동으로 진행하고, 부족하면 Analysis 탭에서 질문과 근거를 확인하고 입력하여 재개합니다. 이 버튼은 선택한 브랜치의 이후 푸시에도 분석·계획을 거치는 자동 배포를 켭니다. 파이프라인 접수가 실패하면 서비스를 보존하고 안내합니다. Control API 는 배포 요청을 DB 에 기록하고, 빌드·배포는 Worker 가 합니다. Worker 가 없는 로컬에서는 배포가 Queued 에서 멈춥니다. 진행 중인 배포는 3초마다 다시 불러옵니다.
 - 프로젝트와 서비스 삭제는 was 가 소프트 삭제로 처리합니다.
 - 세션이 만료돼 API 가 401 을 주면 `/login` 으로 이동합니다.
 - localStorage 키 `ll:plan-limit`을 `1`로 두면 업그레이드 한도 상태를 재현하고 Continue 버튼을 사용할 수 있습니다. 키를 지우면 기본 동작으로 돌아갑니다.
@@ -117,14 +119,19 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 - 로컬 was 와 브라우저로 확인: 로그인·로그아웃·세션 만료, 프로젝트·서비스 생성/수정/삭제, 저장소 검색·주소 확인·브랜치, 서비스 설정 저장(DB 반영 확인), 커맨드 팔레트, 없는 프로젝트 안내
 - `VITE_API_BASE_URL` 을 닿지 않는 주소로 바꾸면 로그인 화면에 서버 연결 안내가 표시됨
 
-## 분석 통합
+## 분석·계획·배포 통합
 
-WAS `feat/ai-analysis-integration`과 함께 사용합니다. 서비스 Analysis 탭의 실행·진행 조회·취소·확인 저장은 `/services/{id}/analysis`와 `/cancel`, `/answers`에 연결됩니다.
+WAS `feat/ai-analysis-integration`과 함께 사용합니다. Create와 Deployments의 Analyze & deploy는 `/services/{id}/pipelines`에 `{mode, autoDeploy: true, enableAutoDeploy: true}`를 접수합니다. 분석 탭에서 단독 Analyze only도 사용할 수 있으며, 이 경우 기존 `/analysis` API를 사용합니다.
 
-- Create는 소스 분석을 먼저 접수합니다. AI 모델 미설정 오류를 표시하며 static으로 자동 전환하지 않습니다. 사용자가 Static analysis를 선택할 수 있습니다.
-- 진행 중인 작업은 3초마다 갱신합니다. detected/suggested/unknown, 질문·한계와 마스킹된 근거 원문을 구분해서 제공합니다.
-- 분석 추천은 자동 저장하지 않습니다. 여러 후보가 같은 root를 써도 첫 후보를 임의 선택하지 않습니다. 기존 설정을 우선 표시하고 Fill empty settings로 빈 항목만 채웁니다.
-- Save reviewed settings는 candidate·builder·root·port·commands의 명시 확인입니다. secret 실제 값을 이 화면에서 받지 않으며 unresolved 질문도 결과에 유지합니다. 확인 완료는 배포 성공을 뜻하지 않습니다.
-- Source readiness, 검증 판정·digest, policy 배포 계획·실행 입력의 blocked 상태와 안전한 모델 실행 기록을 함께 표시합니다.
+- 저장소의 고정 commit을 분석하고, 필요한 사용자 입력을 확보한 뒤 분석 에이전트가 계획을 생성합니다. 기존 Dockerfile을 사용하거나 Railpack으로 이미지를 빌드하고 플랫폼 Worker가 배포합니다.
+- 단일 앱의 검증된 관측값과 저장된 설정이 충분하면 원클릭으로 진행합니다. 후보·포트·환경 바인딩 등 필수 정보가 부족하면 `AWAITING_INPUT`에서 멈춥니다. 후보와 설정을 확인한 후 Continue to planning & deploy로 재개합니다. 소스의 runtime/role 또는 검증 근거에 대한 code_review는 사용자 설정 입력으로 해결됐다고 처리하지 않습니다.
+- AI 모델 미설정 오류를 표시하며 static으로 자동 전환하지 않습니다. 사용자가 Static analysis를 명시적으로 선택할 수 있습니다. 이미 시작된 워크플로의 mode는 새로고침 후에도 표시됩니다.
+- 진행 중 작업은 3초마다, 대기·종료 작업은 10초마다 서버 상태를 읽습니다. 새로고침해도 서버에 저장된 진행 상태를 복원합니다. 빌드·배포 전에는 취소할 수 있으며 Worker 실행이 시작된 후에는 취소 버튼이 비활성화됩니다.
+- 기존 detected/suggested/unknown 결과, 질문·한계, 마스킹된 원문 근거와 의미 검증 결과를 유지합니다. 단독 분석에서 추천은 명시 확인 후 저장하며, 복수 후보의 첫 항목을 임의 선택하지 않습니다.
+- 부족한 환경 바인딩은 `{key, value}`의 공개 설정 또는 `{key, secretRef, secretKey}`의 기존 Kubernetes Secret 참조로 입력합니다. 민감한 키는 공개 값으로 제출할 수 없습니다. Secret은 인프라 담당자가 서비스 namespace에 먼저 생성해야 합니다. 이 폼은 실제 비밀값을 받거나 브라우저 저장소에 저장하지 않습니다. 기존 Variables 탭은 아직 브라우저 샘플이므로 배포 바인딩을 저장하지 않습니다.
+- Build & deployment plan에서 Worker가 사용할 builder·root·port·commands와 plan digest를 표시합니다. 별도의 portable infrastructure dossier는 신규 인프라 바인딩/실행 검증이 미완료면 blocked일 수 있으며, 기존 타깃에 전달하는 Worker 계획과 함께 구분하여 제공합니다.
+- 배포가 실패하면 Details의 Failure log diagnosis에서 해당 실행 회차의 수집된 마스킹 로그를 진단합니다. WAS의 자동 진단 작업도 같은 조회로 표시합니다. 관찰 사실·근거·원인 후보·불확실성·다음 확인·누락 정보를 구분하고, remediation v2의 적용 조건·수정 템플릿·검증·rollback·risks를 제안으로 표시합니다. 진단과 수정 제안은 원래 배포 상태를 바꾸거나 자동으로 수정을 실행하지 않습니다.
 
-검증: `npm run typecheck`, `npm test`, `npm run build`. API 호출·세션 만료·미설정 모델·동일 root의 복수 후보·nested Dockerfile·기존 설정 보존을 검사합니다. 로컬 브라우저에서 실제 WAS/분석 패키지/PostgreSQL을 사용해 정적 분석→근거→명시 확인 저장을 확인했습니다. 이 검증의 GitHub 소스는 통제된 fixture이며 유료 모델·실제 배포를 실행하지 않았습니다.
+검증: `npm run typecheck`, `npm test`, `npm run build`. 23개 테스트로 기존 분석 계약, 원클릭 승인 범위·세션·명시 static 선택·환경 참조 검증·실패 단계·실행 회차별 로그 진단 API를 검사합니다. 로컬 통제된 API fixture로 분석→포트/Secret 참조 질문→계획→빌드→배포 실패→로그 진단 화면과 새로고침 복원을 확인합니다. 유료 모델이나 실제 클라우드 배포는 실행하지 않습니다.
+
+1002 변경과 현재 설계: [docs/1002-integration-design.md](docs/1002-integration-design.md).

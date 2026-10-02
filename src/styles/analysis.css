@@ -51,6 +51,23 @@
 .analysis-identity dt { color: var(--fg-muted); }
 .analysis-identity dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
 .analysis-spinner { animation: analysis-spin 1.2s linear infinite; }
+.pipeline-steps { display: flex; list-style: none; gap: 10px; padding: 0; margin: 20px 0; flex-wrap: wrap; }
+.pipeline-steps li { display: flex; align-items: center; gap: 7px; color: var(--fg-muted); font-size: 12px; flex: 1; min-width: 85px; }
+.pipeline-steps li > span { display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; width: 25px; height: 25px; flex-shrink: 0; }
+.pipeline-steps li[data-state=complete] { color: var(--green-text); }
+.pipeline-steps li[data-state=current] { color: var(--purple-text); }
+.pipeline-steps li[data-state=current] > span { background: var(--purple-bg); border-color: var(--purple); }
+.pipeline-steps li[data-state=stopped] { color: var(--red); }
+.pipeline-progress code { overflow-wrap: anywhere; }
+.pipeline-variables { padding: 16px; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--border); border-radius: 6px; }
+.pipeline-variables legend { padding: 0 5px; font-weight: 600; }
+.pipeline-variable { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--border); padding-top: 14px; }
+.diagnosis-panel { margin: 20px 0; display: flex; flex-direction: column; gap: 16px; font-size: 13px; }
+.diagnosis-panel .analysis-card-body { display: flex; flex-direction: column; gap: 12px; }
+.diagnosis-panel h3 { font-size: 15px; }
+.diagnosis-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: var(--bg-3); border-radius: 6px; }
+.diagnosis-plan { border-top: 1px solid var(--border); padding-top: 12px; }
+.diagnosis-plan li { margin: 6px 0; }
 @keyframes analysis-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .analysis-spinner { animation: none; } }
 @media (max-width: 700px) { .analysis { padding: 16px; } .analysis-fields, .analysis-form-grid { grid-template-columns: minmax(0, 1fr); } .analysis-field:nth-child(odd) { border-right: 0; } .analysis-review-actions { flex-wrap: wrap; } }

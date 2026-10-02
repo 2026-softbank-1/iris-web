@@ -337,7 +337,7 @@ export function ProjectCanvasPage() {
         {service && (
           <div className="pane-wrapper">
             <ServicePane project={project} service={service} tab={tab} stacked={!!deployment} deps={deps} />
-            {deployment && <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} deps={deps} />}
+            {deployment && <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} />}
           </div>
         )}
       </div>

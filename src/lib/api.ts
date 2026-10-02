@@ -68,6 +68,11 @@ export function describeError(error: unknown): string {
     case 'ANALYSIS_NOT_READY': return 'Wait for the analysis to finish before saving reviewed settings.';
     case 'ANALYSIS_STALE': return 'The repository, branch, root or commit changed. Run analysis again before saving settings.';
     case 'ANALYSIS_CANDIDATE_INVALID': return 'Choose a candidate from the latest analysis result.';
+    case 'PIPELINE_IN_PROGRESS': return 'A deployment workflow is already open. Review its progress or missing information here.';
+    case 'PIPELINE_NOT_READY': return 'This workflow cannot accept this action in its current stage. Refresh to see its progress.';
+    case 'PIPELINE_STALE': return 'The source or settings changed. Start a new Analyze & deploy workflow.';
+    case 'DIAGNOSIS_NOT_CONFIGURED': return 'Failure log diagnosis is not configured on the server. Ask the operator to configure the diagnosis worker and model.';
+    case 'DEPLOYMENT_NOT_FAILED': return 'Log diagnosis is available after this deployment attempt fails.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';
     case 'VALIDATION_ERROR': return error.details.map((d) => `${d.field}: ${d.reason}`).join(' · ') || 'Invalid input.';

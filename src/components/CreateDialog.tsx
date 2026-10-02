@@ -5,7 +5,8 @@ import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { isTargetSupported } from '../lib/endpoints';
-import { startAnalysis, type AnalysisMode } from '../lib/analysisApi';
+import type { AnalysisMode } from '../lib/analysisApi';
+import { startPipeline } from '../lib/pipelineApi';
 import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
@@ -124,7 +125,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
 
   const goInstall = () => window.location.assign(api.githubInstallUrl());
 
-  const createAndAnalyze = async () => {
+  const createAndDeploy = async () => {
     if (!repo || !serviceName.trim() || !branch.trim() || submitting) return;
     setSubmitting(true);
     setNotice('');
@@ -144,11 +145,11 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         // 타깃을 불러오지 못했으면 생략한다(서버는 모든 타깃에 배포한다).
         targetIds: targetIds.length > 0 ? targetIds : undefined,
       });
-      // Analyze a fixed source before configuration review. Deployment is a separate explicit action.
+      // This click authorizes one fixed-commit analysis, plan, build and deployment workflow.
       try {
-        await startAnalysis(service.id, analysisMode);
+        await startPipeline(service.id, analysisMode);
       } catch (e) {
-        toast(`Service created, but analysis couldn't start. ${describeError(e)}`);
+        toast(`Service created, but the deployment workflow couldn't start. ${describeError(e)}`);
       }
       onClose();
       const base = `/project/${targetProject}/service/${service.id}`;
@@ -166,7 +167,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const branchOptions = branches.includes(branch) ? branches : [branch, ...branches];
 
   return <Dialog open={open} onClose={onClose} className="create-dialog" label="Create">
-    <header><h2>{step === 'review' ? 'Create & analyze service' : 'Create'}</h2><button className="create-icon" aria-label="Dismiss" onClick={onClose}><X size={18} /></button></header>
+    <header><h2>{step === 'review' ? 'Analyze & deploy service' : 'Create'}</h2><button className="create-icon" aria-label="Dismiss" onClick={onClose}><X size={18} /></button></header>
     {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> Back</button>}
     {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label="What would you like to create?" placeholder="What would you like to create?" value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => o.toLowerCase().includes(query.toLowerCase())).map(option => option === 'GitHub Repository'
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{option}</button>
@@ -192,7 +193,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
               ? <div className="create-empty" role="status"><p>Loading repositories…</p></div>
               : <div className="create-options">{repos.items.map(r => <button key={r.fullName} onClick={() => select(r)}><FolderGit2 size={17} />{r.fullName}{r.isPrivate && <Lock size={13} />}</button>)}{repos.items.length === 0 && <p className="create-empty">No repositories found. Try another search.</p>}</div>}
     </>}
-    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void createAndAnalyze(); }} className="create-review">
+    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void createAndDeploy(); }} className="create-review">
       <div className="create-source"><FolderGit2 size={18} />{repo.fullName}</div>
       {!projectId && <label>Project name<input required maxLength={100} value={projectName} onChange={e => setProjectName(e.target.value)} /></label>}
       <label>Service name<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title="Lowercase letters, digits and hyphens" value={serviceName} onChange={e => setServiceName(e.target.value)} /></label>
@@ -202,8 +203,8 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       </div>
       {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => { const supported = isTargetSupported(t); return <label key={t.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : 'Not supported yet'}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}{!supported && <span className="create-soon">Not supported yet</span>}</label>; })}</fieldset>}
       <label>Analysis mode<select value={analysisMode} onChange={e => setAnalysisMode(e.target.value as AnalysisMode)}><option value="opencode">AI analysis (OpenCode)</option><option value="static">Static analysis</option></select></label>
-      <p className="st-muted">Create the service, review source analysis and confirm build settings before deploying. Automatic deployment starts disabled; enable it in Settings after review.</p>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Creating & analyzing…' : 'Create & analyze'}</button>
+      <p className="st-muted">Analyze this repository, generate a deployment plan and deploy to the selected targets. The workflow pauses when information is missing. Future pushes to this branch will also run the analysis and deployment workflow.</p>
+      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Starting workflow…' : 'Analyze & deploy'}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;

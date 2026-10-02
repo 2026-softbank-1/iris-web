@@ -5,9 +5,10 @@ import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { apiStatusLabel, deploymentLabel, failureText } from '../../data/deploymentModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
-import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
+import { useDeploymentDetail } from '../../data/useDeployments';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
 import { LogTable } from './LogTable';
+import { FailureDiagnosis } from './FailureDiagnosis';
 
 const DTABS = [
   { id: 'details', label: 'Details' },
@@ -80,6 +81,8 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
           )}
         </div>
       </div>
+
+      {problem && <FailureDiagnosis key={d.id} serviceId={service.id} deploymentId={d.id} />}
 
       <div className="details-source">
         <p className="details-h">Deployed via {d.via ?? 'GitHub'}</p>
@@ -171,9 +174,8 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
   );
 }
 
-export function DeploymentPane({ project, service, deployment, tab, deps }: { project: Project; service: Service; deployment: Deployment; tab?: string; deps: DeploymentsApi }) {
+export function DeploymentPane({ project, service, deployment, tab }: { project: Project; service: Service; deployment: Deployment; tab?: string }) {
   const { toast } = useUI();
-  const { run } = useRunner();
   // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다.
   const current = DTABS.some((t) => t.id === tab) ? tab! : 'details';
   const serviceBase = `/project/${project.id}/service/${service.id}`;
@@ -215,8 +217,6 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   horizontal
                   className="btn btn-icon-only dp-action"
                   deployment={deployment}
-                  onRedeploy={() => void run(() => deps.redeploy(deployment.id), 'Redeploy requested')}
-                  onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), 'Rollback requested') : undefined}
                 />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">
                   {fmtKst(deployment.createdAt, false)} GMT+9
@@ -248,6 +248,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
           </div>
           <div role="tabpanel" aria-label={`${DTABS.find((t) => t.id === current)!.label} Logs`} className="dp-panel" data-state="active">
             {current === 'details' && <Details d={deployment} service={service} />}
+            {current === 'details' && <p className="st-muted">To deploy the current branch commit, open <Link to={`${serviceBase}/analysis`}>Analyze & deploy</Link>. Historical commit redeployment and manual rollback are not available.</p>}
             {current !== 'details' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel="Logs aren't available yet" />}
           </div>
         </div>
