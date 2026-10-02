@@ -65,6 +65,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | Create 의 Deploy(첫 배포), Deploy·Redeploy·Rollback 버튼 | `POST /services/{id}/deployments` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
 | 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
+| 서비스 공개 주소(캔버스 노드, 서비스 패널 상단, Settings 의 Public Networking) | `GET /services/{id}/domains` |
 
 웹훅(`POST /webhooks/github`)은 GitHub 가 was 를 호출하는 용도라서 웹에서는 쓰지 않습니다.
 
@@ -75,7 +76,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 - 프로젝트 Logs, Observability, Sandboxes
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
-배포, 로그, 지표, 환경 변수, 도메인 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
+배포, 로그, 지표, 환경 변수 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.

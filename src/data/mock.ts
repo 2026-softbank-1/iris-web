@@ -60,12 +60,23 @@ export interface Deployment {
 
 export type ServiceState = 'online' | 'offline' | 'crashed';
 
+/** 서비스가 한 타깃에서 열리는 공개 주소(was 의 도메인 조회 결과 중 host 가 있는 것). */
+export interface ServiceDomain {
+  host: string;
+  targetName: string;
+  /** 그 타깃에 배포가 성공한 적이 있다. false 면 아직 접속되지 않는다. */
+  isConnected: boolean;
+}
+
 export interface Service {
   id: string;
   shortId: string;
   name: string;
   repo: string;
+  /** 대표 공개 주소(접속되는 주소를 먼저 고른다). */
   domain?: string;
+  /** 타깃별 공개 주소. 아직 받지 못했으면 없고, 받았는데 열린 주소가 없으면 빈 배열이다. */
+  domains?: ServiceDomain[];
   port?: number;
   runtime?: string;
   region: string;

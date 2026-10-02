@@ -25,7 +25,7 @@ import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
 import { apiStatusLabel } from '../data/deploymentModel';
 import { timeAgo, workspace, type Project, type Service } from '../data/mock';
-import { useProject, useProjects } from '../data/ProjectsContext';
+import { useProject, useProjectDomains, useProjects } from '../data/ProjectsContext';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 import { listDeployments, type DeploymentDto } from '../lib/endpoints';
 
@@ -212,6 +212,7 @@ function AgentDrawer({ onClose }: { onClose: () => void }) {
 export function ProjectLayout() {
   const { projectId } = useParams();
   const { state, project, error } = useProject(projectId);
+  useProjectDomains(project);
   const navigate = useNavigate();
   const [drawer, setDrawer] = useState<'activity' | 'agent' | null>(null);
   const accountPop = usePopover();

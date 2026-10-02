@@ -31,6 +31,13 @@ function toService(dto: api.ServiceDto, targets: api.TargetDto[]): Service {
   };
 }
 
+/** was 의 도메인 조회 결과를 서비스에 붙인다. 접속되는 주소가 있으면 그것을 대표 주소로 쓴다. */
+function withDomains(service: Service, dtos: api.ServiceDomainDto[] | undefined): Service {
+  if (!dtos) return service;
+  const domains = dtos.flatMap((d) => (d.host ? [{ host: d.host, targetName: d.targetName, isConnected: d.isConnected }] : []));
+  return { ...service, domains, domain: (domains.find((d) => d.isConnected) ?? domains[0])?.host };
+}
+
 function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api.TargetDto[]): Project {
   return {
     id: String(dto.id),
@@ -64,6 +71,8 @@ type ProjectsApi = {
   removeProject: (id: string) => Promise<void>;
   createService: (projectId: string, body: api.ServiceCreate) => Promise<Service>;
   updateService: (projectId: string, serviceId: string, body: api.ServiceUpdate) => Promise<Service>;
+  /** 프로젝트에 있는 서비스마다 공개 주소(도메인)를 받아 서비스에 붙인다. */
+  loadDomains: (projectId: string) => Promise<void>;
   /** 서비스 하나를 다시 받아 상태(최근 배포)를 갱신한다. */
   refreshService: (projectId: string, serviceId: string) => Promise<Service>;
   /** 프로젝트의 서비스 목록을 다시 받는다. 바뀐 게 없으면 화면 상태를 건드리지 않는다. */
@@ -86,6 +95,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   targetsRef.current = targets;
   const projectsRef = useRef<Project[]>([]);
   projectsRef.current = projects;
+  // 도메인은 서비스 응답에 없어서 따로 받아 서비스 id 별로 쥐고, 화면에는 서비스에 붙여서 내보낸다.
+  const [domains, setDomains] = useState<Record<string, api.ServiceDomainDto[]>>({});
+  const domainSeq = useRef(new Map<string, number>());
 
   // 같은 대상의 수정은 한 번에 하나씩 보낸다. 서버가 GitHub 확인 등으로 느리게 답하는 수정이 있으면 뒤에 보낸
   // 수정의 응답보다 늦게 도착해서 오래된 값으로 화면을 덮어쓰기 때문이다.
@@ -118,6 +130,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     else if (auth.status === 'logged-out') {
       setProjects([]);
       setTargets([]);
+      setDomains({});
+      domainSeq.current.clear();
       setStatus('idle');
     }
   }, [auth.status, reload]);
@@ -190,6 +204,25 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services } : p)));
   }, []);
 
+  const loadDomains = useCallback(async (projectId: string) => {
+    const services = projectsRef.current.find((p) => p.id === projectId)?.services ?? [];
+    await Promise.all(services.map(async (service) => {
+      const seq = (domainSeq.current.get(service.id) ?? 0) + 1;
+      domainSeq.current.set(service.id, seq);
+      let list: api.ServiceDomainDto[] | undefined;
+      try {
+        list = await api.listServiceDomains(service.id);
+      } catch {
+        // 못 받아도 화면은 그대로 둔다. 처음부터 못 받았으면 열린 주소가 없는 것으로 보여준다.
+      }
+      if (domainSeq.current.get(service.id) !== seq) return; // 더 나중에 보낸 요청의 결과가 우선이다
+      setDomains((prev) => {
+        const next = list ?? prev[service.id] ?? [];
+        return JSON.stringify(prev[service.id]) === JSON.stringify(next) ? prev : { ...prev, [service.id]: next };
+      });
+    }));
+  }, []);
+
   // 배포가 진행 중인 서비스는 3초마다 다시 받아서 캔버스·Dashboard 의 상태가 바뀌게 한다.
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -207,9 +240,14 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: p.services.filter((s) => s.id !== serviceId), serviceCount: Math.max(0, (p.serviceCount ?? p.services.length) - 1) } : p)));
   }, []);
 
+  const shown = useMemo(
+    () => projects.map((p) => ({ ...p, services: p.services.map((s) => withDomains(s, domains[s.id])) })),
+    [projects, domains],
+  );
+
   const value = useMemo<ProjectsApi>(
-    () => ({ status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, refreshProject, removeService }),
-    [status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, refreshProject, removeService],
+    () => ({ status, error, projects: shown, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService }),
+    [status, error, shown, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService],
   );
   return <ProjectsCtx.Provider value={value}>{children}</ProjectsCtx.Provider>;
 }
@@ -218,6 +256,21 @@ export function useProjects() {
   const ctx = useContext(ProjectsCtx);
   if (!ctx) throw new Error('useProjects must be used inside <ProjectsProvider>');
   return ctx;
+}
+
+/**
+ * 프로젝트 안에 있는 동안 서비스의 공개 주소를 받아 둔다. 주소는 서비스 이름과 연결한 타깃으로 정해지고, 접속 여부는 배포
+ * 결과로 바뀐다. 그래서 이름·타깃·최근 배포가 달라지면 다시 받는다.
+ */
+export function useProjectDomains(project?: Project) {
+  const { loadDomains } = useProjects();
+  const projectId = project?.id;
+  const signature = project?.services
+    .map((s) => [s.id, s.name, s.remote?.targetIds.join('.'), s.remote?.latestDeployment?.id, s.remote?.latestDeployment?.status].join(':'))
+    .join(',');
+  useEffect(() => {
+    if (projectId) void loadDomains(projectId);
+  }, [projectId, signature, loadDomains]);
 }
 
 /** 프로젝트 하나. 목록에 없으면 한 번 직접 받아보고, 그래도 없으면 notfound. */

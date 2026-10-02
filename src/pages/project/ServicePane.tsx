@@ -87,7 +87,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                 {service.domain}
               </a>
             </>
-          ) : (
+          ) : service.domains && (
             <>
               <div className="side-icon dim">
                 <EyeOffIcon size={16} />

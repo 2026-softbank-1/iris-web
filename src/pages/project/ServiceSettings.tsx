@@ -20,7 +20,6 @@ import {
   Rocket,
   Scaling,
   Shield,
-  Trash2,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -324,47 +323,52 @@ export function ServiceSettings({ project, service }: { project: Project; servic
               )}
               <Item title="Public Networking" id="public-networking">
                 <h2 className="st-item-desc">Reach this service over HTTP with the domains below.</h2>
-                {service.domain ? (
-                  <div className="st-card st-domain-card">
-                    <div className="st-card-row">
-                      <div className="st-card-icon">
-                        <Globe size={20} />
-                      </div>
-                      <div className="st-domain-text">
-                        <a href={`https://${service.domain}`} target="_blank" rel="noreferrer">
-                          <span>{service.domain}</span>
-                          <span className="st-ext">↗</span>
-                        </a>
-                        <p>
-                          <span className="st-port">
-                            <ArrowRight size={16} />
+                {service.domains === undefined ? (
+                  <p className="st-muted st-gap16">Loading domains…</p>
+                ) : service.domains.length > 0 ? (
+                  service.domains.map((d) => (
+                    <div key={d.host} className="st-card st-domain-card">
+                      <div className="st-card-row">
+                        <div className="st-card-icon">
+                          <Globe size={20} />
+                        </div>
+                        <div className="st-domain-text">
+                          <a href={`https://${d.host}`} target="_blank" rel="noreferrer">
+                            <span>{d.host}</span>
+                            <span className="st-ext">↗</span>
+                          </a>
+                          <p>
+                            {service.port !== undefined && (
+                              <span className="st-port">
+                                <ArrowRight size={16} />
+                                <span>
+                                  Port <span className="mono">{service.port}</span>
+                                </span>
+                              </span>
+                            )}
                             <span>
-                              Port <span className="mono">{service.port}</span>
+                              {service.port !== undefined && ' · '}
+                              {d.targetName}
+                              {!d.isConnected && ' · Reachable after the first successful deployment'}
                             </span>
-                          </span>
-                        </p>
-                      </div>
-                      <div className="st-card-actions">
-                        <button
-                          type="button"
-                          className="st-sq-btn"
-                          aria-label="Copy"
-                          onClick={() => {
-                            navigator.clipboard?.writeText(service.domain!);
-                            toast('Domain copied');
-                          }}
-                        >
-                          <Copy size={14} />
-                        </button>
-                        <button type="button" className="st-sq-btn" aria-label="Edit">
-                          <Pencil size={14} />
-                        </button>
-                        <button type="button" className="st-sq-btn" aria-label="Delete">
-                          <Trash2 size={14} />
-                        </button>
+                          </p>
+                        </div>
+                        <div className="st-card-actions">
+                          <button
+                            type="button"
+                            className="st-sq-btn"
+                            aria-label="Copy"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(d.host);
+                              toast('Domain copied');
+                            }}
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))
                 ) : (
                   <p className="st-muted st-gap16">This service is not exposed to the internet yet.</p>
                 )}
