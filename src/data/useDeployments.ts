@@ -8,6 +8,8 @@ import type { Deployment, Service } from './mock';
 import { useProjects } from './ProjectsContext';
 
 const POLL_MS = 3000;
+/** 진행 중인 배포가 없을 때의 확인 주기. push 웹훅이 서버에서 만든 배포를 알아채려는 것이다. */
+const IDLE_POLL_MS = 10_000;
 
 type ListState = { serviceId: string; dtos: api.DeploymentDto[]; error: string | null };
 
@@ -38,10 +40,19 @@ export function useDeployments(service?: Service) {
   const current = state && state.serviceId === serviceId ? state : null;
   const inProgress = !!current?.dtos.some((d) => d.isActive);
   useEffect(() => {
-    if (!inProgress) return;
-    const timer = window.setInterval(() => void load(), POLL_MS);
+    if (!serviceId) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, inProgress ? POLL_MS : IDLE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [inProgress, load]);
+  }, [serviceId, inProgress, load]);
+
+  // 배포가 시작되거나 끝나면(직접 요청한 것이 아니어도) 서비스 상태도 다시 받는다.
+  useEffect(() => {
+    if (!current || !projectId || !serviceId) return;
+    void refreshService(projectId, serviceId).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inProgress, !!current]);
 
   const items = useMemo<Deployment[]>(() => (service && current ? toDeployments(current.dtos, service, user) : []), [service, current, user]);
 
