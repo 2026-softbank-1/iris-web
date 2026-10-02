@@ -1,10 +1,10 @@
-import { ChevronDown, CircleAlert, Folder, LayoutGrid, List, Plus, Search, Star } from 'lucide-react';
+import { ChevronDown, CircleAlert, Folder, LayoutGrid, List, Plus, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
 import { Popover, usePopover, useUI } from '../components/ui';
-import { timeAgo, workspace, type Project } from '../data/mock';
+import { timeAgo, type Project } from '../data/mock';
 import { useProjects } from '../data/ProjectsContext';
 
 type Sort = 'updatedAt' | 'createdAt' | 'alphabetical';
@@ -118,7 +118,7 @@ function ProjectRow({ p }: { p: Project }) {
 }
 
 export function Dashboard() {
-  const { setPaletteOpen, setUpgradeOpen } = useUI();
+  const { setUpgradeOpen } = useUI();
   const { status, error, projects, reload } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
@@ -158,16 +158,6 @@ export function Dashboard() {
       <div className="page-inner">
         <div className="dash-title-row">
           <h1 className="page-title dash-h1">Projects</h1>
-          <button type="button" className="dash-search" onClick={() => setPaletteOpen(true)}>
-            <div className="dash-search-icon">
-              <Search size={16} />
-            </div>
-            <span>Search projects...</span>
-            <span className="kbd-group">
-              <kbd className="kbd">⌘</kbd>
-              <kbd className="kbd">K</kbd>
-            </span>
-          </button>
           <div>
             <button type="button" className="btn btn-primary dash-new" onClick={() => localStorage.getItem('ll:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)}>
               <div className="side-icon">
@@ -179,23 +169,6 @@ export function Dashboard() {
         </div>
 
         {localStorage.getItem('ll:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue</button>}
-        <div className="trial-banner-wrap">
-          <div className="trial-banner">
-            <div className="trial-banner-row">
-              <div className="trial-banner-left">
-                <span className="tb-strong">
-                  {workspace.trialDaysLeft} days or {workspace.creditsLeft}
-                </span>
-                <span className="tb-pipe">|</span>
-                <span>Upgrade to keep your services online.</span>
-              </div>
-              <Link to="/workspace/plans" className="tb-link">
-                Choose a Plan
-              </Link>
-            </div>
-          </div>
-        </div>
-
         <div className="dash-grid">
           <div className="dash-filters">
             <div className="dash-filters-left">

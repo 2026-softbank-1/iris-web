@@ -1,12 +1,8 @@
 import { Check, Copy, KeyRound, Plus } from 'lucide-react';
-import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Avatar, useUI } from '../components/ui';
-import { workspace } from '../data/mock';
-import { useSessionUser } from '../auth/AuthContext';
+import { useUI } from '../components/ui';
 
 const TITLES: Record<string, string> = {
-  '': 'General',
   plans: 'Plans',
   billing: 'Billing',
   domains: 'Domains',
@@ -43,8 +39,6 @@ function Empty({ title, desc, action }: { title: string; desc: string; action?: 
 export function WorkspaceSettings() {
   const { section = '' } = useParams();
   const { toast } = useUI();
-  const user = useSessionUser();
-  const [name, setName] = useState(workspace.name);
   const title = TITLES[section] ?? 'Settings';
 
   return (
@@ -54,38 +48,6 @@ export function WorkspaceSettings() {
           <p className="page-title">{title}</p>
         </div>
         <div className="ws-set">
-          {section === '' && (
-            <>
-              <div className="ws-set-card">
-                <p className="ws-set-label">Workspace Name</p>
-                <div className="ws-set-row">
-                  <Avatar src={user.avatarUrl} size={32} title={workspace.name} />
-                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
-                  <button type="button" className="btn btn-primary" disabled={name === workspace.name} onClick={() => toast('Workspace renamed (mock)')}>
-                    Update
-                  </button>
-                </div>
-              </div>
-              <div className="ws-set-card">
-                <p className="ws-set-label">Workspace ID</p>
-                <div className="ws-set-row">
-                  <code className="set-code mono" style={{ flex: 1 }}>
-                    b2f0c3a1-7e4d-4c8e-9a51-3d2f6b1e8c07
-                  </code>
-                  <button type="button" className="btn btn-outline btn-icon-only" aria-label="Copy" onClick={() => toast('Copied')}>
-                    <Copy size={16} />
-                  </button>
-                </div>
-              </div>
-              <div className="ws-set-card danger">
-                <p className="ws-set-label">Danger zone</p>
-                <p className="set-muted">Deleting a workspace removes all of its projects. This can't be undone.</p>
-                <button type="button" className="btn btn-danger" style={{ alignSelf: 'flex-start' }} onClick={() => toast('Deleting is disabled')}>
-                  Delete workspace
-                </button>
-              </div>
-            </>
-          )}
           {section === 'plans' && (
             <div className="plans">
               {PLANS.map((p) => (

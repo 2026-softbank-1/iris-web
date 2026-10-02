@@ -73,7 +73,6 @@ export function CommandPalette() {
       // { id: 'usage', label: 'Go to Usage', icon: ChartNoAxesColumn, group: 'General', run: go('/workspace/usage') },
       { id: 'search-projects', label: 'Search Projects...', icon: FolderKanban, group: 'General', run: () => setQ('project ') },
       { id: 'search-services', label: 'Search Services...', icon: Box, group: 'General', run: () => setQ('service ') },
-      { id: 'workspace', label: 'Workspace', icon: Briefcase, group: 'General', run: go('/workspace') },
       { id: 'account', label: 'Account', icon: User, group: 'General', run: () => (close(), toast('Account settings are not available yet')) },
       { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toast('Only the dark theme is available')) },
       { id: 'utils', label: 'Utilities', icon: Wrench, group: 'General', run: () => (close(), toast('Utilities are not available yet')) },
