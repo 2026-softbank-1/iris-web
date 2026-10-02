@@ -15,7 +15,7 @@ type ListState = { serviceId: string; dtos: api.DeploymentDto[]; error: string |
 
 /**
  * 서비스 하나의 배포 요청 목록. 진행 중인 배포가 있으면 3초마다 다시 받고, 끝나면 멈춘다.
- * 배포·재배포·롤백 요청도 여기서 보낸다(서버가 Idempotency-Key 로 중복을 막는다).
+ * 새로운 배포는 분석·계획 파이프라인에서 접수한다. 이 훅은 이력을 조회한다.
  */
 export function useDeployments(service?: Service) {
   const { user } = useAuth();
@@ -56,23 +56,11 @@ export function useDeployments(service?: Service) {
 
   const items = useMemo<Deployment[]>(() => (service && current ? toDeployments(current.dtos, service, user) : []), [service, current, user]);
 
-  const request = useCallback(async (body: api.DeploymentCreate) => {
-    if (!serviceId) throw new Error('No service selected');
-    const dto = await api.createDeployment(serviceId, body, crypto.randomUUID());
-    await load();
-    // 캔버스의 서비스 상태도 바로 바뀌게 한다.
-    if (projectId) void refreshService(projectId, serviceId).catch(() => undefined);
-    return dto;
-  }, [serviceId, projectId, load, refreshService]);
-
   return {
     items,
     loading: !current,
     error: current?.error ?? null,
     reload: load,
-    deploy: () => request({ triggerType: 'MANUAL' }),
-    redeploy: (deploymentId: string) => request({ triggerType: 'REDEPLOY', sourceDeploymentId: Number(deploymentId) }),
-    rollback: (deploymentId: string) => request({ triggerType: 'ROLLBACK', sourceDeploymentId: Number(deploymentId) }),
   };
 }
 

@@ -1,4 +1,4 @@
-import { Ellipsis, EllipsisVertical, Copy, RotateCcw, Undo2 } from 'lucide-react';
+import { Ellipsis, EllipsisVertical, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
 import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
@@ -21,16 +21,11 @@ export function DeploymentActions({
   className = 'dep-menu-btn',
   horizontal = false,
   deployment,
-  onRedeploy,
-  onRollback,
 }: {
   size?: number;
   className?: string;
   horizontal?: boolean;
   deployment: Deployment;
-  onRedeploy?: () => void;
-  /** 이전에 성공한 배포로 되돌린다. 성공했던 배포(이미 대체된 것)에서만 준다. */
-  onRollback?: () => void;
 }) {
   const pop = usePopover();
   const { toast } = useUI();
@@ -52,32 +47,6 @@ export function DeploymentActions({
         </div>
       </button>
       <Popover anchor={pop.anchor} onClose={pop.close} align="end" width={200}>
-        {onRedeploy && (
-          <button
-            type="button"
-            className="menu-item"
-            onClick={(e) => {
-              e.stopPropagation();
-              pop.close();
-              onRedeploy();
-            }}
-          >
-            <RotateCcw size={16} className="menu-icon" /> Redeploy
-          </button>
-        )}
-        {onRollback && (
-          <button
-            type="button"
-            className="menu-item"
-            onClick={(e) => {
-              e.stopPropagation();
-              pop.close();
-              onRollback();
-            }}
-          >
-            <Undo2 size={16} className="menu-icon" /> Roll back to this
-          </button>
-        )}
         <button
           type="button"
           className="menu-item"
@@ -95,7 +64,7 @@ export function DeploymentActions({
   );
 }
 
-export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onRedeploy?: () => void; onRollback?: () => void }) {
+export function DeploymentRow({ d, to, variant }: { d: Deployment; to: string; variant: 'active' | 'history' }) {
   const status = d.status.toLowerCase();
   return (
     <Link to={to} className={`dep-row-link ${variant}`}>
@@ -116,7 +85,7 @@ export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: D
             </div>
           </div>
           <div className="dep-actions">
-            <DeploymentActions deployment={d} onRedeploy={onRedeploy} onRollback={onRollback} />
+            <DeploymentActions deployment={d} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
                 <span>View details</span>

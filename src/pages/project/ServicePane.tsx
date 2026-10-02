@@ -27,13 +27,16 @@ import { apiStatusLabel, deploymentLabel, formatDuration } from '../../data/depl
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { isDeploymentInProgress } from '../../lib/endpoints';
+import { startPipeline } from '../../lib/pipelineApi';
 import { DeploymentRow } from './DeploymentRow';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
 import { ServiceConsole } from './ServiceConsole';
+import { ServiceAnalysis } from './ServiceAnalysis';
 
 const TABS = [
   { id: 'deployments', label: 'Deployments' },
+  { id: 'analysis', label: 'Analysis' },
   { id: 'variables', label: 'Variables' },
   { id: 'metrics', label: 'Metrics' },
   { id: 'console', label: 'Console' },
@@ -66,6 +69,7 @@ function SuccessSteps({ service, deployment }: { service: Service; deployment: D
 
 function DeploymentsTab({ project, service, deps }: { project: Project; service: Service; deps: DeploymentsApi }) {
   const { busy, run } = useRunner();
+  const navigate = useNavigate();
   const active = deps.items.find((d) => d.status === 'ACTIVE');
   const building = deps.items.find((d) => d.isActive);
   const history = deps.items.filter((d) => d !== active && d !== building);
@@ -73,6 +77,10 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const base = `/project/${project.id}/service/${service.id}`;
+  const analyzeAndDeploy = () => run(async () => {
+    try { await startPipeline(service.id, 'opencode'); }
+    finally { navigate(`${base}/analysis`); }
+  }, 'Analysis and deployment workflow requested');
 
   return (
     <div className="deps">
@@ -99,8 +107,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-purple-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, 'Deployment requested')}>
-            Deploy
+          <button type="button" className="btn btn-purple-outline" disabled={busy || !!building} onClick={() => void analyzeAndDeploy()}>
+            Analyze & deploy
           </button>
           {service.runtime && (
             <div className="deps-meta">
@@ -164,7 +172,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
       {active ? (
         <div className="deps-active-wrap">
           <div className="deps-active">
-            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" onRedeploy={() => void run(() => deps.redeploy(active.id), 'Redeploy requested')} />
+            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
                 <div className="deps-success-left">
@@ -183,10 +191,10 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         <div className="deps-empty">
           <p>{deps.loading ? 'Loading deployments…' : (deps.error ?? 'There is no active deployment for this service.')}</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, 'Deployment requested')}>
+            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void analyzeAndDeploy()}>
               <span>
                 <span>
-                  Deploy the repo <b>{service.repo}</b>
+                  Analyze & deploy <b>{service.repo}</b>
                 </span>
               </span>
             </button>
@@ -215,14 +223,13 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     d={d}
                     to={`${base}/deployment/${d.id}`}
                     variant="history"
-                    onRedeploy={() => void run(() => deps.redeploy(d.id), 'Redeploy requested')}
-                    onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), 'Rollback requested') : undefined}
                   />
                 ))}
             </div>
           )}
         </div>
       )}
+      <p className="st-muted">Analyze & deploy uses the selected branch's current commit. Redeploying a historical commit and manual rollback are not available from this screen.</p>
     </div>
   );
 }
@@ -240,7 +247,7 @@ function useServiceVars(serviceId: string) {
   return [vars, setVars] as const;
 }
 
-function VariablesTab({ service }: { service: Service }) {
+function VariablesTab({ project, service }: { project: Project; service: Service }) {
   const { toast } = useUI();
   const [vars, setVars] = useServiceVars(service.id);
   const [adding, setAdding] = useState(false);
@@ -280,6 +287,7 @@ function VariablesTab({ service }: { service: Service }) {
 
   return (
     <div className="vars">
+      <p className="st-muted">This variables editor is a browser preview. Deployment environment bindings are configured in the <Link to={`/project/${project.id}/service/${service.id}/analysis`}>Analysis workflow</Link> using public values or existing Secret references.</p>
       <div className="vars-head">
         <div className="vars-head-row">
           <div className="vars-title">
@@ -414,7 +422,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
   const base = `/project/${project.id}/service/${service.id}`;
 
   return (
-    <div className={`pane service-pane${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === 'deployments' ? '' : `/${current}`))}>
+    <div className={`pane service-pane${current === 'analysis' ? ' analysis-view' : ''}${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === 'deployments' ? '' : `/${current}`))}>
       <div className="pane-inner">
         <div className="pane-head">
           <div className="pane-title-row">
@@ -452,7 +460,8 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
         <div className="pane-content">
           <div className={`pane-content-inner${current === 'settings' ? ' flush' : ''}`}>
             {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
-            {current === 'variables' && <VariablesTab service={service} />}
+            {current === 'analysis' && <ServiceAnalysis key={service.id} project={project} service={service} />}
+            {current === 'variables' && <VariablesTab project={project} service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}
             {current === 'settings' && <ServiceSettings project={project} service={service} />}
