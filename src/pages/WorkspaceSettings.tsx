@@ -1,10 +1,8 @@
-import { Check, Copy, KeyRound, Plus } from 'lucide-react';
+import { Copy, KeyRound, Plus } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useUI } from '../components/ui';
 
 const TITLES: Record<string, string> = {
-  plans: 'Plans',
-  billing: 'Billing',
   domains: 'Domains',
   'audit-logs': 'Audit Logs',
   developer: 'Developer',
@@ -12,12 +10,6 @@ const TITLES: Record<string, string> = {
   earnings: 'Earnings',
   referrals: 'Referrals',
 };
-
-const PLANS = [
-  { name: 'Trial', price: '$0', note: 'One-time $5 credit grant', features: ['1 GB RAM / 2 vCPU per service', '1 replica per service', 'Community support'], current: true },
-  { name: 'Hobby', price: '$5 / month', note: 'Includes $5 of usage', features: ['Up to 48 GB RAM / 48 vCPU', 'Up to 6 replicas', '7-day log history', 'Global regions'] },
-  { name: 'Pro', price: '$20 / seat', note: 'Usage billed on top', features: ['Up to 1 TB RAM / 1000 vCPU', 'Multi-region replicas', '30-day log history', 'Priority support'] },
-];
 
 function Empty({ title, desc, action }: { title: string; desc: string; action?: string }) {
   const { toast } = useUI();
@@ -48,28 +40,6 @@ export function WorkspaceSettings() {
           <p className="page-title">{title}</p>
         </div>
         <div className="ws-set">
-          {section === 'plans' && (
-            <div className="plans">
-              {PLANS.map((p) => (
-                <div key={p.name} className={`plan${p.current ? ' current' : ''}`}>
-                  <p className="plan-name">{p.name}</p>
-                  <p className="plan-price">{p.price}</p>
-                  <p className="set-muted">{p.note}</p>
-                  <ul>
-                    {p.features.map((f) => (
-                      <li key={f}>
-                        <Check size={14} /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" className={`btn ${p.current ? 'btn-outline' : 'btn-primary'}`} disabled={p.current} onClick={() => toast(`Checkout for ${p.name} is mocked`)}>
-                    {p.current ? 'Current plan' : `Upgrade to ${p.name}`}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {section === 'billing' && <Empty title="No billing information" desc="Add a payment method when you pick a plan." action="Add payment method" />}
           {section === 'domains' && <Empty title="No domains yet" desc="Domains you buy or bring to this workspace show up here." action="Add domain" />}
           {section === 'audit-logs' && <Empty title="No audit events" desc="Changes made by people in this workspace will be listed here." />}
           {section === 'developer' && (

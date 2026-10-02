@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
-import { Popover, usePopover, useUI } from '../components/ui';
+import { Popover, usePopover } from '../components/ui';
 import { timeAgo, type Project } from '../data/mock';
 import { useProjects } from '../data/ProjectsContext';
 
@@ -118,7 +118,6 @@ function ProjectRow({ p }: { p: Project }) {
 }
 
 export function Dashboard() {
-  const { setUpgradeOpen } = useUI();
   const { status, error, projects, reload } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
@@ -159,7 +158,7 @@ export function Dashboard() {
         <div className="dash-title-row">
           <h1 className="page-title dash-h1">Projects</h1>
           <div>
-            <button type="button" className="btn btn-primary dash-new" onClick={() => localStorage.getItem('ll:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)}>
+            <button type="button" className="btn btn-primary dash-new" onClick={() => setCreateOpen(true)}>
               <div className="side-icon">
                 <Plus size={16} strokeWidth={2.25} />
               </div>
@@ -168,7 +167,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {localStorage.getItem('ll:plan-limit') === '1' && <button className="btn btn-secondary" onClick={() => setCreateOpen(true)}>Continue</button>}
         <div className="dash-grid">
           <div className="dash-filters">
             <div className="dash-filters-left">

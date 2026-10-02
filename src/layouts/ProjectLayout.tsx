@@ -21,7 +21,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { LogoMark, RepoIcon } from '../components/brand';
-import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
+import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
 import { apiStatusLabel } from '../data/deploymentModel';
 import { timeAgo, workspace, type Project, type Service } from '../data/mock';
@@ -266,8 +266,6 @@ export function ProjectLayout() {
                 </button>
               </div>
               <NotificationsButton />
-              <div className="vsep" />
-              <TrialBadge />
               <div className="vsep" />
               <button
                 type="button"

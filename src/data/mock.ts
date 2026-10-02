@@ -97,9 +97,6 @@ export interface Project {
 
 export const workspace = {
   name: "dause's Projects",
-  plan: 'Trial',
-  trialDaysLeft: 29,
-  creditsLeft: '$4.99',
   creditsGranted: '$ 5.00',
 };
 

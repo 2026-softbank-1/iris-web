@@ -31,7 +31,7 @@ interface Cmd {
 }
 
 export function CommandPalette() {
-  const { paletteOpen, setPaletteOpen, setUpgradeOpen, toast } = useUI();
+  const { paletteOpen, setPaletteOpen, toast } = useUI();
   const { projects } = useProjects();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -66,7 +66,7 @@ export function CommandPalette() {
 
   const base: Cmd[] = useMemo(
     () => [
-      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), localStorage.getItem('ll:plan-limit') === '1' ? setUpgradeOpen(true) : setCreateOpen(true)) },
+      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), setCreateOpen(true)) },
       { id: 'new-ws', label: 'New Workspace', icon: Briefcase, group: 'Dashboard', run: () => (close(), toast('Workspaces are not available yet')) },
       { id: 'templates', label: 'Go to Templates', icon: LayoutTemplate, group: 'General', run: go('/workspace/templates') },
       // Usage is disabled for now (non-MVP)

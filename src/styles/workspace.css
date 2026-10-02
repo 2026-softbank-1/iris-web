@@ -277,7 +277,7 @@
   line-height: 38.5px;
 }
 
-/* notifications & trial popovers ----------------------------------- */
+/* notifications popover -------------------------------------------- */
 .notif-pop {
   padding: 0;
 }
@@ -322,42 +322,6 @@
 .notif-empty span {
   font-size: 12px;
   line-height: 18px;
-}
-
-.trial-pop {
-  padding: 16px;
-}
-
-.trial-pop-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-}
-
-.trial-pop-body {
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 19px;
-  color: var(--fg-muted);
-}
-
-.trial-pop-body b {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-.trial-pop-meter {
-  height: 6px;
-  margin: 14px 0;
-  border-radius: 9999px;
-  background: var(--bg-4);
-  overflow: hidden;
-}
-
-.trial-pop-meter div {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--green);
 }
 
 /* toasts */
