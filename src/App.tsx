@@ -50,7 +50,8 @@ export function App() {
           {/* <Route path="/workspace/usage" element={<Usage />} /> */}
           <Route path="/workspace/usage" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workspace/people" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/workspace" element={<WorkspaceSettings />} />
+          {/* General is removed. /workspace goes back to the dashboard. */}
+          <Route path="/workspace" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workspace/:section" element={<WorkspaceSettings />} />
         </Route>
         <Route path="/project/:projectId" element={<ProjectLayout />}>

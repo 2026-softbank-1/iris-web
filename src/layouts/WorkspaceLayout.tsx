@@ -1,5 +1,4 @@
 import {
-  Check,
   // ChartNoAxesColumn, // Usage nav item (disabled for now)
   ChevronDown,
   ChevronUp,
@@ -7,23 +6,17 @@ import {
   LayoutGrid,
   LogOut,
   Moon,
-  PanelsTopLeft,
-  Plus,
   Settings,
   User,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LogoMark } from '../components/brand';
-import { NotificationsButton, TrialBadge } from '../components/HeaderActions';
+import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
-import { workspace } from '../data/mock';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 
 const SETTINGS_LINKS = [
-  { to: '/workspace', label: 'General', end: true },
-  { to: '/workspace/plans', label: 'Plans' },
-  { to: '/workspace/billing', label: 'Billing' },
   { to: '/workspace/domains', label: 'Domains' },
   { to: '/workspace/audit-logs', label: 'Audit Logs' },
   { to: '/workspace/developer', label: 'Developer' },
@@ -42,56 +35,6 @@ function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label
         </div>
       )}
     </NavLink>
-  );
-}
-
-function WorkspaceSwitcher() {
-  const pop = usePopover();
-  const navigate = useNavigate();
-  const user = useSessionUser();
-  return (
-    <div>
-      <button type="button" className="ws-switch" data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
-        <div className="ws-switch-inner">
-          <Avatar src={user.avatarUrl} size={24} title={workspace.name} />
-          <div className="ws-switch-text">
-            <div className="ws-name-row">
-              <span className="ws-name truncate">{workspace.name}</span>
-              <div className="ws-switch-chevron">
-                <ChevronDown size={12} strokeWidth={2.25} />
-              </div>
-            </div>
-            <div className="ws-plan-row">
-              <span className="ws-plan">{workspace.plan}</span>
-            </div>
-          </div>
-        </div>
-      </button>
-      <Popover anchor={pop.anchor} onClose={pop.close} width={240}>
-        <div className="menu-label">Workspaces</div>
-        <button type="button" className="menu-item" data-active="true" onClick={pop.close}>
-          <Avatar src={user.avatarUrl} size={20} title={workspace.name} />
-          <span className="truncate">{workspace.name}</span>
-          <Check size={14} className="menu-right" />
-        </button>
-        <div className="menu-sep" />
-        <button
-          type="button"
-          className="menu-item"
-          onClick={() => {
-            pop.close();
-            navigate('/workspace');
-          }}
-        >
-          <Settings size={16} className="menu-icon" />
-          Workspace settings
-        </button>
-        <button type="button" className="menu-item" onClick={pop.close}>
-          <Plus size={16} className="menu-icon" />
-          New Workspace
-        </button>
-      </Popover>
-    </div>
   );
 }
 
@@ -134,7 +77,7 @@ function AccountButton() {
 
 export function WorkspaceLayout() {
   const location = useLocation();
-  const inSettings = location.pathname === '/workspace' || SETTINGS_LINKS.some((l) => l.to !== '/workspace' && location.pathname.startsWith(l.to));
+  const inSettings = SETTINGS_LINKS.some((l) => location.pathname.startsWith(l.to));
   const [settingsOpen, setSettingsOpen] = useState(inSettings);
   useEffect(() => {
     if (inSettings) setSettingsOpen(true);
@@ -150,15 +93,11 @@ export function WorkspaceLayout() {
                 <LogoMark size={24} />
               </div>
             </NavLink>
-            <div className="ws-switch-wrap">
-              <WorkspaceSwitcher />
-            </div>
           </div>
           <div className="side-divider" />
           <div className="side-section">
             <nav className="side-nav">
               <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label="Projects" />
-              <SideItem to="/workspace/templates" icon={<PanelsTopLeft size={16} />} label="Templates" />
               <div className="side-divider inset" />
               {/* Usage is disabled for now (non-MVP) */}
               {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
@@ -175,7 +114,7 @@ export function WorkspaceLayout() {
                 <div className="side-sub">
                   <div className="side-sub-line" />
                   {SETTINGS_LINKS.map((l) => (
-                    <NavLink key={l.to} to={l.to} end={l.end} className="side-link">
+                    <NavLink key={l.to} to={l.to} className="side-link">
                       {({ isActive }) => (
                         <div className={`side-item sub${isActive ? ' active' : ''}`}>
                           <span className="side-sub-spacer" />
@@ -202,8 +141,6 @@ export function WorkspaceLayout() {
           <div className="ws-header-left" />
           <div className="ws-header-actions">
             <NotificationsButton />
-            <div className="vsep" />
-            <TrialBadge />
           </div>
         </header>
         <main className="ws-main">
