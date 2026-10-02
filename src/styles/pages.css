@@ -598,6 +598,23 @@
 
 .plogs-msg {
   color: var(--fg);
+  /* 스택 트레이스처럼 여러 줄로 묶인 행도 들여쓰기·줄바꿈을 그대로 보여준다. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 여러 줄로 묶인 행: 시각은 위에 붙이고 레벨 막대는 행 높이만큼 늘린다. */
+.plogs-row.block {
+  align-items: stretch;
+}
+
+.plogs-row.block .plogs-time {
+  align-items: flex-start;
+}
+
+.plogs-row.block .plogs-time .log-level {
+  align-self: stretch;
+  height: auto;
 }
 
 .plogs-jump {

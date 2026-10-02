@@ -70,7 +70,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 
 웹훅(`POST /webhooks/github`)은 GitHub 가 was 를 호출하는 용도라서 웹에서는 쓰지 않습니다.
 
-프로젝트 Logs 는 서비스마다 첫 번째 배포 대상(`targetIds[0]`)의 런타임 로그를 보여줍니다. was 에 `LOKI_URL` 이 설정돼 있지 않으면 `NOT_CONFIGURED` 오류가 납니다. 서버가 5분마다 스트림을 끊으면 브라우저가 `Last-Event-ID` 로 이어 붙고, 한 번에 받을 양을 넘으면(`overflow`) 과거 로그 조회로 따라잡습니다. 레벨은 was 가 주지 않아서 본문의 `ERROR`, `level=warn` 같은 표기와 줄 맨 앞의 `npm error`, `SyntaxError:` 같은 표기로 추정합니다.
+프로젝트 Logs 는 서비스마다 첫 번째 배포 대상(`targetIds[0]`)의 런타임 로그를 보여줍니다. was 에 `LOKI_URL` 이 설정돼 있지 않으면 `NOT_CONFIGURED` 오류가 납니다. 서버가 5분마다 스트림을 끊으면 브라우저가 `Last-Event-ID` 로 이어 붙고, 한 번에 받을 양을 넘으면(`overflow`) 과거 로그 조회로 따라잡습니다. 스택 트레이스처럼 앞 줄에 이어지는 줄(공백으로 시작하는 줄, `Caused by:`)은 같은 pod 의 앞 줄과 한 행으로 묶어 보여줍니다. 레벨은 was 가 주지 않아서 본문의 `ERROR`, `level=warn` 같은 표기와 줄 맨 앞의 `npm error`, `SyntaxError:` 같은 표기로 추정합니다.
 
 - Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
