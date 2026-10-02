@@ -19,7 +19,11 @@ export type ProjectDto = {
 export type Builder = 'dockerfile' | 'railpack';
 
 export type DeploymentStatus = 'QUEUED' | 'BUILDING' | 'DEPLOYING' | 'SUCCEEDED' | 'FAILED' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
-export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK';
+/**
+ * 배포 요청을 만든 방식. was 가 값을 늘려 갈 수 있으니 화면은 모르는 값이 와도 죽지 않아야 한다(deploymentModel 의 VIA 참고).
+ * 웹이 직접 요청하는 것은 MANUAL·REDEPLOY·ROLLBACK 뿐이다(DeploymentCreate).
+ */
+export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART' | 'REMOVE';
 export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED';
 
 /** 서비스 응답에 붙는 가장 최근 배포 요청. */
@@ -37,6 +41,8 @@ export type DeploymentDto = LatestDeploymentDto & {
   serviceId: number;
   /** 요청한 사용자 id. 푸시 웹훅이 만든 요청에는 없다. */
   requestedBy?: number;
+  /** 다른 배포를 원본으로 삼은 요청(재배포·롤백 등)의 원본 배포 id. 화면에서는 아직 쓰지 않는다. */
+  sourceDeploymentId?: number;
   /** QUEUED·BUILDING·DEPLOYING 이면 진행 중이다. */
   isActive: boolean;
 };

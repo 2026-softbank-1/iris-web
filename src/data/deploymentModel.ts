@@ -28,7 +28,15 @@ const API_LABELS: Record<ApiStatus, string> = {
 };
 export const apiStatusLabel = (status: ApiStatus) => API_LABELS[status];
 
-const VIA: Record<DeploymentTrigger, string> = { PUSH: 'GitHub push', MANUAL: 'Manual deploy', REDEPLOY: 'Redeploy', ROLLBACK: 'Rollback', CLI: 'CLI' };
+const VIA: Record<DeploymentTrigger, string> = {
+  PUSH: 'GitHub push',
+  MANUAL: 'Manual deploy',
+  REDEPLOY: 'Redeploy',
+  ROLLBACK: 'Rollback',
+  CLI: 'CLI',
+  RESTART: 'Restart',
+  REMOVE: 'Remove',
+};
 
 export function failureText(code?: FailureCode): string | undefined {
   switch (code) {
@@ -72,7 +80,8 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
   const liveId = dtos.find((d) => d.status === 'SUCCEEDED')?.id;
   return dtos.map((dto) => {
     const mine = dto.requestedBy !== undefined && dto.requestedBy === me?.id;
-    const via = VIA[dto.triggerType];
+    // was 가 새 트리거를 먼저 내보내도 패널이 비지 않게, 모르는 값은 그대로 보여준다.
+    const via = VIA[dto.triggerType] ?? dto.triggerType;
     return {
       id: String(dto.id),
       shortId: String(dto.id),
