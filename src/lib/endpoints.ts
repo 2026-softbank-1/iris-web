@@ -72,6 +72,22 @@ export type ServiceDto = {
   updatedAt: string;
 };
 
+/**
+ * 서비스가 한 타깃에서 열리는 공개 주소. 서비스가 연결한 타깃마다 한 건이다.
+ * 도메인 규칙이 없는 타깃(local)은 host·url 이 없다.
+ */
+export type ServiceDomainDto = {
+  targetId: number;
+  targetName: string;
+  targetKind: string;
+  /** `{서비스 이름}-{서비스 id}.{타깃 접미사}`. */
+  host?: string;
+  /** `https://{host}`. */
+  url?: string;
+  /** 그 타깃에 배포가 성공한 적이 있다. 그 전에는 주소가 있어도 앱이 응답하지 않는다(503). */
+  isConnected: boolean;
+};
+
 export type TargetDto = { id: number; name: string; kind: string; region?: string; domainSuffix?: string };
 /** was 에 로컬 타깃(LOCAL)으로 배포하는 구현이 아직 없다. 화면에는 보여주되 고를 수 없게 한다. */
 export const isTargetSupported = (target: TargetDto) => target.kind !== 'LOCAL';
@@ -134,6 +150,7 @@ export const createService = (projectId: number | string, json: ServiceCreate) =
 export const getService = (id: number | string) => request<ServiceDto>(`/services/${id}`);
 export const updateService = (id: number | string, json: ServiceUpdate) => request<ServiceDto>(`/services/${id}`, { method: 'PATCH', json });
 export const deleteService = (id: number | string) => request<void>(`/services/${id}`, { method: 'DELETE' });
+export const listServiceDomains = (serviceId: number | string) => request<ServiceDomainDto[]>(`/services/${serviceId}/domains`);
 
 /* deployments */
 export const isDeploymentInProgress = (status: DeploymentStatus) => status === 'QUEUED' || status === 'BUILDING' || status === 'DEPLOYING';
