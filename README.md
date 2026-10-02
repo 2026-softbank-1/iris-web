@@ -1,6 +1,6 @@
 # LikeLion dashboard frontend
 
-React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, 배포·로그·지표 등 API가 아직 없는 화면은 샘플입니다.
+React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, 배포·로그·요청 지표 등 API가 아직 없는 화면은 샘플입니다.
 
 ## 실행
 
@@ -67,10 +67,13 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
 | 서비스 공개 주소(캔버스 노드, 서비스 패널 상단, Settings 의 Public Networking) | `GET /services/{id}/domains` |
 | 프로젝트 Logs (기간만큼 과거 로그를 받고, 이어서 실시간) | `GET /services/{id}/logs`, `GET /services/{id}/logs/stream` (SSE) |
+| 서비스 Metrics 탭 (CPU, Memory, Public Network Traffic) | `GET /services/{id}/metrics` |
 
 웹훅(`POST /webhooks/github`)은 GitHub 가 was 를 호출하는 용도라서 웹에서는 쓰지 않습니다.
 
 프로젝트 Logs 는 서비스마다 첫 번째 배포 대상(`targetIds[0]`)의 런타임 로그를 보여줍니다. was 에 `LOKI_URL` 이 설정돼 있지 않으면 `NOT_CONFIGURED` 오류가 납니다. 서버가 5분마다 스트림을 끊으면 브라우저가 `Last-Event-ID` 로 이어 붙고, 한 번에 받을 양을 넘으면(`overflow`) 과거 로그 조회로 따라잡습니다. 스택 트레이스처럼 앞 줄에 이어지는 줄(공백으로 시작하는 줄, `Caused by:`)은 같은 pod 의 앞 줄과 한 행으로 묶어 보여줍니다. 레벨은 was 가 주지 않아서 본문의 `ERROR`, `level=warn` 같은 표기와 줄 맨 앞의 `npm error`, `SyntaxError:` 같은 표기로 추정합니다.
+
+서비스 Metrics 탭은 서비스의 첫 번째 배포 대상(`targetIds[0]`)의 CPU·Memory·네트워크 지표를 보여줍니다. 시간 범위마다 조회 간격(`step`)이 정해져 있고(15분 30초, 1시간·6시간 60초, 1일 120초, 7일 600초), 끝(`end`)은 지금보다 30초 앞입니다. Live 가 켜져 있으면 30초마다 다시 받고 Pause 하면 멈춥니다. 범례의 `Sum` 은 합계 한 줄, `Replicas` 는 Pod 마다 한 줄(`groupBy=pod`, 켠 카드가 있을 때만 추가로 조회)입니다. Pod 이 50개를 넘으면 서버가 422 를 주므로 안내를 보여줍니다. `groupBy` 를 모르는 was 는 쿼리를 무시하고 합계만 돌려주는데, 이때는 오류로 보지 않고 합계 한 줄로 그리며 Replicas 는 비활성처럼 보입니다. `Public Network Traffic` 의 값은 공용 트래픽만 가른 것이 아니라 Pod 의 네트워크 rate(Egress = `network_transmit`, Ingress = `network_receive`)입니다. Requests·Request Error Rate·Response Time 은 API 가 없어 비어 있습니다.
 
 - Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
@@ -79,14 +82,14 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 - 프로젝트 Logs, Observability, Sandboxes
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
-지표, 환경 변수, 빌드·배포 로그 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
+요청 지표(Requests·Request Error Rate·Response Time), 환경 변수, 빌드·배포 로그 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.
 
 ## 제한 사항
 
-실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 사용량 및 지표는 정적/샘플 데이터입니다.
+실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 사용량과 요청 지표(Requests·Request Error Rate·Response Time)는 정적/샘플 데이터입니다.
 
 서비스 상태는 was 가 서비스 응답에 붙여 주는 최근 배포(`latestDeployment`)로 정합니다. 성공·롤백됨은 online, 진행 중(QUEUED·BUILDING·DEPLOYING)은 Deploying, 실패·수동 개입은 crashed 로 표시합니다. 빌드·배포 로그는 API 가 없어서 비어 있고, Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
 

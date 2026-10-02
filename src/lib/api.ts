@@ -33,9 +33,11 @@ type RequestOptions = {
   query?: Record<string, string | number | boolean | undefined>;
   json?: unknown;
   headers?: Record<string, string>;
+  /** 요청을 중간에 취소한다. 취소되면 fetch 가 AbortError 로 reject 한다. */
+  signal?: AbortSignal;
 };
 
-export async function request<T>(path: string, { method = 'GET', query, json, headers }: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, { method = 'GET', query, json, headers, signal }: RequestOptions = {}): Promise<T> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) if (value !== undefined && value !== '') params.set(key, String(value));
   const qs = params.size > 0 ? `?${params}` : '';
@@ -44,6 +46,7 @@ export async function request<T>(path: string, { method = 'GET', query, json, he
     credentials: 'include',
     headers: { Accept: 'application/json', ...(json !== undefined && { 'Content-Type': 'application/json' }), ...headers },
     body: json === undefined ? undefined : JSON.stringify(json),
+    signal,
   });
   if (res.status === 204) return undefined as T;
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
