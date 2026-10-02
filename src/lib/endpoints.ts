@@ -162,6 +162,23 @@ export const createDeployment = (serviceId: number | string, json: DeploymentCre
 export const getDeployment = (serviceId: number | string, deploymentId: number | string) =>
   request<DeploymentDetailDto>(`/services/${serviceId}/deployments/${deploymentId}`);
 
+/* logs */
+/** 런타임 로그 한 줄. timestampNs 는 Unix 나노초이고, number 로는 정밀도가 모자라서 문자열로 온다. */
+export type LogEntryDto = { timestampNs: string; message: string; pod: string; container: string };
+export type LogsDto = { entries: LogEntryDto[]; isTruncated: boolean };
+/** 기간 안의 로그. 서버가 최신순으로 limit 줄까지만 준다(최대 1000). */
+export const searchLogs = (serviceId: number | string, query: { targetId: number; start: string; end: string; limit?: number }) =>
+  request<LogsDto>(`/services/${serviceId}/logs`, { query });
+/**
+ * 로그 SSE 주소. EventSource 는 fetch 가 아니라서 request() 를 못 쓰고 주소만 만들어 직접 연다.
+ * cursor(나노초)를 주면 그 시각부터, 없으면 서버가 10초 전부터 보낸다.
+ */
+export const logStreamUrl = (serviceId: number | string, targetId: number, cursor?: string) => {
+  const params = new URLSearchParams({ targetId: String(targetId) });
+  if (cursor) params.set('cursor', cursor);
+  return apiUrl(`/services/${serviceId}/logs/stream?${params}`);
+};
+
 /* targets */
 export const listTargets = () => request<TargetDto[]>('/targets');
 

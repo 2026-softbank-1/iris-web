@@ -1,11 +1,19 @@
 import { ArrowDown, ArrowUp, Clock, Download, Pause, Play, Search, Settings } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Popover, usePopover, useUI } from '../../components/ui';
-import { fmtKst, fmtKstFull, type LogLine } from '../../data/mock';
+import { fmtKst, fmtKstFull } from '../../data/mock';
 import { useProject } from '../../data/ProjectsContext';
+import { useServiceLogs } from '../../data/useServiceLogs';
 
-const RANGES = ['Last 15 min', 'Last 1 hour', 'Last 6 hours', 'Last 1 day', 'Last 7 days'];
+const MIN = 60_000;
+const RANGES = [
+  { label: 'Last 15 min', ms: 15 * MIN },
+  { label: 'Last 1 hour', ms: 60 * MIN },
+  { label: 'Last 6 hours', ms: 6 * 60 * MIN },
+  { label: 'Last 1 day', ms: 24 * 60 * MIN },
+  { label: 'Last 7 days', ms: 7 * 24 * 60 * MIN },
+];
 
 export function ProjectLogs() {
   const { projectId } = useParams();
@@ -19,20 +27,21 @@ export function ProjectLogs() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Recent environment logs: crashed services report a container stop, live ones their latest lines.
+  const { lines: all, loading, error, truncated, hasSources } = useServiceLogs(project.services, { rangeMs: RANGES[range].ms, live });
   const lines = useMemo(() => {
-    const out: (LogLine & { service: string })[] = [];
-    for (const s of project.services) {
-      // 배포 로그 API 가 아직 없어서 샘플 데이터가 있는 서비스만 보인다.
-      const d = s.deployments.find((x) => x.status === 'ACTIVE');
-      d?.deployLogs.slice(-3).forEach((l) => out.push({ ...l, service: s.name }));
-    }
     const query = q.trim().toLowerCase();
-    return out.filter((l) => !query || l.message.toLowerCase().includes(query) || l.service.toLowerCase().includes(query));
-  }, [project, q]);
+    return all.filter((l) => !query || l.message.toLowerCase().includes(query) || l.service.toLowerCase().includes(query));
+  }, [all, q]);
+
+  // 맨 아래를 보고 있을 때만 새 줄을 따라간다. 위로 올려 읽는 중이면 그대로 둔다.
+  const followTail = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && followTail.current) el.scrollTop = el.scrollHeight;
+  }, [lines, error]);
 
   const now = new Date();
-  const from = new Date(now.getTime() - 15 * 60_000);
+  const from = new Date(now.getTime() - RANGES[range].ms);
   const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
   return (
@@ -57,12 +66,12 @@ export function ProjectLogs() {
             <div className="tool-icon">
               <Clock size={16} />
             </div>
-            <span>{RANGES[range]}</span>
+            <span>{RANGES[range].label}</span>
           </button>
           <Popover anchor={rangePop.anchor} onClose={rangePop.close} align="end" width={180}>
             {RANGES.map((r, i) => (
               <button
-                key={r}
+                key={r.label}
                 type="button"
                 className="menu-item"
                 data-active={i === range}
@@ -71,7 +80,7 @@ export function ProjectLogs() {
                   rangePop.close();
                 }}
               >
-                {r}
+                {r.label}
               </button>
             ))}
           </Popover>
@@ -99,15 +108,31 @@ export function ProjectLogs() {
               </div>
             </button>
           </div>
-          <div className="plogs-scroll" ref={scrollRef}>
+          <div
+            className="plogs-scroll"
+            ref={scrollRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              followTail.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+            }}
+          >
             <div className="plogs-marker">
               <div className="plogs-marker-pill">
-                You reached the start of the range <span className="plogs-arrow">→</span> <span className="mono-ish">{fmtKst(from.toISOString(), false)}</span>
+                {truncated ? 'Showing only the latest lines' : 'You reached the start of the range'} <span className="plogs-arrow">→</span>{' '}
+                <span className="mono-ish">{fmtKst(from.toISOString(), false)}</span>
               </div>
             </div>
-            {lines.length === 0 && <div className="logs-empty">{q ? `No logs match “${q}”` : "Logs aren't available yet"}</div>}
-            {lines.map((l, i) => (
-              <div key={i} className={`plogs-row level-${l.level}`}>
+            {lines.length === 0 && (
+              <div className="logs-empty">
+                {q && all.length > 0
+                  ? `No logs match “${q}”`
+                  : loading
+                    ? 'Loading logs…'
+                    : error ?? (hasSources ? 'No logs in this time range' : "Logs aren't available yet")}
+              </div>
+            )}
+            {lines.map((l) => (
+              <div key={l.key} className={`plogs-row level-${l.level}`}>
                 <span className="plogs-time">
                   <span className={`log-level ${l.level}`} />
                   <time title={fmtKstFull(l.ts)}>{fmtKst(l.ts)}</time>
@@ -116,6 +141,11 @@ export function ProjectLogs() {
                 <span className="plogs-msg">{l.message}</span>
               </div>
             ))}
+            {error && lines.length > 0 && (
+              <div className="plogs-marker">
+                <div className="plogs-marker-pill">{error}</div>
+              </div>
+            )}
           </div>
           <div className="plogs-jump">
             <button type="button" className="btn btn-outline btn-icon-only" aria-label="Scroll to top" onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
