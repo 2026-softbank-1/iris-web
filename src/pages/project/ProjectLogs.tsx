@@ -132,7 +132,7 @@ export function ProjectLogs() {
               </div>
             )}
             {lines.map((l) => (
-              <div key={l.key} className={`plogs-row level-${l.level}`}>
+              <div key={l.key} className={`plogs-row level-${l.level}${l.message.includes('\n') ? ' block' : ''}`}>
                 <span className="plogs-time">
                   <span className={`log-level ${l.level}`} />
                   <time title={fmtKstFull(l.ts)}>{fmtKst(l.ts)}</time>

@@ -14,7 +14,8 @@ const CLOCK_SKEW_MS = 2000;
 const RETRY_MIN_MS = 3000;
 const RETRY_MAX_MS = 30_000;
 
-export type ProjectLogLine = LogLine & { key: string; ns: string; service: string };
+/** 화면의 한 행. 스택 트레이스처럼 이어지는 줄은 앞 줄에 붙어서 message 가 여러 줄이 된다. */
+export type ProjectLogLine = LogLine & { key: string; ns: string; service: string; stream: string };
 type Source = { id: string; name: string; targetId: number };
 
 // was 는 로그 레벨을 따로 주지 않아서 본문에 흔히 적는 표기만 읽는다.
@@ -38,6 +39,8 @@ function toLine(source: Source, entry: api.LogEntryDto): ProjectLogLine {
     ns: entry.timestampNs,
     ts: new Date(nsToMs(entry.timestampNs)).toISOString(),
     service: source.name,
+    // 어느 컨테이너가 낸 줄인지. 서로 다른 pod 의 줄이 섞여도 이어지는 줄을 맞게 붙이려고 쓴다.
+    stream: `${source.id}/${entry.pod}`,
     message: entry.message,
     level: detectLevel(entry.message),
   };
@@ -45,6 +48,29 @@ function toLine(source: Source, entry: api.LogEntryDto): ProjectLogLine {
 
 // 나노초 문자열은 2286년까지 19자리라서 길이가 같으니 사전순이 곧 시간순이다.
 const byTime = (a: { ns: string }, b: { ns: string }) => (a.ns < b.ns ? -1 : a.ns > b.ns ? 1 : 0);
+
+// 앞 줄에 이어지는 줄: 공백으로 시작하거나(`    at ...`, Python `  File ...`), Caused by:·... N more 로 시작한다.
+const CONTINUATION_RE = /^(?:\s+\S|Caused by:|Suppressed:|\.\.\. \d+ (?:more|common frames))/;
+/** 같은 이벤트의 줄은 거의 동시에 찍힌다. 이보다 벌어지면 따로 센다. */
+const MAX_GROUP_GAP_NS = 1_000_000_000n;
+
+/** 시간순 줄에서 이어지는 줄을 같은 pod 의 앞 줄에 붙여 한 행으로 만든다. 행의 시각과 레벨은 첫 줄의 것이다. */
+function groupLines(sorted: ProjectLogLine[]): ProjectLogLine[] {
+  const rows: ProjectLogLine[] = [];
+  const open = new Map<string, { index: number; lastNs: bigint }>();
+  for (const line of sorted) {
+    const ns = BigInt(line.ns);
+    const head = open.get(line.stream);
+    if (head && CONTINUATION_RE.test(line.message) && ns - head.lastNs <= MAX_GROUP_GAP_NS) {
+      rows[head.index] = { ...rows[head.index], message: `${rows[head.index].message}\n${line.message}` };
+      head.lastNs = ns;
+    } else {
+      open.set(line.stream, { index: rows.length, lastNs: ns });
+      rows.push(line);
+    }
+  }
+  return rows;
+}
 
 function mergeLines(current: ProjectLogLine[], incoming: ProjectLogLine[]): ProjectLogLine[] {
   const seen = new Set(current.map((l) => l.key));
@@ -133,7 +159,8 @@ export function useServiceLogs(services: Service[], { rangeMs, live }: { rangeMs
               limit: HISTORY_LIMIT,
             });
             if (stopped) return;
-            append(source, res.entries);
+            // 과거 조회는 최신순이다. 뒤집어 넣어야 같은 시각의 줄이 찍힌 순서대로 남는다(스택 트레이스를 묶는 데 필요하다).
+            append(source, [...res.entries].reverse());
             if (res.isTruncated) setTruncated(true);
             // 가장 늦은 줄 다음부터 이어 받는다. 줄이 없으면 서버 기본값(10초 전)에 맡긴다.
             const latest = res.entries.reduce<bigint | null>((max, e) => (max === null || BigInt(e.timestampNs) > max ? BigInt(e.timestampNs) : max), null);
@@ -181,6 +208,6 @@ export function useServiceLogs(services: Service[], { rangeMs, live }: { rangeMs
     };
   }, [sources, rangeMs, live]);
 
-  const lines = useMemo(() => Object.values(byService).flat().sort(byTime), [byService]);
+  const lines = useMemo(() => groupLines(Object.values(byService).flat().sort(byTime)), [byService]);
   return { lines, loading, error: Object.values(errors)[0] ?? null, truncated, hasSources: sources.length > 0 };
 }
