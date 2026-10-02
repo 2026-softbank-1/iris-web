@@ -37,7 +37,7 @@ import { CreateDialog } from '../../components/CreateDialog';
 import { OnlineDot, RepoIcon } from '../../components/brand';
 import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
-import { useProject } from '../../data/ProjectsContext';
+import { useProject, useProjects } from '../../data/ProjectsContext';
 import { useDeployments } from '../../data/useDeployments';
 import { DeploymentPane } from './DeploymentPane';
 import { ServicePane } from './ServicePane';
@@ -132,27 +132,21 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
         id: s.id,
         type: 'service',
         position: { x: i * 336, y: 0 },
-        data: { service: s, projectId: project.id, selected: false },
+        data: {
+          service: showDomains ? s : { ...s, domain: undefined },
+          projectId: project.id,
+          selected: s.id === selectedId,
+        },
         draggable: true,
       })),
-    [project],
+    [project, selectedId, showDomains],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<ServiceNodeType>(initial);
 
-  useEffect(() => setNodes(initial), [initial, setNodes]);
-
+  // 서비스 상태가 다시 불러와져도(배포 진행 중 등) 끌어서 옮긴 위치는 그대로 둔다.
   useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) => ({
-        ...n,
-        data: {
-          ...n.data,
-          selected: n.id === selectedId,
-          service: showDomains ? n.data.service : { ...n.data.service, domain: undefined },
-        },
-      })),
-    );
-  }, [selectedId, showDomains, setNodes]);
+    setNodes((prev) => initial.map((n) => ({ ...n, position: prev.find((p) => p.id === n.id)?.position ?? n.position })));
+  }, [initial, setNodes]);
 
   // When a service pane is open, slide the canvas so the selected node sits in the
   // visible strip left of the pane (the pane is 904px wide, or full width minus 24px).
@@ -305,7 +299,16 @@ export function ProjectCanvasPage() {
   const navigate = useNavigate();
   // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
   const project = useProject(projectId).project!;
+  const { refreshProject } = useProjects();
   const service = project.services.find((s) => s.id === serviceId || s.shortId === serviceId);
+
+  // 이 화면을 보는 동안은 서비스 상태를 가끔 다시 받는다(push 웹훅이 만든 배포도 보이게).
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshProject(project.id).catch(() => undefined);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [project.id, refreshProject]);
   const deps = useDeployments(service);
   const deployment = deps.items.find((d) => d.id === deploymentId || d.shortId === deploymentId);
 

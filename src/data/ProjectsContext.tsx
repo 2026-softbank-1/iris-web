@@ -66,6 +66,8 @@ type ProjectsApi = {
   updateService: (projectId: string, serviceId: string, body: api.ServiceUpdate) => Promise<Service>;
   /** 서비스 하나를 다시 받아 상태(최근 배포)를 갱신한다. */
   refreshService: (projectId: string, serviceId: string) => Promise<Service>;
+  /** 프로젝트의 서비스 목록을 다시 받는다. 바뀐 게 없으면 화면 상태를 건드리지 않는다. */
+  refreshProject: (projectId: string) => Promise<void>;
   removeService: (projectId: string, serviceId: string) => Promise<void>;
 };
 
@@ -180,6 +182,14 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return next;
   }, []);
 
+  const refreshProject = useCallback(async (projectId: string) => {
+    const services = (await api.listServices(projectId)).map((dto) => toService(dto, targetsRef.current));
+    const current = projectsRef.current.find((p) => p.id === projectId)?.services ?? [];
+    const same = current.length === services.length && current.every((s, i) => s.id === services[i].id && JSON.stringify(s.remote) === JSON.stringify(services[i].remote));
+    if (same) return;
+    setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services } : p)));
+  }, []);
+
   // 배포가 진행 중인 서비스는 3초마다 다시 받아서 캔버스·Dashboard 의 상태가 바뀌게 한다.
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -198,8 +208,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<ProjectsApi>(
-    () => ({ status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, removeService }),
-    [status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, removeService],
+    () => ({ status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, refreshProject, removeService }),
+    [status, error, projects, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, refreshService, refreshProject, removeService],
   );
   return <ProjectsCtx.Provider value={value}>{children}</ProjectsCtx.Provider>;
 }
