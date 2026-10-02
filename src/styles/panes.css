@@ -886,6 +886,22 @@
   padding: 16px 16px 8px;
 }
 
+/* Replicas 를 켰을 때 Pod 마다 하나씩 붙는 범례. 최대 50개라서 줄바꿈하고 높이를 제한한다. */
+.metric-legend.replicas {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-height: 56px;
+  overflow-y: auto;
+}
+
+.metric-note {
+  margin-top: 4px;
+  padding: 0 16px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--yellow);
+}
+
 .metric-legend-item > div,
 .metric-legend-item.static {
   display: flex;

@@ -1,88 +1,133 @@
 import { Clock, LayoutGrid, Pause, Play, StretchHorizontal } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Popover, usePopover } from '../../components/ui';
+import {
+  METRIC_RANGES,
+  isReplicasUnsupported,
+  maxValue,
+  replicaLines,
+  splitAtGaps,
+  sumPoints,
+  timeTicks,
+  yAxis,
+  type MetricName,
+  type MetricWindow,
+  type Point,
+  type YKind,
+} from '../../data/metricsModel';
 import type { Service } from '../../data/mock';
+import { useServiceMetrics } from '../../data/useServiceMetrics';
 
-const RANGES = ['Last 15 min', 'Last 1 hour', 'Last 6 hours', 'Last 1 day', 'Last 7 days'];
-const RANGE_MIN = [15, 60, 360, 1440, 10080];
+const CHART_HEIGHT = 299;
+const NETWORK_HEIGHT = 268;
+const PAD_TOP = 16; // 맨 위 눈금 라벨이 들어갈 자리
+const X_LABEL_HEIGHT = 23; // 시간 라벨이 들어갈 자리
+const MIN_GUTTER = 46;
+const CHAR_WIDTH = 6.6; // 11px 라벨 한 글자의 대략적인 폭. Y축 라벨 칸의 너비를 정한다.
+const EGRESS_COLOR = '#ad871f';
+const INGRESS_COLOR = 'var(--blue-bar)';
 
-interface Series {
-  color: string;
-  /** values sampled evenly across the time range */
-  values: number[];
+type ChartLine = { key: string; color: string; points: Point[] };
+
+/** 요소의 실제 너비. SVG 를 viewBox 로 늘이지 않고 너비에 맞춰 그려서 글자가 찌그러지지 않게 한다. */
+function useElementWidth<T extends HTMLElement>(initial: number) {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(initial);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth || initial);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [initial]);
+  return [ref, width] as const;
 }
 
-const W = 354;
-const AXIS_X = 46;
-const STEP = 55.3; // px between major ticks
+/** 실제 값에 맞춘 눈금(0 기준)과 start~end 시간축을 쓰는 SVG 선 차트. */
+function LineChart({ lines, kind, span, label, height = CHART_HEIGHT }: { lines: ChartLine[]; kind: YKind; span: MetricWindow; label: string; height?: number }) {
+  const [ref, width] = useElementWidth<HTMLDivElement>(354);
+  const axis = useMemo(() => yAxis(kind, maxValue(lines)), [kind, lines]);
+  const xTicks = useMemo(() => timeTicks(span.startMs, span.endMs), [span]);
 
-/** Small hand-rolled SVG line chart tuned to the original's proportions. */
-function LineChart({
-  series,
-  ticks,
-  tickValue,
-  xTicks,
-  height = 299,
-  centered = false,
-}: {
-  series: Series[];
-  ticks: string[]; // labels from the baseline upwards
-  tickValue: number; // value represented by one major step
-  xTicks: { label: string; x: number }[];
-  height?: number;
-  centered?: boolean; // zero line in the middle (no data range yet)
-}) {
-  const bottom = centered ? 121.5 : 276;
-  const plotRight = W - 1;
-  const toY = (v: number) => bottom - (v / tickValue) * STEP;
-  const minor: number[] = [];
-  if (!centered) for (let y = bottom - STEP / 2; y > 4; y -= STEP / 2) minor.push(y);
+  const left = Math.max(MIN_GUTTER, 4 + Math.max(...axis.ticks.map((t) => t.label.length)) * CHAR_WIDTH + 6);
+  const right = width - 1;
+  const bottom = height - X_LABEL_HEIGHT;
+  const { startMs, endMs, stepSec } = span;
+  const geo = useMemo(
+    () => ({
+      toX: (t: number) => left + ((t - startMs) / (endMs - startMs)) * Math.max(right - left, 1),
+      toY: (v: number) => bottom - (v / axis.top) * (bottom - PAD_TOP),
+    }),
+    [left, right, bottom, startMs, endMs, axis.top],
+  );
+
+  // 선은 점이 최대 1,440개라서 그대로 그린다. 폭·축·데이터가 바뀔 때만 다시 계산한다.
+  const drawn = useMemo(
+    () =>
+      lines.map((line) => ({
+        key: line.key,
+        color: line.color,
+        // 값이 빈 구간(Pod 재시작, 수집 누락)은 이어 그리지 않는다.
+        segments: splitAtGaps(
+          line.points.filter((p) => p.t >= startMs && p.t <= endMs),
+          stepSec * 1000 * 1.5,
+        ).map((seg) => seg.map((p) => ({ x: geo.toX(p.t), y: geo.toY(p.v) }))),
+      })),
+    [lines, geo, startMs, endMs, stepSec],
+  );
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} className="chart" style={{ overflow: 'hidden' }}>
-      {minor.map((y) => (
-        <line key={y} x1={AXIS_X} x2={plotRight} y1={y} y2={y} stroke="rgba(255,255,255,0.035)" />
-      ))}
-      {ticks.map((t, i) => (
-        <text key={t + i} x={4} y={(centered ? bottom - 3 : toY(i * tickValue) - 4) } className="chart-tick">
-          {t}
-        </text>
-      ))}
-      {!centered && (
-        <>
-          <line x1={AXIS_X + 0.5} x2={AXIS_X + 0.5} y1={0} y2={bottom} stroke="rgba(255,255,255,0.22)" />
-          <line x1={AXIS_X} x2={plotRight} y1={bottom + 0.5} y2={bottom + 0.5} stroke="rgba(255,255,255,0.08)" />
-        </>
-      )}
-      {!centered &&
-        xTicks.map((t) => (
-          <text key={t.label} x={t.x} y={296} className="chart-tick" textAnchor="middle">
-            {t.label}
-          </text>
+    <div ref={ref} style={{ width: '100%', minWidth: 0 }}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="chart" role="img" aria-label={label} style={{ overflow: 'hidden' }}>
+        {axis.ticks.map((t, i) => (
+          <g key={t.label}>
+            {i > 0 && <line x1={left} x2={right} y1={geo.toY(t.value)} y2={geo.toY(t.value)} stroke="rgba(255,255,255,0.06)" />}
+            <text x={4} y={geo.toY(t.value) - 4} className="chart-tick">
+              {t.label}
+            </text>
+          </g>
         ))}
-      {series.map((s, si) => {
-        const n = s.values.length;
-        const pts = s.values.map((v, i) => `${AXIS_X + (i / (n - 1)) * (plotRight - AXIS_X)},${toY(v)}`);
-        // the line "rises" from the baseline when the replica started
-        const first = `${AXIS_X},${bottom}`;
-        return <polyline key={si} points={[first, ...pts].join(' ')} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" />;
-      })}
-    </svg>
+        <line x1={left + 0.5} x2={left + 0.5} y1={PAD_TOP} y2={bottom} stroke="rgba(255,255,255,0.22)" />
+        <line x1={left} x2={right} y1={bottom + 0.5} y2={bottom + 0.5} stroke="rgba(255,255,255,0.08)" />
+        {xTicks.map((t) => {
+          const x = geo.toX(t.t);
+          return (
+            <text key={t.t} x={x} y={height - 3} className="chart-tick" textAnchor={x > width - 30 ? 'end' : 'middle'}>
+              {t.label}
+            </text>
+          );
+        })}
+        {drawn.map((line) =>
+          line.segments.map((seg, i) =>
+            seg.length === 1 ? (
+              <circle key={`${line.key}/${i}`} cx={seg[0].x} cy={seg[0].y} r={2} fill={line.color} />
+            ) : (
+              <polyline
+                key={`${line.key}/${i}`}
+                points={seg.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}
+                fill="none"
+                stroke={line.color}
+                strokeWidth={2}
+                strokeLinejoin="round"
+              />
+            ),
+          ),
+        )}
+      </svg>
+    </div>
   );
 }
 
-function Legend({ items }: { items: { label: string; color: string; hollow?: boolean; dim?: boolean }[] }) {
+function LegendToggle({ label, color, on, title, onClick }: { label: string; color: string; on: boolean; title?: string; onClick: () => void }) {
   return (
-    <div className="metric-legend">
-      {items.map((it) => (
-        <button key={it.label} type="button" className="metric-legend-item" style={{ opacity: it.dim ? 0.5 : 1 }}>
-          <div>
-            <span className="metric-swatch" style={it.hollow ? { borderColor: '#fff' } : { background: it.color, borderColor: it.color }} />
-            <span className="metric-legend-label">{it.label}</span>
-          </div>
-        </button>
-      ))}
-    </div>
+    <button type="button" className="metric-legend-item" aria-pressed={on} title={title} style={{ opacity: on ? 1 : 0.5 }} onClick={onClick}>
+      <div>
+        <span className="metric-swatch" style={on ? { background: color, borderColor: color } : { borderColor: '#fff' }} />
+        <span className="metric-legend-label">{label}</span>
+      </div>
+    </button>
   );
 }
 
@@ -98,37 +143,148 @@ function EmptyMetric({ title, what, tall }: { title: string; what: string; tall?
   );
 }
 
+/** 차트 대신 보여줄 안내(불러오는 중·데이터 없음·오류). */
+function MetricMessage({ title, sub, minHeight = 260 }: { title: string; sub?: string; minHeight?: number }) {
+  return (
+    <div className="metric-empty" style={{ minHeight }}>
+      <p className="metric-empty-title">{title}</p>
+      {sub && <p className="metric-empty-sub">{sub}</p>}
+    </div>
+  );
+}
+
+type MetricsView = ReturnType<typeof useServiceMetrics>;
+
+/** 카드가 차트 대신 보여줄 안내. 차트를 그릴 수 있으면 null. */
+function messageFor(view: MetricsView, what: string, hasData: boolean, error: string | undefined) {
+  if (!view.hasTarget) return { title: "Metrics aren't available yet", sub: "This service isn't deployed to a target yet" };
+  if (hasData && view.window) return null;
+  if (view.loading) return { title: 'Loading metrics…' };
+  if (error) return { title: `Couldn't load ${what} metrics`, sub: error };
+  return { title: `No ${what} metrics available`, sub: 'Nothing was recorded for this time range yet' };
+}
+
+const REPLICAS_UNAVAILABLE = "Per-replica metrics aren't available yet";
+
+/** CPU·Memory 카드. 범례의 Sum·Replicas 로 합계 한 줄과 Pod 별 선을 켜고 끈다. */
+function ResourceCard({
+  title,
+  what,
+  metric,
+  kind,
+  color,
+  view,
+  sumOn,
+  replicasOn,
+  onToggleSum,
+  onToggleReplicas,
+}: {
+  title: string;
+  what: string;
+  metric: MetricName;
+  kind: YKind;
+  color: string;
+  view: MetricsView;
+  sumOn: boolean;
+  replicasOn: boolean;
+  onToggleSum: () => void;
+  onToggleReplicas: () => void;
+}) {
+  const sum = useMemo(() => sumPoints(view.total.data, metric), [view.total.data, metric]);
+  const replicas = useMemo(() => replicaLines(view.pods.data, metric).filter((l) => l.points.length > 0), [view.pods.data, metric]);
+  // 서버가 groupBy 를 모르면(구버전) 합계만 온다. 오류로 보지 않고 합계 한 줄로 그리고 Replicas 는 쓸 수 없는 것으로 보여준다.
+  const unsupported = isReplicasUnsupported(view.pods.data);
+  const replicasShown = replicasOn && !unsupported && !!view.pods.data;
+  // Replicas 를 못 그리는 상태(미지원·Pod 초과 등)에서는 합계를 대신 보여줘서 차트가 비지 않게 한다.
+  const sumShown = sumOn || (replicasOn && !replicasShown && !view.podsLoading);
+
+  const lines = useMemo<ChartLine[]>(
+    () => [...(sumShown ? [{ key: 'sum', color, points: sum }] : []), ...(replicasShown ? replicas.map((l) => ({ key: l.pod, color: l.color, points: l.points })) : [])],
+    [sumShown, sum, color, replicasShown, replicas],
+  );
+
+  const hasData = sum.length > 0 || (replicasShown && replicas.length > 0);
+  const error = view.total.error ?? (replicasOn ? view.pods.error : undefined);
+  const message = messageFor(view, what, hasData, error);
+
+  return (
+    <div className="metric-card">
+      <div className="metric-head">
+        <p className="metric-title">{title}</p>
+        <div className="metric-legend">
+          <LegendToggle label="Sum" color={color} on={sumOn} onClick={onToggleSum} />
+          <LegendToggle label="Replicas" color="#fff" on={replicasOn && !unsupported} title={replicasOn && unsupported ? REPLICAS_UNAVAILABLE : undefined} onClick={onToggleReplicas} />
+        </div>
+      </div>
+      {replicasShown && replicas.length > 0 && (
+        <div className="metric-legend replicas">
+          {replicas.map((l) => (
+            <div key={l.pod} className="metric-legend-item static" title={l.pod}>
+              <span className="metric-swatch" style={{ background: l.color, borderColor: l.color }} />
+              <span className="metric-legend-label">{l.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!message && error && <p className="metric-note">{error}</p>}
+      {message ? <MetricMessage {...message} /> : <LineChart lines={lines} kind={kind} span={view.window!} label={`${title} over time`} />}
+    </div>
+  );
+}
+
+/** Pod 의 네트워크 rate. 공용 트래픽만 따로 가른 값이 아니다. */
+function NetworkCard({ view }: { view: MetricsView }) {
+  const egress = useMemo(() => sumPoints(view.total.data, 'network_transmit'), [view.total.data]);
+  const ingress = useMemo(() => sumPoints(view.total.data, 'network_receive'), [view.total.data]);
+  const lines = useMemo<ChartLine[]>(
+    () => [
+      { key: 'egress', color: EGRESS_COLOR, points: egress },
+      { key: 'ingress', color: INGRESS_COLOR, points: ingress },
+    ],
+    [egress, ingress],
+  );
+  const message = messageFor(view, 'network', egress.length > 0 || ingress.length > 0, view.total.error);
+
+  return (
+    <div className="metric-card flush">
+      <div className="metric-head">
+        <p className="metric-title">Public Network Traffic</p>
+      </div>
+      {!message && view.total.error && <p className="metric-note">{view.total.error}</p>}
+      <div className="metric-chart-300">
+        {message ? (
+          <MetricMessage {...message} minHeight={NETWORK_HEIGHT} />
+        ) : (
+          <>
+            <LineChart height={NETWORK_HEIGHT} lines={lines} kind="rate" span={view.window!} label="Public Network Traffic over time" />
+            <div className="metric-legend bottom">
+              <div className="metric-legend-item static" style={{ color: EGRESS_COLOR }}>
+                <span className="metric-swatch" style={{ background: EGRESS_COLOR, borderColor: EGRESS_COLOR }} />
+                <span className="metric-legend-label">Egress</span>
+              </div>
+              <div className="metric-legend-item static">
+                <span className="metric-swatch" style={{ background: INGRESS_COLOR, borderColor: INGRESS_COLOR }} />
+                <span className="metric-legend-label">Ingress</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ServiceMetrics({ service }: { service: Service }) {
   const [layout, setLayout] = useState<'grid' | 'rows'>('grid');
   const [range, setRange] = useState(0);
   const [live, setLive] = useState(true);
-  const [now, setNow] = useState(() => new Date());
+  const [sum, setSum] = useState({ cpu: true, memory: true });
+  const [replicas, setReplicas] = useState({ cpu: false, memory: false });
   const rangePop = usePopover();
 
-  useEffect(() => {
-    if (!live) return;
-    const t = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(t);
-  }, [live]);
-
-  const xTicks = useMemo(() => {
-    const mins = RANGE_MIN[range];
-    const stepMin = mins <= 15 ? 5 : mins <= 60 ? 20 : mins <= 360 ? 120 : mins <= 1440 ? 480 : 2880;
-    const end = now.getTime();
-    const start = end - mins * 60_000;
-    const out: { label: string; x: number }[] = [];
-    let t = Math.ceil(start / (stepMin * 60_000)) * stepMin * 60_000;
-    for (; t <= end + stepMin * 60_000 * 0.4; t += stepMin * 60_000) {
-      const d = new Date(t);
-      const label =
-        mins >= 1440 ? `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}h` : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      out.push({ label, x: AXIS_X + ((t - start) / (end - start)) * (W - 1 - AXIS_X) });
-    }
-    return out;
-  }, [now, range]);
-
-  const online = service.state === 'online';
-  const flat = (v: number, n = 60) => Array.from({ length: n }, () => (online ? v : 0));
+  // Pod 별 조회는 Replicas 가 켜진 카드가 있을 때만 한다.
+  const view = useServiceMetrics(service, { range, live, replicas: replicas.cpu || replicas.memory });
+  const toggle = (set: typeof setSum, name: 'cpu' | 'memory') => set((prev) => ({ ...prev, [name]: !prev[name] }));
 
   return (
     <div className="metrics">
@@ -150,12 +306,12 @@ export function ServiceMetrics({ service }: { service: Service }) {
             <div className="tool-icon dim">
               <Clock size={16} />
             </div>
-            <span>{RANGES[range]}</span>
+            <span>{METRIC_RANGES[range].label}</span>
           </button>
           <Popover anchor={rangePop.anchor} onClose={rangePop.close} align="end" width={180}>
-            {RANGES.map((r, i) => (
+            {METRIC_RANGES.map((r, i) => (
               <button
-                key={r}
+                key={r.label}
                 type="button"
                 className="menu-item"
                 data-active={i === range}
@@ -164,7 +320,7 @@ export function ServiceMetrics({ service }: { service: Service }) {
                   rangePop.close();
                 }}
               >
-                {r}
+                {r.label}
               </button>
             ))}
           </Popover>
@@ -174,68 +330,31 @@ export function ServiceMetrics({ service }: { service: Service }) {
         </div>
       </div>
       <div className={`metrics-grid${layout === 'rows' ? ' rows' : ''}`}>
-        <div className="metric-card">
-          <div className="metric-head">
-            <p className="metric-title">CPU</p>
-            <Legend
-              items={[
-                { label: 'Sum', color: 'var(--purple)' },
-                { label: 'Replicas', color: '#fff', hollow: true, dim: true },
-              ]}
-            />
-          </div>
-          <LineChart
-            ticks={['0.0 vCPU', '0.2 vCPU', '0.4 vCPU', '0.6 vCPU', '0.8 vCPU']}
-            tickValue={0.2}
-            xTicks={xTicks}
-            series={[{ color: 'var(--blue-bar)', values: flat(0.002) }]}
-          />
-        </div>
-        <div className="metric-card">
-          <div className="metric-head">
-            <p className="metric-title">Memory</p>
-            <Legend
-              items={[
-                { label: 'Sum', color: 'var(--purple)' },
-                { label: 'Replicas', color: '#fff', hollow: true, dim: true },
-              ]}
-            />
-          </div>
-          <LineChart
-            ticks={['0 B', '100 MB', '200 MB', '300 MB', '400 MB']}
-            tickValue={100}
-            xTicks={xTicks}
-            series={[{ color: 'var(--purple)', values: flat(38) }]}
-          />
-        </div>
-        <div className="metric-card flush">
-          <div className="metric-head">
-            <p className="metric-title">Public Network Traffic</p>
-          </div>
-          <div className="metric-chart-300">
-          <LineChart
-            height={268}
-            centered
-            ticks={['0 B']}
-            tickValue={1}
-            xTicks={[]}
-            series={[
-              { color: '#ad871f', values: flat(0) },
-              { color: 'var(--blue-bar)', values: flat(0) },
-            ]}
-          />
-          <div className="metric-legend bottom">
-            <div className="metric-legend-item static" style={{ color: '#ad871f' }}>
-              <span className="metric-swatch" style={{ background: '#ad871f', borderColor: '#ad871f' }} />
-              <span className="metric-legend-label">Egress</span>
-            </div>
-            <div className="metric-legend-item static">
-              <span className="metric-swatch" style={{ background: 'var(--blue-bar)', borderColor: 'var(--blue-bar)' }} />
-              <span className="metric-legend-label">Ingress</span>
-            </div>
-          </div>
-          </div>
-        </div>
+        <ResourceCard
+          title="CPU"
+          what="CPU"
+          metric="cpu"
+          kind="cpu"
+          color="var(--blue-bar)"
+          view={view}
+          sumOn={sum.cpu}
+          replicasOn={replicas.cpu}
+          onToggleSum={() => toggle(setSum, 'cpu')}
+          onToggleReplicas={() => toggle(setReplicas, 'cpu')}
+        />
+        <ResourceCard
+          title="Memory"
+          what="memory"
+          metric="memory"
+          kind="bytes"
+          color="var(--purple)"
+          view={view}
+          sumOn={sum.memory}
+          replicasOn={replicas.memory}
+          onToggleSum={() => toggle(setSum, 'memory')}
+          onToggleReplicas={() => toggle(setReplicas, 'memory')}
+        />
+        <NetworkCard view={view} />
         <EmptyMetric title="Requests" what="request" tall />
         <EmptyMetric title="Request Error Rate" what="error rate" />
         <EmptyMetric title="Response Time" what="response time" />
