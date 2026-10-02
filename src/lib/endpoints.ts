@@ -179,6 +179,27 @@ export const logStreamUrl = (serviceId: number | string, targetId: number, curso
   return apiUrl(`/services/${serviceId}/logs/stream?${params}`);
 };
 
+/* metrics */
+/** 지표 한 점. timestamp 는 Unix 초이고 소수일 수 있다. */
+export type MetricPointDto = { timestamp: number; value: number };
+/**
+ * 지표 시리즈 하나. metric 은 cpu(cores)·memory(bytes)·network_receive(bytes/s)·network_transmit(bytes/s).
+ * groupBy=total 이면 metric 당 하나이고 데이터가 없으면 points 가 빈 배열이다.
+ * groupBy=pod 이면 (metric, pod) 마다 하나이고 pod 이 있다. 데이터가 없는 metric 은 항목이 없다.
+ */
+export type MetricSeriesDto = { metric: string; unit: string; pod?: string; points: MetricPointDto[] };
+export type MetricsGroupBy = 'total' | 'pod';
+/**
+ * 기간 안의 서비스 지표. start·end 는 타임존이 있는 ISO 8601 이고 end 는 미래일 수 없다. 기간은 최대 7일,
+ * step 은 15~86400초이고 (end-start)/step 이 1440 을 넘으면 서버가 422 를 준다. pod 이 metric 당 50개를 넘어도 422 다.
+ * groupBy 를 모르는 서버(구버전)는 쿼리를 무시하고 total 형태(pod 필드 없음)를 돌려준다.
+ */
+export const getServiceMetrics = (
+  serviceId: number | string,
+  query: { targetId: number; start: string; end: string; step: number; groupBy?: MetricsGroupBy },
+  signal?: AbortSignal,
+) => request<MetricSeriesDto[]>(`/services/${serviceId}/metrics`, { query, signal });
+
 /* targets */
 export const listTargets = () => request<TargetDto[]>('/targets');
 
