@@ -17,13 +17,16 @@ const RETRY_MAX_MS = 30_000;
 export type ProjectLogLine = LogLine & { key: string; ns: string; service: string };
 type Source = { id: string; name: string; targetId: number };
 
-// was 는 로그 레벨을 따로 주지 않아서 본문에 흔히 적는 표기(level=error, "level":"warn", [ERROR], WARN)만 읽는다.
-const LEVEL_RE = /(?:level["']?\s*[=:]\s*["']?|\[)(error|fatal|warn(?:ing)?|debug)\b|\b(ERROR|FATAL|WARN(?:ING)?|DEBUG)\b/;
-const LEVELS: Record<string, LogLevel> = { error: 'error', fatal: 'error', warn: 'warn', warning: 'warn', debug: 'debug' };
-function detectLevel(message: string): LogLevel {
-  const m = LEVEL_RE.exec(message);
-  return LEVELS[(m?.[1] ?? m?.[2] ?? '').toLowerCase()] ?? 'info';
-}
+// was 는 로그 레벨을 따로 주지 않아서 본문에 흔히 적는 표기만 읽는다.
+// 레벨 표기: level=error, "level":"warn", [error], ERROR, WARN
+// 줄 맨 앞 표기: npm error·npm warn, SyntaxError: ..., Traceback (스택 트레이스의 `at ...` 줄은 info 로 둔다)
+const TAG = String.raw`(?:\blevel["']?\s*[=:]\s*["']?|\[)`;
+const LEVEL_RULES: [LogLevel, RegExp][] = [
+  ['error', new RegExp(String.raw`${TAG}(?:error|fatal)\b|\b(?:ERROR|FATAL)\b|^npm error\b|^\s*[\w.$]*(?:Error|Exception):|^Traceback \(most recent call last\)`)],
+  ['warn', new RegExp(String.raw`${TAG}warn(?:ing)?\b|\bWARN(?:ING)?\b|^npm warn\b`)],
+  ['debug', new RegExp(String.raw`${TAG}debug\b|\bDEBUG\b`)],
+];
+const detectLevel = (message: string): LogLevel => LEVEL_RULES.find(([, re]) => re.test(message))?.[0] ?? 'info';
 
 const NS_PER_MS = 1_000_000n;
 const nsToMs = (ns: string) => Number(BigInt(ns) / NS_PER_MS);
