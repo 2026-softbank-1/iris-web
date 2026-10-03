@@ -26,7 +26,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
-import { canDiagnose } from '../../data/diagnosisModel';
+import { canDiagnose, canDiagnoseApi } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration, renderMsg } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
@@ -34,6 +34,7 @@ import { describeRawError, describeVariablesError, useServiceVariables } from '.
 import { toRaw } from '../../data/variablesModel';
 import { isDeploymentInProgress } from '../../lib/endpoints';
 import { DeploymentRow } from './DeploymentRow';
+import { DiagnosisBrief } from './DiagnosisBrief';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
 import { ServiceConsole } from './ServiceConsole';
@@ -86,6 +87,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   // 접속되는 주소가 없으면(처음 배포하기 전, 서비스를 내린 뒤) 주소는 있어도 앱이 응답하지 않아서 링크로 열지 않는다.
   const reachable = !!service.domains?.some((d) => d.isConnected);
   const diagnosisTo = (id: string | number) => `${base}/deployment/${id}/diagnosis`;
+  // 실패 배너가 가리키는 것은 가장 최근 배포다. 진단할 수 있는 실패(REMOVE 가 아닌)일 때만 그 진단 결과를 배너 아래에 보여 준다.
+  const latest = service.remote?.latestDeployment;
 
   return (
     <div className="deps">
@@ -154,16 +157,19 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
 
       {service.crashedBanner && (
         <div className="deps-warning">
-          <div className="deps-warning-icon">
-            <TriangleAlert size={20} />
+          <div className="deps-warning-head">
+            <div className="deps-warning-icon">
+              <TriangleAlert size={20} />
+            </div>
+            {renderMsg(t, service.crashedBanner, lang === 'ja' ? '' : ' ')}
+            {service.remote?.latestDeployment?.failureCode === 'BUILD_CONFIG_REQUIRED' && (
+              <>
+                {' '}
+                <Link to={`${base}/settings`}>{t('service.openSettings')}</Link>
+              </>
+            )}
           </div>
-          {renderMsg(t, service.crashedBanner, lang === 'ja' ? '' : ' ')}
-          {service.remote?.latestDeployment?.failureCode === 'BUILD_CONFIG_REQUIRED' && (
-            <>
-              {' '}
-              <Link to={`${base}/settings`}>{t('service.openSettings')}</Link>
-            </>
-          )}
+          {latest && canDiagnoseApi(latest) && <DiagnosisBrief key={latest.id} service={service} deploymentId={String(latest.id)} updatedAt={latest.updatedAt} to={diagnosisTo(latest.id)} />}
         </div>
       )}
 

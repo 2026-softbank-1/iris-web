@@ -1,7 +1,7 @@
 // AI 진단 화면이 쓰는 순수 함수들. 훅은 useDiagnosis.ts 에 있다.
 import type { MessageKey, Vars } from '../i18n';
 import { ApiError, describeError } from '../lib/api';
-import type { DiagnosisChangeDto, DiagnosisDto } from '../lib/endpoints';
+import type { DeploymentStatus as ApiStatus, DeploymentTrigger, DiagnosisChangeDto, DiagnosisDto } from '../lib/endpoints';
 import type { Deployment } from './mock';
 
 /** 진행 중인 진단을 다시 받는 주기. 서버 안내는 2~3초다. */
@@ -33,6 +33,10 @@ export const isAutoDiagnosisPending = (updatedAt: string | undefined, now = Date
  */
 export const canDiagnose = (d: Pick<Deployment, 'status' | 'trigger'>) =>
   d.trigger !== 'REMOVE' && (d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION');
+
+/** 같은 판정을 was 의 배포 요청(서비스 응답의 latestDeployment)으로. 서비스 실패 배너가 이것만 가지고 있다. */
+export const canDiagnoseApi = (d: { status: ApiStatus; triggerType: DeploymentTrigger }) =>
+  d.triggerType !== 'REMOVE' && (d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION');
 
 /**
  * 진단이 서버에서 멈춘 채 RUNNING 으로 남았는가. 서버 시각(createdAt)과 이 브라우저 시계를 비교하니 시계가 크게 어긋나면 틀릴 수 있다.
