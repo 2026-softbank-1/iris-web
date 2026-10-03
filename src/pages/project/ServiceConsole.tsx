@@ -2,6 +2,7 @@ import { ChevronDown, Copy, FolderOpen, Maximize2, Minimize2, TerminalSquare } f
 import { useEffect, useRef, useState } from 'react';
 import { useUI } from '../../components/ui';
 import type { Service } from '../../data/mock';
+import { useI18n } from '../../i18n';
 
 const FILES = ['Caddyfile', 'dist/', 'index.html', 'node_modules/', 'package-lock.json', 'package.json', 'public/', 'src/', 'vite.config.js'];
 
@@ -41,6 +42,7 @@ function respond(cmd: string, service: Service): string[] {
 
 export function ServiceConsole({ service }: { service: Service }) {
   const { toast } = useUI();
+  const { t } = useI18n();
   const [lines, setLines] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const [full, setFull] = useState(false);
@@ -58,8 +60,8 @@ export function ServiceConsole({ service }: { service: Service }) {
     return (
       <div className="console-offline">
         <TerminalSquare size={20} />
-        <p>Console is unavailable</p>
-        <span>Start a deployment to open a shell into a running replica.</span>
+        <p>{t('service.console.unavailable')}</p>
+        <span>{t('service.console.unavailableSub')}</span>
       </div>
     );
   }
@@ -87,18 +89,18 @@ export function ServiceConsole({ service }: { service: Service }) {
             className="btn btn-outline btn-sm"
             onClick={() => {
               navigator.clipboard?.writeText(`likelion ssh --service ${service.name}`);
-              toast('SSH command copied');
+              toast(t('service.console.sshCopied'));
             }}
           >
             <Copy size={14} />
-            Copy SSH command
+            {t('service.console.copySsh')}
           </button>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setFull((v) => !v)}>
             {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            {full ? 'Exit full screen' : 'Full screen'}
+            {full ? t('service.console.exitFull') : t('service.console.full')}
           </button>
           <span className="console-status">
-            <span className="pc-dot" /> Connected
+            <span className="pc-dot" /> {t('service.console.connected')}
           </span>
         </div>
       </div>
@@ -118,7 +120,7 @@ export function ServiceConsole({ service }: { service: Service }) {
               spellCheck={false}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && run()}
-              aria-label="Terminal input"
+              aria-label={t('service.console.input')}
             />
           </div>
         </div>
@@ -133,7 +135,7 @@ export function ServiceConsole({ service }: { service: Service }) {
         )}
       </div>
       <button type="button" className="console-files-btn" onClick={() => setFilesOpen((v) => !v)}>
-        <FolderOpen size={14} /> Files
+        <FolderOpen size={14} /> {t('service.console.files')}
       </button>
     </div>
   );

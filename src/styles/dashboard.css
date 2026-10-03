@@ -13,7 +13,7 @@
 }
 
 .dash-new {
-  width: 80px;
+  min-width: 80px;
 }
 
 .dash-grid {
@@ -114,7 +114,7 @@
 .view-toggle {
   display: flex;
   background: var(--bg-3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(var(--wash), 0.05);
   border-radius: 8px;
 }
 
@@ -141,7 +141,7 @@
   position: absolute;
   inset: 0;
   background: var(--bg-2);
-  border: 0.5px solid rgba(0, 0, 0, 0.6);
+  border: 0.5px solid rgba(var(--wash), 0.1);
   border-radius: 8px;
 }
 
@@ -175,33 +175,33 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-3);
-  border-radius: 8px;
-  outline: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: border-color 0.15s ease, transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
 }
 
 .pc:hover {
-  background: #211f2e; /* hsl(246 18% 15%) */
-  outline-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--border-strong);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transform: translateY(-2px);
 }
 
 .pc-link {
   position: absolute;
   inset: 0;
   z-index: 1;
-  border-radius: 8px;
+  border-radius: 16px;
 }
 
 .pc-body {
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .pc-head {
-  height: 60px;
-  padding: 16px;
+  padding: 16px 16px 4px;
 }
 
 .pc-head-row {
@@ -214,9 +214,9 @@
 .pc-name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
 }
 
 .pc-fav-wrap {
@@ -236,83 +236,35 @@
 
 .pc-fav:hover {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash), 0.06);
 }
 
 .pc-fav.on {
-  color: #eac153;
+  color: var(--primary);
 }
 
-.pc-preview-wrap {
-  display: flex;
-  flex-direction: column;
-  padding: 0 8px 8px;
-}
-
-.pc-preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 220px;
-  padding: 24px 0;
-  background-color: var(--bg);
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 10px 10px;
-  background-position: calc(50% - 5px) calc(50% - 10px);
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 0.5px var(--border);
-}
-
-.pc-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, 40px);
-  justify-content: center;
-  gap: 10px;
-  max-width: 220px;
-  margin-bottom: 20px;
-}
-
-.pc-tile-link {
-  position: relative;
-  z-index: 2;
-  border-radius: 12px;
-}
-
-.pc-tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: var(--bg-4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  transition: border-color 0.12s ease;
-}
-
-.pc-tile-link:hover .pc-tile {
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
+/* project health: the first thing to read on the card */
 .pc-status {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
   align-items: center;
-  height: 34px;
-  padding: 8px;
-  font-size: 12px;
+  gap: 6px;
+  padding: 0 16px 12px;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 18px;
-  color: var(--fg-muted);
+  color: var(--fg-subtle);
 }
 
-.pc-status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.pc-status.failed {
+  color: var(--red-text);
+}
+
+.pc-status.deploying {
+  color: var(--primary-text);
+}
+
+.pc-status.ok {
+  color: var(--green-text);
 }
 
 .pc-dot {
@@ -320,18 +272,57 @@
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: var(--green);
+  background: currentColor;
   flex-shrink: 0;
 }
 
-.pc-status-icon {
+.pc-services {
   display: flex;
-  margin-right: 6px;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 8px 8px;
+  padding: 4px;
+  min-height: 56px;
+  background: var(--bg-2);
+  border-radius: 10px;
 }
 
-.pc-status-icon.crashed,
-.pc-status .crashed {
-  color: var(--red);
+.pc-svc {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 10px;
+  color: var(--fg-muted);
+  border-radius: 8px;
+  transition: background-color 0.12s ease;
+}
+
+.pc-svc:hover {
+  background: var(--bg);
+}
+
+.pc-svc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.pc-services-empty,
+.pc-services-more {
+  margin: 0;
+  padding: 10px;
+  font-size: 13px;
+  color: var(--fg-faint);
+}
+
+.pc-services-empty {
+  margin: auto 0;
+  text-align: center;
 }
 
 /* list view -------------------------------------------------------- */
@@ -357,7 +348,7 @@
 }
 
 .pl-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(var(--wash), 0.02);
 }
 
 .pl-tile {
@@ -367,7 +358,7 @@
   width: 34px;
   height: 34px;
   background: var(--bg-4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(var(--wash), 0.1);
   border-radius: 8px;
 }
 

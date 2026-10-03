@@ -34,6 +34,7 @@ import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB,
 import { useServiceScaling } from '../../data/useServiceScaling';
 import { describeError } from '../../lib/api';
 import { isTargetSupported, listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
+import { useI18n, type MessageKey } from '../../i18n';
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
@@ -84,15 +85,16 @@ function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; 
   );
 }
 
-function Section({ title, icon: Icon, children }: { title: string; icon?: LucideIcon; children: ReactNode }) {
+function Section({ name, icon: Icon, children }: { name: string; icon?: LucideIcon; children: ReactNode }) {
+  const { t } = useI18n();
   return (
-    <section className="st-section" id={`set-${title}`}>
+    <section className="st-section" id={`set-${name}`}>
       {Icon && (
         <div className="st-section-icon">
           <Icon size={18} />
         </div>
       )}
-      <h1 className="st-section-title">{title}</h1>
+      <h1 className="st-section-title">{t(SECTION_LABEL[name])}</h1>
       <div className="st-section-body">{children}</div>
     </section>
   );
@@ -102,6 +104,7 @@ function Section({ title, icon: Icon, children }: { title: string; icon?: Lucide
 function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
   const [draft, setDraft] = useState(value);
   const [busy, setBusy] = useState(false);
+  const { t } = useI18n();
   useEffect(() => setDraft(value), [value]);
   return (
     <form
@@ -115,7 +118,7 @@ function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label
     >
       <input aria-label={label} placeholder={placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} {...inputProps} />
       <button type="submit" className="btn btn-outline" disabled={busy || draft.trim() === value}>
-        Save
+        {t('svcSettings.save')}
       </button>
     </form>
   );
@@ -151,7 +154,19 @@ function LimitSlider({ name, ready, stops, value, parse, format, disabled, onCha
   );
 }
 
-const SECTIONS = ['Source', 'Networking', 'Edge', 'Scale', 'Build', 'Deploy', 'Config-as-code', 'Feature-flags', 'Danger'];
+// 키는 섹션 앵커 id(set-<키>)로도 쓰이므로 번역하지 않는다.
+const SECTION_LABEL: Record<string, MessageKey> = {
+  Source: 'svcSettings.sec.source',
+  Networking: 'svcSettings.sec.networking',
+  Edge: 'svcSettings.sec.edge',
+  Scale: 'svcSettings.sec.scale',
+  Build: 'svcSettings.sec.build',
+  Deploy: 'svcSettings.sec.deploy',
+  'Config-as-code': 'svcSettings.sec.config',
+  'Feature-flags': 'svcSettings.sec.flags',
+  Danger: 'svcSettings.sec.danger',
+};
+const SECTIONS = Object.keys(SECTION_LABEL);
 
 /* ------------------------------------------------------------------ */
 /* Settings tab                                                        */
@@ -160,6 +175,7 @@ const SECTIONS = ['Source', 'Networking', 'Edge', 'Scale', 'Build', 'Deploy', 'C
 /** onScaled 는 Pod 수·자원 변경이 접수돼 RESTART 배포가 만들어진 뒤 부른다(배포 목록을 바로 다시 받으려는 것). */
 export function ServiceSettings({ project, service, onScaled }: { project: Project; service: Service; onScaled?: () => void }) {
   const { toast } = useUI();
+  const { t } = useI18n();
   const { targets, updateService, removeService, refreshService } = useProjects();
   const navigate = useNavigate();
   const remote = service.remote;
@@ -167,7 +183,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [deleteName, setDeleteName] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  const save = async (changes: ServiceUpdate, message = 'Saved') => {
+  const save = async (changes: ServiceUpdate, message = t('svcSettings.saved')) => {
     try {
       await updateService(project.id, service.id, changes);
       toast(message);
@@ -181,7 +197,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
     setDeleting(true);
     try {
       await removeService(project.id, service.id);
-      toast('Service deleted');
+      toast(t('svcSettings.deleted'));
       navigate(`/project/${project.id}`, { replace: true });
     } catch (e) {
       toast(describeError(e));
@@ -192,7 +208,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const applyScale = async () => {
     try {
       await scale.apply();
-      toast('Scale change requested. The service is restarting.');
+      toast(t('svcSettings.scale.requested'));
       void refreshService(project.id, service.id).catch(() => undefined);
       onScaled?.();
     } catch (e) {
@@ -222,7 +238,8 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const q = filter.trim().toLowerCase();
-  const show = (...words: string[]) => !q || words.some((w) => w.toLowerCase().includes(q));
+  // 섹션 이름은 현재 언어로도 검색되게 한다.
+  const show = (section: string, ...words: string[]) => !q || [t(SECTION_LABEL[section]), section, ...words].some((w) => w.toLowerCase().includes(q));
 
   // "/" focuses the filter
   useEffect(() => {
@@ -264,9 +281,9 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
       <div className="st-filter-bar">
         <div className="st-filter">
           <label htmlFor="set-filter" className="sr-only">
-            Filter settings
+            {t('svcSettings.filterLabel')}
           </label>
-          <input id="set-filter" ref={filterRef} placeholder="Filter Settings..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input id="set-filter" ref={filterRef} placeholder={t('svcSettings.filterPlaceholder')} value={filter} onChange={(e) => setFilter(e.target.value)} />
           {!filter && (
             <button type="button" className="st-filter-kbd" onClick={() => filterRef.current?.focus()}>
               /
@@ -277,19 +294,19 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
 
       <div className="st-layout">
         <div className="st-main">
-          {show('source', 'repo', 'branch', 'root directory', 'upstream') && (
-            <Section title="Source" icon={Code}>
+          {show('Source', 'repo', 'branch', 'root directory', 'upstream') && (
+            <Section name="Source" icon={Code}>
               {remote && (
-                <Item title="Service Name" desc="Lowercase letters, digits and hyphens. It becomes part of the service's domain." id="service-name">
+                <Item title={t('svcSettings.serviceName.title')} desc={t('svcSettings.serviceName.desc')} id="service-name">
                   <ValueSetting
-                    label="Service name"
+                    label={t('svcSettings.serviceName.label')}
                     value={remote.name}
-                    inputProps={{ required: true, maxLength: 63, pattern: '[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?', title: 'Lowercase letters, digits and hyphens' }}
+                    inputProps={{ required: true, maxLength: 63, pattern: '[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?', title: t('svcSettings.serviceName.hint') }}
                     onSave={(v) => (v ? save({ name: v }) : Promise.resolve(false))}
                   />
                 </Item>
               )}
-              <Item title="Source Repo" id="source-repo">
+              <Item title={t('svcSettings.sourceRepo')} id="source-repo">
                 <div className="st-repo error">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link tall">
                     <RepoIcon size={20} />
@@ -298,22 +315,22 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     </p>
                   </a>
                   <div className="st-repo-actions">
-                    <button type="button" className="st-icon-btn" aria-label="Edit" onClick={() => toast('Repository picker is mocked')}>
+                    <button type="button" className="st-icon-btn" aria-label={t('svcSettings.edit')} onClick={() => toast(t('svcSettings.repoPickerMock'))}>
                       <PencilLine size={16} />
                     </button>
-                    <button type="button" className="st-mini-btn" onClick={() => toast('Disconnecting is disabled')}>
-                      <span>Disconnect</span>
+                    <button type="button" className="st-mini-btn" onClick={() => toast(t('svcSettings.disconnectDisabled'))}>
+                      <span>{t('svcSettings.disconnect')}</span>
                     </button>
                   </div>
                 </div>
                 {remote && (
                   <div className="st-gap12">
-                    <p className="st-muted">Root directory (used for build and deploy steps)</p>
-                    <ValueSetting label="Root directory" value={remote.rootDirectory ?? ''} placeholder="Repository root" onSave={(v) => save({ rootDirectory: v })} />
+                    <p className="st-muted">{t('svcSettings.rootDir.desc')}</p>
+                    <ValueSetting label={t('svcSettings.rootDir.label')} value={remote.rootDirectory ?? ''} placeholder={t('svcSettings.rootDir.placeholder')} onSave={(v) => save({ rootDirectory: v })} />
                   </div>
                 )}
               </Item>
-              <Item title="Upstream Repo" id="upstream">
+              <Item title={t('svcSettings.upstream')} id="upstream">
                 <div className="st-repo">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link">
                     <RepoIcon size={20} />
@@ -322,53 +339,53 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     </p>
                   </a>
                   <div className="st-repo-actions">
-                    <button type="button" className="st-mini-btn red" onClick={() => toast('Eject is mocked')}>
+                    <button type="button" className="st-mini-btn red" onClick={() => toast(t('svcSettings.ejectMock'))}>
                       <LogOut size={14} />
-                      <span>Eject</span>
+                      <span>{t('svcSettings.eject')}</span>
                     </button>
                   </div>
                 </div>
                 <div className="st-check">
-                  <button type="button" className="st-mini-btn purple" onClick={() => toast("You're on the latest version of this repo")}>
+                  <button type="button" className="st-mini-btn primary" onClick={() => toast(t('svcSettings.latest'))}>
                     <RefreshCw size={14} />
-                    <span>Check for updates</span>
+                    <span>{t('svcSettings.checkUpdates')}</span>
                   </button>
                 </div>
               </Item>
-              <Item title="Branch connected to production" desc="New commits on this GitHub branch are pulled and deployed." id="branch">
+              <Item title={t('svcSettings.branch.title')} desc={t('svcSettings.branch.desc')} id="branch">
                 {remote && (
                   <>
                     <div className="st-watch">
-                      <select aria-label="Branch" value={remote.sourceBranch} onChange={(e) => void save({ sourceBranch: e.target.value })}>
+                      <select aria-label={t('svcSettings.branch.label')} value={remote.sourceBranch} onChange={(e) => void save({ sourceBranch: e.target.value })}>
                         {(branches.includes(remote.sourceBranch) ? branches : [remote.sourceBranch, ...branches]).map((b) => (
                           <option key={b}>{b}</option>
                         ))}
                       </select>
                     </div>
-                    <SavedToggle value={remote.isAutoDeploy} onSave={(v) => save({ isAutoDeploy: v })} label="Auto deploy on push" />
+                    <SavedToggle value={remote.isAutoDeploy} onSave={(v) => save({ isAutoDeploy: v })} label={t('svcSettings.autoDeploy')} />
                   </>
                 )}
               </Item>
             </Section>
           )}
 
-          {show('networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
-            <Section title="Networking" icon={Network}>
+          {show('Networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
+            <Section name="Networking" icon={Network}>
               {remote && (
-                <Item title="Port" desc="The port your app listens on." id="port">
+                <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.desc')} id="port">
                   <ValueSetting
-                    label="Port"
+                    label={t('svcSettings.port.title')}
                     value={remote.port ? String(remote.port) : ''}
-                    placeholder="e.g. 8080"
+                    placeholder={t('svcSettings.port.placeholder')}
                     inputProps={{ type: 'number', min: 1, max: 65535 }}
                     onSave={(v) => save({ port: v === null ? null : Number(v) })}
                   />
                 </Item>
               )}
-              <Item title="Public Networking" id="public-networking">
-                <h2 className="st-item-desc">Reach this service over HTTP with the domains below.</h2>
+              <Item title={t('svcSettings.public.title')} id="public-networking">
+                <h2 className="st-item-desc">{t('svcSettings.public.desc')}</h2>
                 {service.domains === undefined ? (
-                  <p className="st-muted st-gap16">Loading domains…</p>
+                  <p className="st-muted st-gap16">{t('svcSettings.loadingDomains')}</p>
                 ) : service.domains.length > 0 ? (
                   service.domains.map((d) => (
                     <div key={d.host} className="st-card st-domain-card">
@@ -386,14 +403,14 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                               <span className="st-port">
                                 <ArrowRight size={16} />
                                 <span>
-                                  Port <span className="mono">{service.port}</span>
+                                  {t('svcSettings.port.title')} <span className="mono">{service.port}</span>
                                 </span>
                               </span>
                             )}
                             <span>
                               {service.port !== undefined && ' · '}
                               {d.targetName}
-                              {!d.isConnected && ' · Reachable once a deployment succeeds'}
+                              {!d.isConnected && ` · ${t('svcSettings.reachableAfter')}`}
                             </span>
                           </p>
                         </div>
@@ -401,10 +418,10 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                           <button
                             type="button"
                             className="st-sq-btn"
-                            aria-label="Copy"
+                            aria-label={t('svcSettings.copy')}
                             onClick={() => {
                               navigator.clipboard?.writeText(d.host);
-                              toast('Domain copied');
+                              toast(t('svcSettings.domainCopied'));
                             }}
                           >
                             <Copy size={14} />
@@ -414,24 +431,24 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     </div>
                   ))
                 ) : (
-                  <p className="st-muted st-gap16">This service is not exposed to the internet yet.</p>
+                  <p className="st-muted st-gap16">{t('svcSettings.notExposed')}</p>
                 )}
                 <div className="st-btn-row">
-                  <button type="button" className="btn btn-purple-outline st-plus-btn" onClick={() => toast('Domain generation is mocked')}>
+                  <button type="button" className="btn btn-primary-outline st-plus-btn" onClick={() => toast(t('svcSettings.domainGenMock'))}>
                     <Zap size={16} className="btn-icon" />
-                    <span>Generate Domain</span>
+                    <span>{t('svcSettings.generateDomain')}</span>
                   </button>
-                  <button type="button" className="btn btn-purple-outline st-plus-btn">
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
                     <Plus size={16} className="btn-icon" />
-                    <span>Custom Domain</span>
+                    <span>{t('svcSettings.customDomain')}</span>
                   </button>
-                  <button type="button" className="btn btn-purple-outline st-plus-btn">
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
                     <Plus size={16} className="btn-icon" />
-                    <span>TCP Proxy</span>
+                    <span>{t('svcSettings.tcpProxy')}</span>
                   </button>
                 </div>
               </Item>
-              <Item title="Private Networking" desc="Other services in this project can reach it internally." id="private-networking">
+              <Item title={t('svcSettings.private.title')} desc={t('svcSettings.private.desc')} id="private-networking">
                 <div className="st-card">
                   <div className="st-card-row private">
                     <div className="st-card-icon green">
@@ -447,61 +464,61 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                           </div>
                         </div>
                         <div className="st-private-actions">
-                          <button type="button" className="st-xs-btn" aria-label="Copy" onClick={() => toast('Private domain copied')}>
+                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.copy')} onClick={() => toast(t('svcSettings.privateCopied'))}>
                             <Copy size={10} />
                           </button>
-                          <button type="button" className="st-xs-btn" aria-label="Edit">
+                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.edit')}>
                             <Pencil size={10} />
                           </button>
                         </div>
                       </div>
                       <p className="st-private-sub">
-                        Ready for private traffic · <span className="st-purple">Short name</span> <code className="st-code-chip">{service.name}</code>
+                        {t('svcSettings.privateReady')} · <span className="st-primary">{t('svcSettings.shortName')}</span> <code className="st-code-chip">{service.name}</code>
                       </p>
                     </div>
                   </div>
                 </div>
               </Item>
-              <Item title="Outbound IPv6" desc="Allow this service to open connections to IPv6 hosts." id="ipv6">
-                <Toggle checked={ipv6} onChange={setIpv6} label="Enable Outbound IPv6" />
+              <Item title={t('svcSettings.ipv6.title')} desc={t('svcSettings.ipv6.desc')} id="ipv6">
+                <Toggle checked={ipv6} onChange={setIpv6} label={t('svcSettings.ipv6.toggle')} />
               </Item>
             </Section>
           )}
 
-          {show('edge', 'cdn', 'attack', 'rules') && (
-            <Section title="Edge" icon={Shield}>
-              <Item title="Under Attack Mode" desc="Adds a browser challenge in front of your domains while traffic looks hostile. Real visitors pass it once and keep browsing." id="attack">
+          {show('Edge', 'cdn', 'attack', 'rules') && (
+            <Section name="Edge" icon={Shield}>
+              <Item title={t('svcSettings.attack.title')} desc={t('svcSettings.attack.desc')} id="attack">
                 <div className="st-attack">
                   <div className="st-attack-row">
                     <button type="button" className="st-select">
-                      <span>Until turned off</span>
+                      <span>{t('svcSettings.attack.until')}</span>
                       <ChevronDown size={16} className="st-region-chev" />
                     </button>
-                    <button type="button" className="btn st-activate" onClick={() => toast('Under Attack Mode activated (mock)')}>
+                    <button type="button" className="btn st-activate" onClick={() => toast(t('svcSettings.attack.activated'))}>
                       <ShieldAlert size={20} />
-                      <span>Activate</span>
+                      <span>{t('svcSettings.attack.activate')}</span>
                     </button>
                   </div>
-                  <p className="st-muted">Rolls out globally in about 20 seconds.</p>
+                  <p className="st-muted">{t('svcSettings.attack.rollout')}</p>
                 </div>
               </Item>
-              <Item title="CDN Caching" desc="Serve static assets from the edge to cut latency and origin load." id="cdn">
-                <Toggle checked={cdn} onChange={setCdn} label="Enable CDN Caching" />
+              <Item title={t('svcSettings.cdn.title')} desc={t('svcSettings.cdn.desc')} id="cdn">
+                <Toggle checked={cdn} onChange={setCdn} label={t('svcSettings.cdn.toggle')} />
               </Item>
             </Section>
           )}
 
-          {show('scale', 'region', 'replica', 'cpu', 'memory') && (
-            <Section title="Scale" icon={Scaling}>
-              <Item title="Targets & Replicas" desc="Choose where this service is deployed." id="regions">
+          {show('Scale', 'region', 'replica', 'cpu', 'memory') && (
+            <Section name="Scale" icon={Scaling}>
+              <Item title={t('svcSettings.regions.title')} desc={t('svcSettings.regions.desc')} id="regions">
                 <div className="st-region-row">
-                  <div className="st-checks" role="group" aria-label="Deploy targets">
+                  <div className="st-checks" role="group" aria-label={t('svcSettings.regions.label')}>
                     <Earth size={16} />
-                    {targets.map((t) => {
-                      const supported = isTargetSupported(t);
-                      const checked = remote?.targetIds.includes(t.id) ?? false;
+                    {targets.map((target) => {
+                      const supported = isTargetSupported(target);
+                      const checked = remote?.targetIds.includes(target.id) ?? false;
                       return (
-                        <label key={t.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : 'Not supported yet'}>
+                        <label key={target.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : t('svcSettings.notSupported')}>
                           <input
                             type="checkbox"
                             checked={checked}
@@ -509,24 +526,24 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                             disabled={!supported && !checked}
                             onChange={(e) => {
                               const current = remote?.targetIds ?? [];
-                              const next = e.target.checked ? [...current, t.id] : current.filter((id) => id !== t.id);
+                              const next = e.target.checked ? [...current, target.id] : current.filter((id) => id !== target.id);
                               const hasSupported = next.some((id) => {
-                                const target = targets.find((x) => x.id === id);
-                                return target ? isTargetSupported(target) : false;
+                                const found = targets.find((x) => x.id === id);
+                                return found ? isTargetSupported(found) : false;
                               });
-                              if (!hasSupported) toast('At least one supported target is required');
+                              if (!hasSupported) toast(t('svcSettings.needTarget'));
                               else void save({ targetIds: next });
                             }}
                           />
-                          {t.name}
-                          {!supported && <span className="st-note">Not supported yet</span>}
+                          {target.name}
+                          {!supported && <span className="st-note">{t('svcSettings.notSupported')}</span>}
                         </label>
                       );
                     })}
                   </div>
                   <label className="st-replicas">
                     <input
-                      aria-label="Replicas"
+                      aria-label={t('svcSettings.replicas')}
                       inputMode="numeric"
                       placeholder="1"
                       value={scale.replicasText}
@@ -534,13 +551,13 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       aria-invalid={scale.ready && !scale.valid}
                       onChange={(e) => scale.setReplicasText(e.target.value.replace(/\D/g, '').slice(0, 2))}
                     />
-                    <span>Replica</span>
+                    <span>{t('svcSettings.replica')}</span>
                   </label>
                 </div>
-                {scale.ready && !scale.valid && <p className="st-hint error">Enter a whole number from {MIN_REPLICAS} to {MAX_REPLICAS}.</p>}
-                {scale.replicas === 0 && <p className="st-hint">With 0 replicas the service runs no pods and can't handle requests.</p>}
+                {scale.ready && !scale.valid && <p className="st-hint error">{t('svcSettings.replicasInvalid', { min: MIN_REPLICAS, max: MAX_REPLICAS })}</p>}
+                {scale.replicas === 0 && <p className="st-hint">{t('svcSettings.replicasZero')}</p>}
               </Item>
-              <Item title="Replica Limits" desc="Maximum vCPU and memory for each replica." id="limits">
+              <Item title={t('svcSettings.limits.title')} desc={t('svcSettings.limits.desc')} id="limits">
                 <div className="st-limits">
                   <LimitSlider
                     name="CPU"
@@ -554,7 +571,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   />
                   <hr className="st-limit-hr" />
                   <LimitSlider
-                    name="Memory"
+                    name={t('svcSettings.memory')}
                     ready={scale.ready}
                     stops={scale.memoryStops}
                     value={scale.memory}
@@ -566,19 +583,19 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </div>
                 <div className="st-apply">
                   <p className={`st-hint${scale.error ? ' error' : ''}`}>
-                    {scale.error ?? (scale.loading ? 'Loading the current scale…' : service.removed ? 'This service is removed from the cluster. Deploy it again to apply a scale change.' : service.deploying ? 'Wait for the current deployment to finish before applying.' : 'Applying restarts the service with its current image. No rebuild.')}
+                    {scale.error ?? (scale.loading ? t('svcSettings.scale.loading') : service.removed ? t('svcSettings.scale.removed') : service.deploying ? t('svcSettings.scale.waitDeploy') : t('svcSettings.scale.restartHint'))}
                   </p>
                   {scale.error ? (
                     <button type="button" className="btn btn-outline" onClick={scale.retry}>
-                      Retry
+                      {t('svcSettings.scale.retry')}
                     </button>
                   ) : (
                     <>
                       <button type="button" className="btn btn-outline" disabled={!scale.edited || scale.busy} onClick={scale.reset}>
-                        Reset
+                        {t('svcSettings.scale.reset')}
                       </button>
-                      <button type="button" className="btn btn-purple-outline" disabled={!scale.dirty || scale.busy || !!service.deploying || !!service.removed} onClick={() => void applyScale()}>
-                        {scale.busy ? 'Applying…' : 'Apply'}
+                      <button type="button" className="btn btn-primary-outline" disabled={!scale.dirty || scale.busy || !!service.deploying || !!service.removed} onClick={() => void applyScale()}>
+                        {scale.busy ? t('svcSettings.scale.applying') : t('svcSettings.scale.apply')}
                       </button>
                     </>
                   )}
@@ -587,32 +604,32 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('build', 'builder', 'watch', 'command', 'lionpack') && (
-            <Section title="Build" icon={Hammer}>
-              <Item title="Builder" id="builder">
+          {show('Build', 'builder', 'watch', 'command', 'lionpack') && (
+            <Section name="Build" icon={Hammer}>
+              <Item title={t('svcSettings.builder.title')} id="builder">
                 {remote && (
                   <>
                     <div className="st-watch">
-                      <select aria-label="Builder" value={remote.builder ?? ''} onChange={(e) => void save({ builder: (e.target.value || null) as Builder | null })}>
-                        <option value="">Auto-detect</option>
+                      <select aria-label={t('svcSettings.builder.title')} value={remote.builder ?? ''} onChange={(e) => void save({ builder: (e.target.value || null) as Builder | null })}>
+                        <option value="">{t('svcSettings.builder.auto')}</option>
                         <option value="railpack">Railpack</option>
                         <option value="dockerfile">Dockerfile</option>
                       </select>
                     </div>
                     {remote.builder === 'dockerfile' && (
-                      <ValueSetting label="Dockerfile path" value={remote.dockerfilePath ?? ''} placeholder="Dockerfile" onSave={(v) => save({ dockerfilePath: v })} />
+                      <ValueSetting label={t('svcSettings.dockerfilePath')} value={remote.dockerfilePath ?? ''} placeholder="Dockerfile" onSave={(v) => save({ dockerfilePath: v })} />
                     )}
                   </>
                 )}
               </Item>
-              <Item title="Custom Build Command" desc="Override the command used to build your app." id="build-cmd">
-                {remote && <ValueSetting label="Build command" value={remote.buildCommand ?? ''} placeholder="e.g. npm run build" onSave={(v) => save({ buildCommand: v })} />}
+              <Item title={t('svcSettings.buildCmd.title')} desc={t('svcSettings.buildCmd.desc')} id="build-cmd">
+                {remote && <ValueSetting label={t('svcSettings.buildCmd.label')} value={remote.buildCommand ?? ''} placeholder={t('svcSettings.buildCmd.placeholder')} onSave={(v) => save({ buildCommand: v })} />}
               </Item>
-              <Item title="Watch Paths" desc="Gitignore-style patterns; only matching changes trigger a deploy." id="watch">
+              <Item title={t('svcSettings.watch.title')} desc={t('svcSettings.watch.desc')} id="watch">
                 <div className="st-watch">
                   <input
-                    aria-label="Add pattern"
-                    placeholder="Add pattern e.g. /src/**"
+                    aria-label={t('svcSettings.watch.label')}
+                    placeholder={t('svcSettings.watch.placeholder')}
                     value={pathDraft}
                     onChange={(e) => setPathDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -631,13 +648,13 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       setPathDraft('');
                     }}
                   >
-                    Add
+                    {t('svcSettings.add')}
                   </button>
                 </div>
                 {paths.map((p) => (
                   <div key={p} className="st-chip mono">
                     {p}
-                    <button type="button" aria-label="Remove" onClick={() => setPaths((all) => all.filter((x) => x !== p))}>
+                    <button type="button" aria-label={t('svcSettings.remove')} onClick={() => setPaths((all) => all.filter((x) => x !== p))}>
                       ×
                     </button>
                   </div>
@@ -646,79 +663,79 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('deploy', 'start', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
-            <Section title="Deploy" icon={Rocket}>
-              <Item title="Custom Start Command" desc="Command used to boot new deployments." id="start-cmd">
-                {remote && <ValueSetting label="Start command" value={remote.startCommand ?? ''} placeholder="e.g. npm start" onSave={(v) => save({ startCommand: v })} />}
-                <p className="st-muted">Add pre-deploy step</p>
+          {show('Deploy', 'start', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
+            <Section name="Deploy" icon={Rocket}>
+              <Item title={t('svcSettings.startCmd.title')} desc={t('svcSettings.startCmd.desc')} id="start-cmd">
+                {remote && <ValueSetting label={t('svcSettings.startCmd.label')} value={remote.startCommand ?? ''} placeholder={t('svcSettings.startCmd.placeholder')} onSave={(v) => save({ startCommand: v })} />}
+                <p className="st-muted">{t('svcSettings.preDeploy')}</p>
               </Item>
-              <Item title="Teardown" desc="How the previous deployment is stopped when a new one goes live." id="teardown">
-                <Toggle checked={teardown} onChange={setTeardown} label="Enable Teardown" />
+              <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">
+                <Toggle checked={teardown} onChange={setTeardown} label={t('svcSettings.teardown.toggle')} />
               </Item>
-              <Item title="Cron Schedule" desc="Run this service on a cron schedule." id="cron">
+              <Item title={t('svcSettings.cron.title')} desc={t('svcSettings.cron.desc')} id="cron">
                 <div>
                   <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> Add Schedule
+                    <Plus size={16} /> {t('svcSettings.cron.add')}
                   </button>
                 </div>
               </Item>
-              <Item title="Healthcheck Path" desc="Endpoint polled before a deploy is marked live." id="healthcheck">
+              <Item title={t('svcSettings.health.title')} desc={t('svcSettings.health.desc')} id="healthcheck">
                 <div>
                   <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> Healthcheck Path
+                    <Plus size={16} /> {t('svcSettings.health.title')}
                   </button>
                 </div>
               </Item>
-              <Item title="Serverless" desc="Scale to zero when idle; queued requests wake the container." id="serverless">
-                <Toggle checked={serverless} onChange={setServerless} label="Enable Serverless" />
+              <Item title={t('svcSettings.serverless.title')} desc={t('svcSettings.serverless.desc')} id="serverless">
+                <Toggle checked={serverless} onChange={setServerless} label={t('svcSettings.serverless.toggle')} />
               </Item>
-              <Item title="Restart Policy" desc="What to do when the process exits." id="restart">
+              <Item title={t('svcSettings.restart.title')} desc={t('svcSettings.restart.desc')} id="restart">
                 <button type="button" className="st-box st-policy">
                   <div>
-                    <b>On Failure</b>
-                    <p className="st-muted">Restart when the process exits with a non-zero code.</p>
+                    <b>{t('svcSettings.restart.onFailure')}</b>
+                    <p className="st-muted">{t('svcSettings.restart.onFailureDesc')}</p>
                   </div>
                   <ChevronDown size={16} className="st-region-chev" />
                 </button>
                 <label className="st-retries">
-                  <span>Max restart retries</span>
+                  <span>{t('svcSettings.restart.retries')}</span>
                   <input value={retries} onChange={(e) => setRetries(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                 </label>
               </Item>
             </Section>
           )}
 
-          {show('config', 'file', 'code') && (
-            <Section title="Config-as-code" icon={FileCode2}>
-              <Item title="LikeLion Config File" desc="Deprecated in favor of Infrastructure as Code; existing files keep working for now." id="config-file">
+          {show('Config-as-code', 'file') && (
+            <Section name="Config-as-code" icon={FileCode2}>
+              <Item title={t('svcSettings.configFile.title')} desc={t('svcSettings.configFile.desc')} id="config-file">
                 <div>
                   <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> Add File Path
+                    <Plus size={16} /> {t('svcSettings.configFile.add')}
                   </button>
                 </div>
               </Item>
             </Section>
           )}
 
-          {show('feature', 'flags', 'skipped') && (
-            <Section title="Feature-flags" icon={Flag}>
+          {show('Feature-flags', 'skipped') && (
+            <Section name="Feature-flags" icon={Flag}>
               <div className="st-item">
-                <Toggle checked={skipped} onChange={setSkipped} label="Skipped Builds" />
-                <p className="st-muted">Reuse an earlier build when the source code has not changed. GitHub only.</p>
+                <Toggle checked={skipped} onChange={setSkipped} label={t('svcSettings.skipped.toggle')} />
+                <p className="st-muted">{t('svcSettings.skipped.desc')}</p>
               </div>
             </Section>
           )}
 
-          {show('danger', 'delete') && (
+          {show('Danger', 'delete') && (
             <section className="st-section danger" id="set-Danger">
-              <Item title="Delete Service" desc="Removes this service from the project." id="delete">
+              <Item title={t('svcSettings.delete.title')} desc={t('svcSettings.delete.desc')} id="delete">
                 <div className="st-delete-box">
                   <label className="st-muted" htmlFor="delete-confirm">
-                    Type <b>{service.name}</b> to confirm
+                    {t('svcSettings.delete.confirmBefore')}<b>{service.name}</b>{t('svcSettings.delete.confirmAfter')}
                   </label>
                   <input id="delete-confirm" className="st-delete-input" value={deleteName} onChange={(e) => setDeleteName(e.target.value)} />
                   <button type="button" className="btn st-delete" disabled={deleteName !== service.name || deleting} onClick={() => void remove()}>
-                    <TriangleAlert size={16} /> Delete service
+                    <TriangleAlert size={16} /> {t('svcSettings.delete.button')}
                   </button>
                 </div>
               </Item>
@@ -729,7 +746,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
         <aside className="st-toc">
           <ul>
             {SECTIONS.map((s) => (
-              <li key={s} aria-label={s}>
+              <li key={s} aria-label={t(SECTION_LABEL[s])}>
                 <a
                   href={`#set-${s}`}
                   className={active === s ? 'active' : ''}
@@ -738,7 +755,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     jump(s);
                   }}
                 >
-                  {s}
+                  {t(SECTION_LABEL[s])}
                 </a>
               </li>
             ))}

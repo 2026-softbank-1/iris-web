@@ -1,0 +1,33 @@
+<!-- @dsCard group="Colors" viewport="700x170" name="Semantic text & surface" subtitle="How greys map to text hierarchy and surfaces" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;font-family:var(--font-sans);background:var(--bg-page);padding:20px;}
+  .wrap{display:flex;gap:24px;}
+  .col{flex:1;background:#fff;border-radius:14px;padding:16px 18px;}
+  .ttl{font-size:10px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-quaternary);margin:0 0 12px;}
+  .line{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;}
+  .tk{font-size:11px;color:var(--text-quaternary);font-weight:500;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="col">
+    <p class="ttl">Text hierarchy</p>
+    <div class="line"><span style="font-size:16px;font-weight:700;color:var(--text-strong)">Strong 강조</span><span class="tk">--text-strong</span></div>
+    <div class="line"><span style="font-size:16px;font-weight:600;color:var(--text-primary)">Primary 본문</span><span class="tk">--text-primary</span></div>
+    <div class="line"><span style="font-size:16px;font-weight:500;color:var(--text-secondary)">Secondary</span><span class="tk">--text-secondary</span></div>
+    <div class="line"><span style="font-size:16px;font-weight:500;color:var(--text-tertiary)">Tertiary</span><span class="tk">--text-tertiary</span></div>
+    <div class="line"><span style="font-size:16px;font-weight:500;color:var(--text-quaternary)">Quaternary 보조</span><span class="tk">--text-quaternary</span></div>
+    <div class="line"><span style="font-size:16px;font-weight:600;color:var(--text-brand)">Brand 링크</span><span class="tk">--text-brand</span></div>
+  </div>
+  <div class="col">
+    <p class="ttl">Surface & fill</p>
+    <div class="line"><span style="font-size:14px;font-weight:600;color:var(--text-primary)">Card / sheet</span><span class="tk">--bg-default</span></div>
+    <div style="height:28px;border-radius:8px;background:var(--bg-default);border:1px solid var(--border-default);margin:4px 0 10px;"></div>
+    <div class="line"><span style="font-size:14px;font-weight:600;color:var(--text-primary)">Page canvas</span><span class="tk">--bg-page</span></div>
+    <div style="height:28px;border-radius:8px;background:var(--bg-page);margin:4px 0 10px;"></div>
+    <div class="line"><span style="font-size:14px;font-weight:600;color:var(--text-on-fill)">Brand fill</span><span class="tk">--fill-brand</span></div>
+    <div style="height:28px;border-radius:8px;background:var(--fill-brand);margin:4px 0 0;"></div>
+  </div>
+</div>
+</body></html>

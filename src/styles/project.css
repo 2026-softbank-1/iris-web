@@ -58,7 +58,7 @@
 
 .ph-btn:hover,
 .ph-btn[data-state='open'] {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash), 0.05);
 }
 
 .ph-btn-text {
@@ -114,7 +114,7 @@
 
 .icon-btn.on {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--wash), 0.08);
 }
 
 .agent-btn {
@@ -135,7 +135,7 @@
 .agent-btn:hover,
 .agent-btn.on {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash), 0.06);
 }
 
 .proj-body {
@@ -179,12 +179,12 @@
 
 .rail-item:hover {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash), 0.05);
 }
 
 .rail-item.active {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--wash), 0.1);
 }
 
 .rail-fill {
@@ -202,7 +202,7 @@
 
 .rail-avatar:hover,
 .rail-avatar[data-state='open'] {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash), 0.05);
 }
 
 .proj-content {
@@ -236,7 +236,7 @@
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
   animation: pop-in 0.14s ease;
 }
 
@@ -271,7 +271,7 @@
 }
 
 .activity-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
 }
 
 .activity-icon {
@@ -302,7 +302,7 @@
 
 .activity-state.failed,
 .activity-state.manual_intervention {
-  color: #f0a3a1;
+  color: var(--red-text);
 }
 
 .agent-title {
@@ -329,7 +329,8 @@
 
 .agent-msg.me {
   align-self: flex-end;
-  background: var(--purple);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .agent-input {
@@ -386,7 +387,7 @@
   min-width: 0;
   min-height: 0;
   border: 0;
-  background: #1a192b;
+  background: var(--bg-2);
 }
 
 .svc-node-wrap {
@@ -420,11 +421,11 @@
 }
 
 .svc-node:hover {
-  border-color: #4a4957;
+  border-color: var(--border-strong);
 }
 
 .svc-node.selected {
-  border-color: #6e31aa;
+  border-color: #cb8010;
 }
 
 .svc-node-top {
@@ -434,9 +435,6 @@
   min-width: 0;
 }
 
-.svc-node-top.center {
-  align-items: center;
-}
 
 .svc-node-icon {
   display: flex;
@@ -468,32 +466,21 @@
 
 .svc-node-bottom {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.svc-node-status {
-  display: grid;
-  grid-template-columns: 24px auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.svc-node-status svg {
-  margin: 0 auto;
+.svc-node-failed {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--red-text);
 }
 
-.svc-node-status p {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--green-soft);
-}
 
-.svc-node-offline {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--fg-muted);
-}
+
+
 
 /* toolbars */
 .rw-flow .react-flow__panel {
@@ -536,7 +523,7 @@
 }
 
 .tool-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash), 0.05);
 }
 
 .tool-btn:hover .tool-icon {

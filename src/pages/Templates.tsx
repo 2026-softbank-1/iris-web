@@ -1,38 +1,39 @@
 import { PanelsTopLeft, Plus } from 'lucide-react';
 import { useUI } from '../components/ui';
+import { useI18n } from '../i18n';
 
 export function Templates() {
   const { toast } = useUI();
+  const { t } = useI18n();
+  const soon = () => toast(t('create.templatesSoon'));
   return (
     <div className="page">
       <div className="page-inner">
         <div className="pg-head">
-          <p className="page-title">Templates</p>
-          <button type="button" className="btn btn-primary dash-new" onClick={() => toast('Templates are not available yet')}>
+          <p className="page-title">{t('create.templates')}</p>
+          <button type="button" className="btn btn-primary dash-new" onClick={soon}>
             <div className="side-icon">
               <Plus size={16} strokeWidth={2.25} />
             </div>
-            <span>New</span>
+            <span>{t('dash.new')}</span>
           </button>
         </div>
         <div className="tpl-body">
           <div className="tpl-sub">
-            <p>
-              Publish, edit and manage the templates you own.
-            </p>
+            <p>{t('create.templatesSub')}</p>
           </div>
           <div className="tpl-empty">
             <div className="tool-icon">
               <PanelsTopLeft size={24} />
             </div>
             <div className="tpl-empty-text">
-              <p className="tpl-empty-title">No templates found</p>
+              <p className="tpl-empty-title">{t('create.noTemplatesTitle')}</p>
               <p className="tpl-empty-sub">
-                You haven't made any templates yet. Click{' '}
-                <button type="button" onClick={() => toast('Templates are not available yet')}>
-                  here
-                </button>{' '}
-                to start your first one.
+                {t('create.noTemplatesBefore')}
+                <button type="button" onClick={soon}>
+                  {t('create.noTemplatesLink')}
+                </button>
+                {t('create.noTemplatesAfter')}
               </p>
             </div>
           </div>

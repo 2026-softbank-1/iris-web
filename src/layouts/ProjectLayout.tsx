@@ -22,18 +22,21 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { LogoMark, RepoIcon } from '../components/brand';
 import { NotificationsButton } from '../components/HeaderActions';
+import { LanguageButton } from '../components/LanguageButton';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
 import { activityOf } from '../data/deploymentModel';
-import { timeAgo, workspace, type Project, type Service } from '../data/mock';
+import { workspace, type Project, type Service } from '../data/mock';
 import { useProject, useProjectDomains, useProjects } from '../data/ProjectsContext';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 import { listDeployments, type DeploymentDto } from '../lib/endpoints';
+import { formatAgo, useI18n } from '../i18n';
 
 function ProjectSwitcher({ project }: { project: Project }) {
   const pop = usePopover();
   const navigate = useNavigate();
   const user = useSessionUser();
   const { projects } = useProjects();
+  const { t } = useI18n();
   return (
     <div>
       <button type="button" className="ph-btn" aria-label={workspace.name} data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
@@ -71,7 +74,7 @@ function ProjectSwitcher({ project }: { project: Project }) {
           }}
         >
           <Layers3 size={16} className="menu-icon" />
-          All Projects
+          {t('dash.all')}
         </button>
       </Popover>
     </div>
@@ -80,6 +83,7 @@ function ProjectSwitcher({ project }: { project: Project }) {
 
 function EnvSwitcher({ project }: { project: Project }) {
   const pop = usePopover();
+  const { t } = useI18n();
   return (
     <div className="ph-env">
       <div className="ph-sep ph-sep-env" />
@@ -92,7 +96,7 @@ function EnvSwitcher({ project }: { project: Project }) {
         </div>
       </button>
       <Popover anchor={pop.anchor} onClose={pop.close} width={240}>
-        <div className="menu-label">Environments</div>
+        <div className="menu-label">{t('project.environments')}</div>
         <button type="button" className="menu-item" data-active="true" onClick={pop.close}>
           <CircleDot size={16} className="menu-icon" />
           {project.environment}
@@ -101,7 +105,7 @@ function EnvSwitcher({ project }: { project: Project }) {
         <div className="menu-sep" />
         <button type="button" className="menu-item" onClick={pop.close}>
           <Plus size={16} className="menu-icon" />
-          New Environment
+          {t('project.newEnvironment')}
         </button>
       </Popover>
     </div>
@@ -122,6 +126,7 @@ function RailItem({ to, label, icon, end, forceActive }: { to: string; label: st
 
 function ActivityDrawer({ project, onClose }: { project: Project; onClose: () => void }) {
   // 서비스마다 최근 배포 요청을 받아 합친다(열 때 한 번).
+  const { t, lang } = useI18n();
   const [items, setItems] = useState<{ s: Service; d: DeploymentDto }[] | null>(null);
   const serviceKey = project.services.map((s) => s.id).join(',');
   useEffect(() => {
@@ -136,14 +141,14 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
   return (
     <div className="side-drawer">
       <div className="side-drawer-head">
-        <span>Activity</span>
-        <button type="button" className="icon-btn" aria-label="Close activity" onClick={onClose}>
+        <span>{t('project.activity')}</span>
+        <button type="button" className="icon-btn" aria-label={t('project.closeActivity')} onClick={onClose}>
           <X size={16} />
         </button>
       </div>
       <div className="side-drawer-body">
-        {items === null && <p className="activity-empty">Loading…</p>}
-        {items?.length === 0 && <p className="activity-empty">No activity yet.</p>}
+        {items === null && <p className="activity-empty">{t('project.loading')}</p>}
+        {items?.length === 0 && <p className="activity-empty">{t('project.noActivity')}</p>}
         {items?.map(({ s, d }) => {
           const { noun, state } = activityOf(d);
           return (
@@ -153,10 +158,10 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
               </div>
               <div className="activity-text">
                 <p>
-                  <b>{s.name}</b> {noun} <span className={`activity-state ${d.status.toLowerCase()}`}>{state}</span>
+                  <b>{s.name}</b> {t(noun === 'removal' ? 'project.removal' : 'project.deployment')} <span className={`activity-state ${d.status.toLowerCase()}`}>{state}</span>
                 </p>
                 <span>
-                  {d.sourceCommitMessage?.split('\n')[0] ?? `Commit ${d.sourceSha.slice(0, 7)}`} · {timeAgo(d.createdAt)}
+                  {d.sourceCommitMessage?.split('\n')[0] ?? t('project.commit', { sha: d.sourceSha.slice(0, 7) })} · {formatAgo(d.createdAt, lang)}
                 </span>
               </div>
             </div>
@@ -168,9 +173,9 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
 }
 
 function AgentDrawer({ onClose }: { onClose: () => void }) {
-  const [msgs, setMsgs] = useState<{ me: boolean; text: string }[]>([
-    { me: false, text: 'Hi! I can look at your deployments and logs. Ask me why a service crashed.' },
-  ]);
+  const { t } = useI18n();
+  // 첫 인사는 언어를 바꾸면 따라 바뀌도록 상태에 넣지 않고 그릴 때 붙인다.
+  const [msgs, setMsgs] = useState<{ me: boolean; text: string }[]>([]);
   const [draft, setDraft] = useState('');
   const send = () => {
     if (!draft.trim()) return;
@@ -181,7 +186,7 @@ function AgentDrawer({ onClose }: { onClose: () => void }) {
       { me: true, text },
       {
         me: false,
-        text: 'Temp_log keeps exiting because SESSION_SECRET is shorter than 48 characters (ZodError in env.js). Set a longer secret in Variables and redeploy.',
+        text: t('project.agentReply'),
       },
     ]);
   };
@@ -189,22 +194,22 @@ function AgentDrawer({ onClose }: { onClose: () => void }) {
     <div className="side-drawer">
       <div className="side-drawer-head">
         <span className="agent-title">
-          <Sparkles size={16} /> Agent
+          <Sparkles size={16} /> {t('project.agent')}
         </span>
-        <button type="button" className="icon-btn" aria-label="Close agent" onClick={onClose}>
+        <button type="button" className="icon-btn" aria-label={t('project.closeAgent')} onClick={onClose}>
           <X size={16} />
         </button>
       </div>
       <div className="side-drawer-body agent-body">
-        {msgs.map((m, i) => (
+        {[{ me: false, text: t('project.agentGreeting') }, ...msgs].map((m, i) => (
           <div key={i} className={`agent-msg${m.me ? ' me' : ''}`}>
             {m.text}
           </div>
         ))}
       </div>
       <div className="agent-input">
-        <input className="input" placeholder="Ask about this project..." value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
-        <button type="button" className="btn btn-primary btn-icon-only" aria-label="Send" onClick={send}>
+        <input className="input" placeholder={t('project.askPlaceholder')} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
+        <button type="button" className="btn btn-primary btn-icon-only" aria-label={t('project.send')} onClick={send}>
           <SendHorizontal size={16} />
         </button>
       </div>
@@ -222,6 +227,7 @@ export function ProjectLayout() {
   const auth = useAuth();
   const user = useSessionUser();
   const onService = useMatch('/project/:projectId/service/*');
+  const { t } = useI18n();
 
   useEffect(() => {
     if (project) document.title = project.name;
@@ -230,10 +236,10 @@ export function ProjectLayout() {
   if (!project) {
     return (
       <div className="not-found">
-        <p>{state === 'loading' ? 'Loading project…' : state === 'error' ? `Couldn't load this project. ${error ?? ''}` : 'Project not found'}</p>
+        <p>{state === 'loading' ? t('project.loadingProject') : state === 'error' ? t('project.loadError', { error: error ?? '' }) : t('project.notFound')}</p>
         {state !== 'loading' && (
           <button type="button" className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
-            Back to dashboard
+            {t('project.backToDashboard')}
           </button>
         )}
       </div>
@@ -246,7 +252,7 @@ export function ProjectLayout() {
       <div className="proj-header-wrap">
         <header className="proj-header">
           <div className="ph-left">
-            <NavLink to="/dashboard" title="Dashboard" className="ph-logo">
+            <NavLink to="/dashboard" title={t('landing.dashboard')} className="ph-logo">
               <div>
                 <LogoMark size={24} />
               </div>
@@ -262,39 +268,40 @@ export function ProjectLayout() {
               <div>
                 <button
                   type="button"
-                  title="Toggle activity"
+                  title={t('project.toggleActivity')}
                   className={`icon-btn${drawer === 'activity' ? ' on' : ''}`}
                   onClick={() => setDrawer((d) => (d === 'activity' ? null : 'activity'))}
                 >
                   <Activity size={16} />
                 </button>
               </div>
+              <LanguageButton />
               <NotificationsButton />
               <div className="vsep" />
               <button
                 type="button"
-                aria-label="Agent"
-                title="Open agent panel"
+                aria-label={t('project.agent')}
+                title={t('project.openAgent')}
                 className={`agent-btn${drawer === 'agent' ? ' on' : ''}`}
                 onClick={() => setDrawer((d) => (d === 'agent' ? null : 'agent'))}
               >
                 <div className="side-icon">
                   <MessageSquare size={16} />
                 </div>
-                <span>Agent</span>
+                <span>{t('project.agent')}</span>
               </button>
             </div>
           </nav>
         </header>
       </div>
       <div className="proj-body">
-        <nav aria-label="Project navigation" className="proj-rail">
+        <nav aria-label={t('project.nav')} className="proj-rail">
           <div className="rail-items">
-            <RailItem to={base} end forceActive={!!onService} label="Architecture" icon={<Network size={16} />} />
-            <RailItem to={`${base}/observability`} label="Observability" icon={<ChartNoAxesColumn size={16} />} />
-            <RailItem to={`${base}/logs`} label="Logs" icon={<FileText size={16} />} />
-            <RailItem to={`${base}/sandboxes`} label="Sandboxes" icon={<Box size={16} />} />
-            <RailItem to={`${base}/settings`} label="Settings" icon={<Settings size={16} />} />
+            <RailItem to={base} end forceActive={!!onService} label={t('project.rail.architecture')} icon={<Network size={16} />} />
+            <RailItem to={`${base}/observability`} label={t('project.rail.observability')} icon={<ChartNoAxesColumn size={16} />} />
+            <RailItem to={`${base}/logs`} label={t('project.rail.logs')} icon={<FileText size={16} />} />
+            <RailItem to={`${base}/sandboxes`} label={t('project.rail.sandboxes')} icon={<Box size={16} />} />
+            <RailItem to={`${base}/settings`} label={t('nav.settings')} icon={<Settings size={16} />} />
           </div>
           <div className="rail-fill" />
           <div>
@@ -312,11 +319,11 @@ export function ProjectLayout() {
                 }}
               >
                 <LayoutDashboard size={16} className="menu-icon" />
-                Dashboard
+                {t('landing.dashboard')}
               </button>
               <button type="button" className="menu-item" onClick={accountPop.close}>
                 <User size={16} className="menu-icon" />
-                Account Settings
+                {t('menu.account')}
               </button>
               <div className="menu-sep" />
               <button
@@ -329,7 +336,7 @@ export function ProjectLayout() {
                 }}
               >
                 <LogOut size={16} className="menu-icon" />
-                Logout
+                {t('menu.logout')}
               </button>
             </Popover>
           </div>

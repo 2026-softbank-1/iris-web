@@ -5,15 +5,16 @@ import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { apiStatusLabel, canRedeploy, deploymentLabel, failureText } from '../../data/deploymentModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
+import { useI18n, type MessageKey } from '../../i18n';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
 import { LogTable } from './LogTable';
 
-const DTABS = [
-  { id: 'details', label: 'Details' },
-  { id: 'build', label: 'Build', suffix: 'Logs' },
-  { id: 'deploy', label: 'Deploy', suffix: 'Logs' },
-  { id: 'http', label: 'Network', suffix: 'Logs' },
+const DTABS: { id: string; label: MessageKey; logs?: boolean }[] = [
+  { id: 'details', label: 'service.dtab.details' },
+  { id: 'build', label: 'service.dtab.build', logs: true },
+  { id: 'deploy', label: 'service.dtab.deploy', logs: true },
+  { id: 'http', label: 'service.dtab.network', logs: true },
 ];
 
 function KV({ label, children }: { label: string; children: React.ReactNode }) {
@@ -28,20 +29,21 @@ function KV({ label, children }: { label: string; children: React.ReactNode }) {
 }
 
 /** 배포 상태를 한 줄로 설명한다. */
-function headlineOf(d: Deployment): string {
+function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   switch (d.status) {
-    case 'ACTIVE': return 'Deployment successful';
-    case 'REMOVED': return 'Deployment succeeded and was replaced by a newer one';
-    case 'TAKEN_DOWN': return 'The deployment was removed from the cluster. The service is offline until you deploy it again';
-    case 'REMOVING': return 'Removing the deployment from the cluster…';
-    case 'FAILED': return d.trigger === 'REMOVE' ? 'Removing the service failed. The service was not changed' : (failureText(d.failureCode) ?? 'Deployment failed');
-    case 'ROLLED_BACK': return 'Deployment failed and was rolled back';
-    case 'MANUAL_INTERVENTION': return d.trigger === 'REMOVE' ? 'Removing the service needs manual intervention. The app may still be running' : 'Deployment needs manual intervention';
+    case 'ACTIVE': return t('service.deploySuccess');
+    case 'REMOVED': return t('service.dp.replaced');
+    case 'TAKEN_DOWN': return t('service.dp.takenDown');
+    case 'REMOVING': return t('service.dp.removing');
+    case 'FAILED': return d.trigger === 'REMOVE' ? t('service.dp.removeFailed') : (failureText(d.failureCode) ?? t('service.dp.failed'));
+    case 'ROLLED_BACK': return t('service.dp.rolledBack');
+    case 'MANUAL_INTERVENTION': return t(d.trigger === 'REMOVE' ? 'service.dp.removeManual' : 'service.dp.manual');
     default: return `${deploymentLabel(d.status)}…`;
   }
 }
 
 function Details({ d, service }: { d: Deployment; service: Service }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
   const [statusOpen, setStatusOpen] = useState(false);
   const { detail, error } = useDeploymentDetail(service.id, d.id);
@@ -54,17 +56,17 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
           <button type="button" className="details-status-btn" onClick={() => setStatusOpen((v) => !v)}>
             <div className="details-status-left">
               <div className="side-icon">{problem ? <TriangleAlert size={16} /> : d.isActive ? <Clock size={16} /> : <CircleCheck size={16} />}</div>
-              <p>{headlineOf(d)}</p>
+              <p>{headlineOf(d, t)}</p>
             </div>
             <div className="details-status-right">
-              <p>{statusOpen ? 'View less' : 'View more'}</p>
+              <p>{statusOpen ? t('service.dp.viewLess') : t('service.dp.viewMore')}</p>
               <div className="side-icon">{statusOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
             </div>
           </button>
           {statusOpen && (
             <div className="details-timeline">
               {error && <p className="set-muted">{error}</p>}
-              {!detail && !error && <p className="set-muted">Loading…</p>}
+              {!detail && !error && <p className="set-muted">{t('service.loading')}</p>}
               {detail?.history.map((h) => {
                 const bad = h.toStatus === 'FAILED' || h.toStatus === 'ROLLED_BACK' || h.toStatus === 'MANUAL_INTERVENTION';
                 return (
@@ -84,7 +86,7 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
       </div>
 
       <div className="details-source">
-        <p className="details-h">{d.trigger === 'REMOVE' ? 'Removed deployment' : `Deployed via ${d.via ?? 'GitHub'}`}</p>
+        <p className="details-h">{d.trigger === 'REMOVE' ? t('service.dp.removedDeployment') : t('service.dp.via', { via: d.via ?? 'GitHub' })}</p>
         <div className="details-box">
           <a href={d.commitUrl} target="_blank" rel="noreferrer" className="details-commit">
             <AuthorAvatar d={d} />
@@ -111,19 +113,19 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
 
       <div className="details-config">
         <div className="details-config-head">
-          <p className="details-h">Configuration</p>
+          <p className="details-h">{t('service.dp.config')}</p>
           <div role="tablist" className="seg">
             <button type="button" role="tab" data-state={mode === 'pretty' ? 'active' : 'inactive'} onClick={() => setMode('pretty')}>
               <div className="side-icon">
                 <Sparkles size={16} />
               </div>
-              <p>Pretty</p>
+              <p>{t('service.dp.pretty')}</p>
             </button>
             <button type="button" role="tab" data-state={mode === 'code' ? 'active' : 'inactive'} onClick={() => setMode('code')}>
               <div className="side-icon">
                 <Code2 size={16} />
               </div>
-              <p>Code</p>
+              <p>{t('service.dp.code')}</p>
             </button>
           </div>
         </div>
@@ -134,19 +136,19 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                 <div className="side-icon">
                   <Hammer size={16} />
                 </div>
-                <p>Build</p>
+                <p>{t('service.dtab.build')}</p>
               </div>
               <div className="details-col-body">
-                <KV label="Builder">
+                <KV label={t('service.dp.builder')}>
                   <div className="details-builder">
-                    <span>{remote?.builder ?? 'Auto-detect'}</span>
+                    <span>{remote?.builder ?? t('service.dp.autoDetect')}</span>
                     <BuilderIcon size={20} />
                   </div>
                 </KV>
                 <hr />
-                <KV label="Root directory">{remote?.rootDirectory ?? '/'}</KV>
+                <KV label={t('service.dp.rootDir')}>{remote?.rootDirectory ?? '/'}</KV>
                 <hr />
-                <KV label="Build command">{remote?.buildCommand ?? '—'}</KV>
+                <KV label={t('service.dp.buildCmd')}>{remote?.buildCommand ?? '—'}</KV>
               </div>
             </div>
             <div className="details-box col">
@@ -154,14 +156,14 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                 <div className="side-icon">
                   <Rocket size={16} />
                 </div>
-                <p>Deploy</p>
+                <p>{t('service.dtab.deploy')}</p>
               </div>
               <div className="details-col-body">
-                <KV label="Targets">{service.region || '—'}</KV>
+                <KV label={t('service.dp.targets')}>{service.region || '—'}</KV>
                 <hr className="soft" />
-                <KV label="Port">{remote?.port ?? '—'}</KV>
+                <KV label={t('service.dp.port')}>{remote?.port ?? '—'}</KV>
                 <hr className="soft" />
-                <KV label="Start command">{remote?.startCommand ?? '—'}</KV>
+                <KV label={t('service.dp.startCmd')}>{remote?.startCommand ?? '—'}</KV>
               </div>
             </div>
           </div>
@@ -174,10 +176,11 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
 }
 
 export function DeploymentPane({ project, service, deployment, tab, deps }: { project: Project; service: Service; deployment: Deployment; tab?: string; deps: DeploymentsApi }) {
+  const { t } = useI18n();
   const { toast } = useUI();
   const { run } = useRunner();
   // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다.
-  const current = DTABS.some((t) => t.id === tab) ? tab! : 'details';
+  const current = DTABS.some((x) => x.id === tab) ? tab! : 'details';
   const serviceBase = `/project/${project.id}/service/${service.id}`;
   const base = `${serviceBase}/deployment/${deployment.id}`;
   const status = deploymentLabel(deployment.status);
@@ -199,10 +202,10 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                 <button
                   type="button"
                   className="dp-id mono"
-                  title="Copy deployment ID"
+                  title={t('service.dp.copyId')}
                   onClick={() => {
                     navigator.clipboard?.writeText(deployment.id);
-                    toast('Deployment ID copied');
+                    toast(t('service.dp.idCopied'));
                   }}
                 >
                   {deployment.shortId}
@@ -217,13 +220,13 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   horizontal
                   className="btn btn-icon-only dp-action"
                   deployment={deployment}
-                  onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), 'Redeploy requested') : undefined}
-                  onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), 'Rollback requested') : undefined}
+                  onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
+                  onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
                 />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">
                   {fmtKst(deployment.createdAt, false)} GMT+9
                 </time>
-                <Link to={serviceBase} className="btn btn-icon-only dp-close" aria-label="Close">
+                <Link to={serviceBase} className="btn btn-icon-only dp-close" aria-label={t('service.close')}>
                   <div className="tool-icon">
                     <X size={16} />
                   </div>
@@ -233,24 +236,24 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
             <div className="dp-sub" />
           </div>
           <div role="tablist" className="dp-tabs">
-            {DTABS.map((t) => (
+            {DTABS.map((x) => (
               <Link
-                key={t.id}
-                to={`${base}/${t.id}`}
+                key={x.id}
+                to={`${base}/${x.id}`}
                 role="tab"
-                aria-selected={current === t.id}
-                data-state={current === t.id ? 'active' : 'inactive'}
-                className={`dp-tab${current === t.id ? ' active' : ''}`}
+                aria-selected={current === x.id}
+                data-state={current === x.id ? 'active' : 'inactive'}
+                className={`dp-tab${current === x.id ? ' active' : ''}`}
               >
-                {t.label}
-                {t.suffix && <span> {t.suffix}</span>}
-                {current === t.id && <div className="pane-tab-line" />}
+                {t(x.label)}
+                {x.logs && <span> {t('service.dtab.logs')}</span>}
+                {current === x.id && <div className="pane-tab-line" />}
               </Link>
             ))}
           </div>
-          <div role="tabpanel" aria-label={`${DTABS.find((t) => t.id === current)!.label} Logs`} className="dp-panel" data-state="active">
+          <div role="tabpanel" aria-label={`${t(DTABS.find((x) => x.id === current)!.label)} ${t('service.dtab.logs')}`} className="dp-panel" data-state="active">
             {current === 'details' && <Details d={deployment} service={service} />}
-            {current !== 'details' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel="Logs aren't available yet" />}
+            {current !== 'details' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel={t('service.dp.noLogs')} />}
           </div>
         </div>
       </div>

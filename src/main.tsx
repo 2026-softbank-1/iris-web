@@ -11,6 +11,9 @@ import './styles/panes.css';
 import './styles/logs.css';
 import './styles/pages.css';
 import { App } from './App';
+import { initTheme } from './lib/theme';
+
+initTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

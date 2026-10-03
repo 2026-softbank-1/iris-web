@@ -1,0 +1,52 @@
+<!-- @dsCard group="Components" viewport="700x620" name="Forms — Field · Search · Switch · Checkbox · Segmented · Stepper" subtitle="Input & control primitives" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: #fff; color: var(--text-primary); }
+  #root { padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 640px; }
+  .lbl { font-size: 11px; font-weight: 600; color: var(--text-quaternary); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+  .row { display: flex; gap: 16px; align-items: center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { TextField, SearchField, Switch, Checkbox, SegmentedControl, Stepper } = window.TossDesignSystemTDS_d2de50;
+  function Demo() {
+    const [name, setName] = React.useState('홍길동');
+    const [amt, setAmt] = React.useState('50000');
+    const [q, setQ] = React.useState('스타벅스');
+    const [on1, setOn1] = React.useState(true);
+    const [on2, setOn2] = React.useState(false);
+    const [agree, setAgree] = React.useState(true);
+    const [seg, setSeg] = React.useState('월');
+    const [qty, setQty] = React.useState(2);
+    return (
+      <React.Fragment>
+        <div className="stack">
+          <div><p className="lbl">Text field — box</p><TextField label="이름" value={name} onChange={(e)=>setName(e.target.value)} /></div>
+          <div><p className="lbl">Text field — line + suffix</p><TextField variant="line" value={amt} onChange={(e)=>setAmt(e.target.value)} suffix="원" /></div>
+          <div><p className="lbl">Error state</p><TextField label="계좌번호" value="123" onChange={()=>{}} error="올바른 계좌번호를 입력해주세요" /></div>
+          <div><p className="lbl">Search</p><SearchField value={q} onChange={(e)=>setQ(e.target.value)} onClear={()=>setQ('')} /></div>
+        </div>
+        <div className="stack">
+          <div><p className="lbl">Switch</p><div className="row"><Switch checked={on1} onChange={setOn1} /><Switch checked={on2} onChange={setOn2} /></div></div>
+          <div><p className="lbl">Checkbox</p><div className="stack" style={{gap:10}}><Checkbox shape="circle" checked={agree} onChange={setAgree} label="전체 동의하기" /><Checkbox checked={true} onChange={()=>{}} label="(필수) 서비스 이용약관" /></div></div>
+          <div><p className="lbl">Segmented control</p><SegmentedControl options={['일','주','월','년']} value={seg} onChange={setSeg} /></div>
+          <div><p className="lbl">Stepper</p><Stepper value={qty} onChange={setQty} /></div>
+        </div>
+      </React.Fragment>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

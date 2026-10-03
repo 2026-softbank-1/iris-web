@@ -55,12 +55,12 @@ export function sumPoints(series: MetricSeriesDto[] | undefined, metric: MetricN
 
 /** 같은 Pod 은 어느 카드에서든 같은 색이다. 쓰는 색이 모자라면 돌려 쓴다. */
 export const POD_COLORS = [
-  'var(--purple-strong)',
+  'var(--primary-strong)',
   'var(--green-soft)',
   'var(--yellow)',
   'var(--blue)',
   'var(--red)',
-  'var(--purple-text)',
+  '#2bc4c4',
   'var(--green)',
   '#ad871f',
 ];

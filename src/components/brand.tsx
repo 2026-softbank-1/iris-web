@@ -8,7 +8,7 @@ type P = { size?: number; className?: string; title?: string };
 export function LogoMark({ size = 24, className, title = 'LikeLion Logo' }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-label={title} role="img">
-      <g fill="#fff">
+      <g fill="#ffa41b">
         <circle cx="5.4" cy="5.9" r="2.7" />
         <circle cx="18.6" cy="5.9" r="2.7" />
         <circle cx="12.00" cy="19.40" r="3.3" />
@@ -22,17 +22,17 @@ export function LogoMark({ size = 24, className, title = 'LikeLion Logo' }: P) {
         <circle cx="16.76" cy="17.67" r="3.3" />
         <circle cx="12" cy="12" r="8.2" />
       </g>
-      <g fill="#13111c">
+      <g fill="#ffffff">
         <circle cx="5.4" cy="5.9" r="1.1" />
         <circle cx="18.6" cy="5.9" r="1.1" />
         <circle cx="12" cy="12.4" r="5.9" />
       </g>
-      <g fill="#fff">
+      <g fill="#191f28">
         <circle cx="9.7" cy="11" r="0.95" />
         <circle cx="14.3" cy="11" r="0.95" />
         <path d="M10.6 13.1h2.8l-1.4 1.6z" />
       </g>
-      <path d="M12 14.7v1c-.5.9-1.7 1.1-2.4.3M12 15.7c.5.9 1.7 1.1 2.4.3" stroke="#fff" strokeWidth="1" strokeLinecap="round" />
+      <path d="M12 14.7v1c-.5.9-1.7 1.1-2.4.3M12 15.7c.5.9 1.7 1.1 2.4.3" stroke="#191f28" strokeWidth="1" strokeLinecap="round" />
     </svg>
   );
 }
@@ -40,7 +40,7 @@ export function LogoMark({ size = 24, className, title = 'LikeLion Logo' }: P) {
 /** GitHub mark (simple-icons, CC0) for repo-backed services. */
 export function RepoIcon({ size = 24, className }: P) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden fill="#fff">
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden fill="currentColor">
       <path d={siGithub.path} />
     </svg>
   );
@@ -59,9 +59,9 @@ export function RuntimeIcon({ size = 16, className }: P) {
 export function BuilderIcon({ size = 20, className }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className={className} aria-hidden>
-      <rect x="1" y="1" width="18" height="18" rx="5" fill="#2b2140" />
-      <path d="M10 4.5 15 7.2v5.6L10 15.5 5 12.8V7.2L10 4.5Z" stroke="#bf93ec" strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M5.3 7.4 10 10l4.7-2.6M10 10v5.2" stroke="#bf93ec" strokeWidth="1.3" strokeLinejoin="round" />
+      <rect x="1" y="1" width="18" height="18" rx="5" fill="#fff4e0" />
+      <path d="M10 4.5 15 7.2v5.6L10 15.5 5 12.8V7.2L10 4.5Z" stroke="#e08600" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M5.3 7.4 10 10l4.7-2.6M10 10v5.2" stroke="#e08600" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -70,8 +70,8 @@ export function BuilderIcon({ size = 20, className }: P) {
 export function OnlineDot({ size = 16 }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
-      <circle cx="8" cy="8" r="6.25" stroke="#42946e" strokeOpacity="0.13" strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="3" fill="#42946e" />
+      <circle cx="8" cy="8" r="6.25" stroke="#03b26c" strokeOpacity="0.13" strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="3" fill="#03b26c" />
     </svg>
   );
 }

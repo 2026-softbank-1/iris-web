@@ -1,0 +1,57 @@
+<!-- @dsCard group="Components" viewport="700x430" name="Button" subtitle="Fill · weak · outline · sizes · loading" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: #fff; color: var(--text-primary); }
+  #root { padding: 24px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .lbl { font-size: 11px; font-weight: 600; color: var(--text-quaternary); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Button, Icon } = window.TossDesignSystemTDS_d2de50;
+  function Demo() {
+    return (
+      <div>
+        <p className="lbl">Fill · colors</p>
+        <div className="row">
+          <Button>확인</Button>
+          <Button color="neutral">취소</Button>
+          <Button color="danger">삭제하기</Button>
+          <Button color="dark">계속</Button>
+        </div>
+        <p className="lbl">Weak · outline</p>
+        <div className="row">
+          <Button variant="weak">더 알아보기</Button>
+          <Button variant="weak" color="danger">신고</Button>
+          <Button variant="outline">나중에</Button>
+          <Button loading>처리 중</Button>
+          <Button disabled>비활성</Button>
+        </div>
+        <p className="lbl">Sizes</p>
+        <div className="row">
+          <Button size="large">Large</Button>
+          <Button size="medium">Medium</Button>
+          <Button size="small">Small</Button>
+          <Button size="tiny">Tiny</Button>
+        </div>
+        <p className="lbl">Full-width CTA</p>
+        <div style={{ maxWidth: 360 }}>
+          <Button fullWidth leftIcon={<Icon name="won" size={20} />}>5,000원 송금하기</Button>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

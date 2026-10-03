@@ -74,7 +74,7 @@
 }
 
 .tpl-empty-sub button {
-  color: var(--purple-strong);
+  color: var(--primary-strong);
 }
 
 .tpl-empty-sub button:hover {
@@ -269,8 +269,8 @@
   text-align: right;
 }
 
-.usage-bd-sumrow.purple {
-  color: var(--purple);
+.usage-bd-sumrow.primary {
+  color: var(--primary);
 }
 
 .usage-bd-total {
@@ -449,7 +449,7 @@
 }
 
 .plogs-filter:focus-within {
-  border-color: var(--purple-strong);
+  border-color: var(--primary-strong);
 }
 
 .plogs-filter input {
@@ -490,7 +490,7 @@
 .plogs-hist-track {
   position: relative;
   height: 30px;
-  border-bottom: 2px dashed rgba(255, 255, 255, 0.07);
+  border-bottom: 2px dashed rgba(var(--wash), 0.07);
 }
 
 .plogs-hist-bar {
@@ -578,7 +578,7 @@
 }
 
 .plogs-row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
 }
 
 .plogs-time {
@@ -747,7 +747,7 @@
 }
 
 .obs-block .obs-mini-bars span {
-  background: var(--purple);
+  background: var(--primary);
   opacity: 0.6;
 }
 
@@ -812,7 +812,7 @@
 
 .ps-nav-item:hover {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
 }
 
 .ps-nav-item.active {
@@ -824,7 +824,7 @@
 }
 
 .ps-nav-item.active svg {
-  color: var(--purple-strong);
+  color: var(--primary-strong);
 }
 
 .ps-main {

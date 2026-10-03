@@ -37,7 +37,8 @@ export function Avatar({ src, size = 24, title, fallback }: { src?: string; size
             placeItems: 'center',
             fontSize: Math.round(size * 0.45),
             fontWeight: 600,
-            background: 'linear-gradient(135deg,#6d3fc0,#c0438f)',
+            color: 'var(--primary-text)',
+            background: 'var(--primary-bg)',
           }}
         >
           {letter}

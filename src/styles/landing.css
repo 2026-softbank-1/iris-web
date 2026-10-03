@@ -1,0 +1,445 @@
+/* Landing page ------------------------------------------------------ */
+.landing {
+  height: 100vh;
+  overflow-y: auto; /* body is overflow: hidden for the app shell */
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 44px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.landing-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.landing-header-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.landing-header-link:hover {
+  color: var(--fg);
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 56px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 96px 44px 72px;
+}
+
+.landing-logo-float {
+  display: inline-block;
+  margin-bottom: 24px;
+  animation: landing-pop 600ms cubic-bezier(0.16, 1, 0.3, 1) both, landing-float 4s ease-in-out 600ms infinite;
+}
+
+.landing-hero h1 {
+  min-height: 2.5em; /* two lines; translations should fit in two */
+  text-wrap: balance;
+  margin: 0 0 16px;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -1.4px;
+}
+
+.landing-hero h1 em {
+  font-style: normal;
+  color: var(--primary-strong);
+}
+
+.landing-hero-copy > p {
+  margin: 0 0 32px;
+  max-width: 420px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--fg-subtle);
+}
+
+.landing-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 0 24px;
+  border-radius: 14px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 16px;
+  font-weight: 600;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.landing-cta:hover {
+  background: var(--primary-hover);
+}
+
+.landing-cta:active {
+  transform: scale(0.96);
+}
+
+.landing-cta:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* deploy mock */
+.deploy-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+.deploy-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deploy-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.deploy-status {
+  display: grid;
+}
+
+.deploy-status .pill {
+  grid-area: 1 / 1;
+  justify-self: end;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pill-building {
+  color: var(--primary-text);
+  background: var(--primary-bg);
+  animation: landing-fade-out 300ms ease 3.2s both;
+}
+
+.pill-active {
+  color: var(--green-text);
+  background: var(--green-bg);
+  animation: landing-fade-in 300ms ease 3.2s both;
+}
+
+.deploy-meta {
+  margin: 4px 0 16px;
+  font-size: 13px;
+  color: var(--fg-subtle);
+}
+
+.deploy-progress {
+  height: 6px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--bg-4);
+}
+
+.deploy-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transform-origin: left;
+  animation: landing-progress 2.6s cubic-bezier(0.4, 0, 0.2, 1) 600ms both;
+}
+
+.deploy-log {
+  margin: 0;
+  padding: 14px 16px;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--bg-3);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 24px;
+  color: var(--fg-muted);
+}
+
+.deploy-log li {
+  animation: landing-line 300ms ease both;
+}
+
+.deploy-log li.ok {
+  color: var(--green-text);
+}
+
+/* steps */
+.landing-section-title {
+  margin: 0 0 24px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+}
+
+/* full-width grey band so it reads as its own block */
+.landing-steps {
+  padding: 64px 44px;
+  background: var(--bg-2);
+  border-block: 1px solid var(--border);
+}
+
+.landing-steps > * {
+  max-width: 992px;
+  margin-inline: auto;
+}
+
+.landing-steps ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.step-num {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 14px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.step h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.step p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg-subtle);
+}
+
+/* bottom CTA */
+.landing-bottom {
+  width: calc(100% - 88px); /* line up with the 44px section gutters */
+  max-width: 992px;
+  margin: 0 auto 96px;
+  padding: 56px 24px;
+  border-radius: 24px;
+  background: var(--primary-bg);
+  text-align: center;
+}
+
+.landing-bottom h2 {
+  margin: 0 0 8px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+
+.landing-bottom p {
+  margin: 0 0 28px;
+  font-size: 16px;
+  color: var(--fg-subtle);
+}
+
+/* features */
+.landing-features {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 72px 44px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.feature {
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.feature:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary-border);
+}
+
+.feature-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--primary-bg);
+  color: var(--primary-strong);
+}
+
+.feature h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.feature p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg-subtle);
+}
+
+.landing-footer {
+  padding: 24px 44px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--fg-faint);
+}
+
+/* motion */
+.reveal {
+  animation: landing-rise 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* scroll-triggered: 'backwards' so the element's own transform (e.g. hover lift) applies after */
+.scroll-reveal {
+  opacity: 0;
+}
+
+.scroll-reveal.in {
+  opacity: 1;
+  animation: landing-rise 600ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-pop {
+  from { opacity: 0; transform: scale(0.6) rotate(-12deg); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes landing-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes landing-line {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes landing-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes landing-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal {
+    opacity: 1;
+  }
+
+  .landing *,
+  .landing *::before {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    padding: 56px 20px 48px;
+  }
+
+  .landing-hero h1 {
+    font-size: 34px;
+  }
+
+  .features-grid,
+  .landing-steps ol {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-features,
+  .landing-steps {
+    padding: 48px 20px;
+  }
+
+  .landing-bottom {
+    width: calc(100% - 40px);
+    margin-bottom: 64px;
+  }
+
+  .landing-header,
+  .landing-footer {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}

@@ -5,10 +5,12 @@ import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { isTargetSupported } from '../lib/endpoints';
+import { useI18n, type MessageKey } from '../i18n';
 import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
-const options = ['GitHub Repository', 'Database', 'Template', 'Docker Image', 'Function', 'Bucket', 'Volume', 'Empty Service'];
+const GITHUB: MessageKey = 'create.opt.github';
+const options: MessageKey[] = [GITHUB, 'create.opt.folder'];
 // 붙여넣은 주소로 보는 입력. 서버(resolve)가 owner/repo, git@ 형식도 받지만 검색어와 구분하려고 주소 형태만 본다.
 const URL_LIKE = /^(https?:\/\/|github\.com\/)/i;
 // 서비스 이름은 도메인에 쓰이므로 DNS 레이블 규칙(소문자·숫자·하이픈)을 따른다. 서버와 같은 규칙이다.
@@ -21,6 +23,7 @@ type UrlCheck = { status: 'idle' | 'validating' | 'invalid' | 'valid'; repo?: ap
 export function CreateDialog({ open, onClose, projectId }: { open: boolean; onClose: () => void; projectId?: string }) {
   const navigate = useNavigate();
   const { toast } = useUI();
+  const { t } = useI18n();
   const { targets, createProject, createService, removeProject, refreshService } = useProjects();
   const [step, setStep] = useState<'create' | 'repos' | 'review'>('create');
   const [query, setQuery] = useState('');
@@ -150,7 +153,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         deploymentId = deployment.id;
         void refreshService(targetProject, service.id).catch(() => undefined);
       } catch (e) {
-        toast(`Service created, but the first deployment couldn't start. ${describeError(e)}`);
+        toast(t('create.firstDeployFailed', { error: describeError(e) }));
       }
       onClose();
       const base = `/project/${targetProject}/service/${service.id}`;
@@ -167,44 +170,44 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const noInstallation = installations !== null && installations.length === 0;
   const branchOptions = branches.includes(branch) ? branches : [branch, ...branches];
 
-  return <Dialog open={open} onClose={onClose} className="create-dialog" label="Create">
-    <header><h2>{step === 'review' ? 'Review deployment' : 'Create'}</h2><button className="create-icon" aria-label="Dismiss" onClick={onClose}><X size={18} /></button></header>
-    {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> Back</button>}
-    {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label="What would you like to create?" placeholder="What would you like to create?" value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => o.toLowerCase().includes(query.toLowerCase())).map(option => option === 'GitHub Repository'
-        ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{option}</button>
-        : <button key={option} disabled><Plus size={17} />{option}<span className="create-soon">Coming soon</span></button>)}</div></>}
+  return <Dialog open={open} onClose={onClose} className="create-dialog" label={t('create.title')}>
+    <header><h2>{t(step === 'review' ? 'create.reviewTitle' : 'create.title')}</h2><button className="create-icon" aria-label={t('create.dismiss')} onClick={onClose}><X size={18} /></button></header>
+    {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> {t('create.back')}</button>}
+    {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label={t('create.prompt')} placeholder={t('create.prompt')} value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => t(o).toLowerCase().includes(query.toLowerCase())).map(option => option === GITHUB
+        ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{t(option)}</button>
+        : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div></>}
     {step === 'repos' && <>
-      <div className="create-search"><Search size={17} /><input autoFocus aria-label="Search repositories, or paste a URL…" placeholder="Search repositories, or paste a URL…" value={query} onChange={e => setQuery(e.target.value)} /></div>
+      <div className="create-search"><Search size={17} /><input autoFocus aria-label={t('create.searchRepos')} placeholder={t('create.searchRepos')} value={query} onChange={e => setQuery(e.target.value)} /></div>
       <div className="create-repo-actions">
-        <button onClick={goInstall}>Configure GitHub App</button>
-        {installations !== null && installations.length > 1 && <select aria-label="GitHub account" value={installationId ?? ''} onChange={e => setInstallationId(e.target.value ? Number(e.target.value) : undefined)}><option value="">All accounts</option>{installations.map(i => <option key={i.installationId} value={i.installationId}>{i.accountLogin}</option>)}</select>}
-        <button onClick={() => setRefresh(n => n + 1)}>Refresh repos</button>
+        <button onClick={goInstall}>{t('create.configureApp')}</button>
+        {installations !== null && installations.length > 1 && <select aria-label={t('create.githubAccount')} value={installationId ?? ''} onChange={e => setInstallationId(e.target.value ? Number(e.target.value) : undefined)}><option value="">{t('create.allAccounts')}</option>{installations.map(i => <option key={i.installationId} value={i.installationId}>{i.accountLogin}</option>)}</select>}
+        <button onClick={() => setRefresh(n => n + 1)}>{t('create.refreshRepos')}</button>
       </div>
       {isUrl
         ? urlCheck.status === 'valid' && urlCheck.repo
           ? <div className="create-options"><button onClick={() => select(urlCheck.repo!)}><FolderGit2 size={17} />{urlCheck.repo.fullName}{urlCheck.repo.isPrivate && <Lock size={13} />}</button></div>
           : urlCheck.status === 'invalid'
-            ? <div className="create-empty"><h3>We couldn’t find this repository</h3><p>It may be private, or the URL may have a typo.</p><p>Only repositories the LikeLion GitHub App can access are listed.</p><button className="btn btn-secondary" onClick={goInstall}>Grant LikeLion access</button></div>
-            : <div className="create-empty" role="status"><h3>Validating repository</h3><p>We’re checking that the provided URL is a valid GitHub repository.</p></div>
+            ? <div className="create-empty"><h3>{t('create.notFoundTitle')}</h3><p>{t('create.notFoundBody')}</p><p>{t('create.notFoundHint')}</p><button className="btn btn-secondary" onClick={goInstall}>{t('create.grantAccess')}</button></div>
+            : <div className="create-empty" role="status"><h3>{t('create.validatingTitle')}</h3><p>{t('create.validatingBody')}</p></div>
         : noInstallation
-          ? <div className="create-empty"><h3>Install the GitHub App</h3><p>LikeLion needs access to your repositories before it can deploy them.</p><button className="btn btn-secondary" onClick={goInstall}>Install GitHub App</button></div>
+          ? <div className="create-empty"><h3>{t('create.installTitle')}</h3><p>{t('create.installBody')}</p><button className="btn btn-secondary" onClick={goInstall}>{t('create.installApp')}</button></div>
           : repos.status === 'error'
-            ? <div className="create-empty" role="alert"><h3>Couldn’t load repositories</h3><p>{repos.error}</p></div>
+            ? <div className="create-empty" role="alert"><h3>{t('create.loadReposError')}</h3><p>{repos.error}</p></div>
             : repos.status === 'loading' && repos.items.length === 0
-              ? <div className="create-empty" role="status"><p>Loading repositories…</p></div>
-              : <div className="create-options">{repos.items.map(r => <button key={r.fullName} onClick={() => select(r)}><FolderGit2 size={17} />{r.fullName}{r.isPrivate && <Lock size={13} />}</button>)}{repos.items.length === 0 && <p className="create-empty">No repositories found. Try another search.</p>}</div>}
+              ? <div className="create-empty" role="status"><p>{t('create.loadingRepos')}</p></div>
+              : <div className="create-options">{repos.items.map(r => <button key={r.fullName} onClick={() => select(r)}><FolderGit2 size={17} />{r.fullName}{r.isPrivate && <Lock size={13} />}</button>)}{repos.items.length === 0 && <p className="create-empty">{t('create.noRepos')}</p>}</div>}
     </>}
     {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void deploy(); }} className="create-review">
       <div className="create-source"><FolderGit2 size={18} />{repo.fullName}</div>
-      {!projectId && <label>Project name<input required maxLength={100} value={projectName} onChange={e => setProjectName(e.target.value)} /></label>}
-      <label>Service name<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title="Lowercase letters, digits and hyphens" value={serviceName} onChange={e => setServiceName(e.target.value)} /></label>
+      {!projectId && <label>{t('create.projectName')}<input required maxLength={100} value={projectName} onChange={e => setProjectName(e.target.value)} /></label>}
+      <label>{t('create.serviceName')}<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title={t('create.serviceNameRule')} value={serviceName} onChange={e => setServiceName(e.target.value)} /></label>
       <div className="create-fields">
-        <label>Branch<select required value={branch} onChange={e => setBranch(e.target.value)}>{branchOptions.map(b => <option key={b}>{b}</option>)}</select></label>
-        <label>Root directory<input value={root} onChange={e => setRoot(e.target.value)} /></label>
+        <label>{t('create.branch')}<select required value={branch} onChange={e => setBranch(e.target.value)}>{branchOptions.map(b => <option key={b}>{b}</option>)}</select></label>
+        <label>{t('create.rootDir')}<input value={root} onChange={e => setRoot(e.target.value)} /></label>
       </div>
-      {targets.length > 0 && <fieldset className="create-checks"><legend>Deploy to</legend>{targets.map(t => { const supported = isTargetSupported(t); return <label key={t.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : 'Not supported yet'}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(t.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, t.id] : ids.filter(id => id !== t.id))} />{t.name}{!supported && <span className="create-soon">Not supported yet</span>}</label>; })}</fieldset>}
-      <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />Deploy automatically when the branch is pushed</label>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{submitting ? 'Deploying…' : 'Deploy'}</button>
+      {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(tg.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, tg.id] : ids.filter(id => id !== tg.id))} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
+      <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />{t('create.autoDeploy')}</label>
+      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;

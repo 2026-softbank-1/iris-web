@@ -1,0 +1,17 @@
+/* ════════════════════════════════════════════════════════════════
+   Toss Design System (TDS) — global stylesheet entry point.
+   Consumers link THIS one file. It is an @import manifest only.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Webfonts (Pretendard substitute for proprietary Toss/SF faces) */
+@import './tokens/fonts.css';
+
+/* Full materialized Figma Variable set — every collection & theme mode
+   (light/dark, iOS/android). Authoritative low-level token source. */
+@import './tokens-fig/fig-tokens.css';
+
+/* Clean px-unit brand + semantic aliases used by hand-authored components */
+@import './tokens/brand.css';
+
+/* Typography scale */
+@import './tokens/typography.css';

@@ -5,14 +5,15 @@ import { Popover, usePopover, useUI } from '../../components/ui';
 import { fmtKst, fmtKstFull } from '../../data/mock';
 import { useProject } from '../../data/ProjectsContext';
 import { useServiceLogs } from '../../data/useServiceLogs';
+import { useI18n, type MessageKey } from '../../i18n';
 
 const MIN = 60_000;
-const RANGES = [
-  { label: 'Last 15 min', ms: 15 * MIN },
-  { label: 'Last 1 hour', ms: 60 * MIN },
-  { label: 'Last 6 hours', ms: 6 * 60 * MIN },
-  { label: 'Last 1 day', ms: 24 * 60 * MIN },
-  { label: 'Last 7 days', ms: 7 * 24 * 60 * MIN },
+const RANGES: { label: MessageKey; ms: number }[] = [
+  { label: 'project.logs.range15m', ms: 15 * MIN },
+  { label: 'project.logs.range1h', ms: 60 * MIN },
+  { label: 'project.logs.range6h', ms: 6 * 60 * MIN },
+  { label: 'project.logs.range1d', ms: 24 * 60 * MIN },
+  { label: 'project.logs.range7d', ms: 7 * 24 * 60 * MIN },
 ];
 
 export function ProjectLogs() {
@@ -20,6 +21,7 @@ export function ProjectLogs() {
   // ProjectLayout 이 프로젝트가 있을 때만 이 페이지를 그린다.
   const project = useProject(projectId).project!;
   const { toast } = useUI();
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const [live, setLive] = useState(true);
   const [range, setRange] = useState(0);
@@ -50,14 +52,14 @@ export function ProjectLogs() {
         <div className="plogs-bar">
           <div className="plogs-filter">
             <Search size={16} />
-            <input ref={inputRef} placeholder="Filter and search logs" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input ref={inputRef} placeholder={t('project.logs.filter')} value={q} onChange={(e) => setQ(e.target.value)} />
             {!q && (
               <span className="plogs-kbd" onClick={() => inputRef.current?.focus()}>
                 /
               </span>
             )}
           </div>
-          <button type="button" className="btn btn-outline btn-icon-only" title="Download logs" onClick={() => toast('Logs downloaded (mock)')}>
+          <button type="button" className="btn btn-outline btn-icon-only" title={t('project.logs.download')} onClick={() => toast(t('project.logs.downloaded'))}>
             <div className="tool-icon">
               <Download size={16} />
             </div>
@@ -66,7 +68,7 @@ export function ProjectLogs() {
             <div className="tool-icon">
               <Clock size={16} />
             </div>
-            <span>{RANGES[range].label}</span>
+            <span>{t(RANGES[range].label)}</span>
           </button>
           <Popover anchor={rangePop.anchor} onClose={rangePop.close} align="end" width={180}>
             {RANGES.map((r, i) => (
@@ -80,11 +82,11 @@ export function ProjectLogs() {
                   rangePop.close();
                 }}
               >
-                {r.label}
+                {t(r.label)}
               </button>
             ))}
           </Popover>
-          <button type="button" title={live ? 'Pause live updates' : 'Resume'} className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)}>
+          <button type="button" title={live ? t('project.logs.pauseLive') : t('project.logs.resume')} className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)}>
             <div className="tool-icon">{live ? <Pause size={16} /> : <Play size={16} />}</div>
           </button>
         </div>
@@ -99,10 +101,10 @@ export function ProjectLogs() {
         </div>
         <div className="plogs-table">
           <div className="plogs-head">
-            <span>Time (GMT+9)</span>
-            <span>Service</span>
-            <span>Data</span>
-            <button type="button" className="logs-layout-btn" title="Layout settings">
+            <span>{t('project.logs.colTime')}</span>
+            <span>{t('project.logs.colService')}</span>
+            <span>{t('project.logs.colData')}</span>
+            <button type="button" className="logs-layout-btn" title={t('project.logs.layoutSettings')}>
               <div className="tool-icon">
                 <Settings size={16} />
               </div>
@@ -118,17 +120,17 @@ export function ProjectLogs() {
           >
             <div className="plogs-marker">
               <div className="plogs-marker-pill">
-                {truncated ? 'Showing only the latest lines' : 'You reached the start of the range'} <span className="plogs-arrow">→</span>{' '}
+                {truncated ? t('project.logs.truncated') : t('project.logs.rangeStart')} <span className="plogs-arrow">→</span>{' '}
                 <span className="mono-ish">{fmtKst(from.toISOString(), false)}</span>
               </div>
             </div>
             {lines.length === 0 && (
               <div className="logs-empty">
                 {q && all.length > 0
-                  ? `No logs match “${q}”`
+                  ? t('project.logs.noMatch', { q })
                   : loading
-                    ? 'Loading logs…'
-                    : error ?? (hasSources ? 'No logs in this time range' : "Logs aren't available yet")}
+                    ? t('project.logs.loading')
+                    : error ?? (hasSources ? t('project.logs.emptyRange') : t('project.logs.unavailable'))}
               </div>
             )}
             {lines.map((l) => (
@@ -148,10 +150,10 @@ export function ProjectLogs() {
             )}
           </div>
           <div className="plogs-jump">
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label="Scroll to top" onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('project.logs.scrollTop')} onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
               <ArrowUp size={16} />
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label="Scroll to bottom" onClick={() => scrollRef.current?.scrollTo({ top: 1e6, behavior: 'smooth' })}>
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('project.logs.scrollBottom')} onClick={() => scrollRef.current?.scrollTo({ top: 1e6, behavior: 'smooth' })}>
               <ArrowDown size={16} />
             </button>
           </div>

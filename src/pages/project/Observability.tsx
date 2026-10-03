@@ -1,5 +1,6 @@
 import { Clock, Pause, Play, SquarePlus, X } from 'lucide-react';
 import { useState } from 'react';
+import { useI18n, type MessageKey } from '../../i18n';
 
 function MiniBars({ seed }: { seed: number }) {
   const bars = Array.from({ length: 22 }, (_, i) => 3 + Math.abs(Math.sin(i * 1.3 + seed) * 18 + Math.cos(i * 0.7 * seed) * 6));
@@ -16,19 +17,20 @@ function MiniBars({ seed }: { seed: number }) {
   );
 }
 
-type Block = { id: number; title: string; kind: 'cpu' | 'memory' | 'logs' | 'network' };
+type Block = { id: number; title: MessageKey; n?: number; kind: 'cpu' | 'memory' | 'logs' | 'network' };
 
 export function Observability() {
+  const { t } = useI18n();
   const [live, setLive] = useState(true);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const addDashboard = () =>
     setBlocks([
-      { id: 1, title: 'CPU usage', kind: 'cpu' },
-      { id: 2, title: 'Memory usage', kind: 'memory' },
-      { id: 3, title: 'Network egress', kind: 'network' },
-      { id: 4, title: 'Error logs', kind: 'logs' },
+      { id: 1, title: 'project.obs.cpu', kind: 'cpu' },
+      { id: 2, title: 'project.obs.memory', kind: 'memory' },
+      { id: 3, title: 'project.obs.egress', kind: 'network' },
+      { id: 4, title: 'project.obs.errorLogs', kind: 'logs' },
     ]);
-  const addOne = () => setBlocks((b) => [...b, { id: Date.now(), title: `Block ${b.length + 1}`, kind: 'cpu' }]);
+  const addOne = () => setBlocks((b) => [...b, { id: Date.now(), title: 'project.obs.block', n: b.length + 1, kind: 'cpu' }]);
 
   return (
     <div className="proj-page-region">
@@ -38,16 +40,16 @@ export function Observability() {
             <div className="tool-icon">
               <SquarePlus size={16} />
             </div>
-            <span>Add block</span>
+            <span>{t('project.obs.addBlock')}</span>
           </button>
           <div className="obs-bar-right">
             <button type="button" className="btn btn-outline">
               <div className="tool-icon">
                 <Clock size={16} />
               </div>
-              <span>Last 15 min</span>
+              <span>{t('project.logs.range15m')}</span>
             </button>
-            <button type="button" className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)} title="Pause live updates">
+            <button type="button" className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)} title={t('project.logs.pauseLive')}>
               <div className="tool-icon">{live ? <Pause size={16} /> : <Play size={16} />}</div>
             </button>
           </div>
@@ -61,13 +63,13 @@ export function Observability() {
                 <MiniBars seed={3} />
                 <MiniBars seed={4} />
               </div>
-              <p className="obs-title">Observe this environment</p>
-              <p className="obs-desc">Build dashboards from usage, resource metrics and log queries for this environment.</p>
+              <p className="obs-title">{t('project.obs.title')}</p>
+              <p className="obs-desc">{t('project.obs.desc')}</p>
               <button type="button" className="btn btn-outline obs-btn" onClick={addOne}>
-                Add new item
+                {t('project.obs.addItem')}
               </button>
               <button type="button" className="btn btn-primary obs-btn" onClick={addDashboard}>
-                Start with a simple dashboard
+                {t('project.obs.startSimple')}
               </button>
             </div>
           ) : (
@@ -75,8 +77,8 @@ export function Observability() {
               {blocks.map((b, i) => (
                 <div key={b.id} className="metric-card obs-block">
                   <div className="metric-head">
-                    <p className="metric-title">{b.title}</p>
-                    <button type="button" className="icon-btn" aria-label="Remove block" onClick={() => setBlocks((all) => all.filter((x) => x.id !== b.id))}>
+                    <p className="metric-title">{t(b.title, { n: b.n ?? '' })}</p>
+                    <button type="button" className="icon-btn" aria-label={t('project.obs.removeBlock')} onClick={() => setBlocks((all) => all.filter((x) => x.id !== b.id))}>
                       <X size={14} />
                     </button>
                   </div>

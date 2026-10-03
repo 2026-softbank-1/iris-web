@@ -1,0 +1,18 @@
+<!-- @dsCard group="Spacing" viewport="700x170" name="Elevation & shadow" subtitle="Soft, low-spread shadows — Toss avoids hard drop shadows" -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;font-family:var(--font-sans);background:var(--bg-page);padding:28px;}
+  .row{display:flex;gap:28px;}
+  .cell{flex:1;text-align:center;}
+  .box{height:72px;background:#fff;border-radius:16px;margin-bottom:12px;}
+  .l{font-size:12px;font-weight:700;color:var(--text-primary);}
+  .s{font-size:10px;font-weight:500;color:var(--text-quaternary);}
+</style></head>
+<body>
+<div class="row">
+  <div class="cell"><div class="box" style="border:1px solid var(--border-default)"></div><div class="l">Hairline</div><div class="s">--border-default · flat lists</div></div>
+  <div class="cell"><div class="box" style="box-shadow:var(--shadow-card)"></div><div class="l">Card</div><div class="s">--shadow-card · raised cards</div></div>
+  <div class="cell"><div class="box" style="box-shadow:var(--shadow-float)"></div><div class="l">Float</div><div class="s">--shadow-float · dialogs, FAB</div></div>
+</div>
+</body></html>

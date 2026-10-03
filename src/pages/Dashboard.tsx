@@ -3,9 +3,11 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
+import { ServiceStatusPill } from '../components/ServiceStatusPill';
 import { Popover, usePopover } from '../components/ui';
-import { timeAgo, type Project } from '../data/mock';
+import { type Project } from '../data/mock';
 import { useProjects } from '../data/ProjectsContext';
+import { formatAgo, useI18n } from '../i18n';
 
 type Sort = 'updatedAt' | 'createdAt' | 'alphabetical';
 
@@ -14,42 +16,40 @@ function projectSummary(p: Project) {
   const total = p.serviceCount ?? p.services.length;
   const crashed = p.services.filter((s) => s.state === 'crashed').length;
   const online = p.services.filter((s) => s.state === 'online').length;
-  return { total, crashed, online };
+  const deploying = p.services.filter((s) => s.deploying).length;
+  return { total, crashed, online, deploying };
 }
 
+/** 프로젝트가 괜찮은지 한 줄로. 실패 > 배포 중 > 모두 실행 중 > 그 외(회색) 순으로 하나만 보여준다. */
 function StatusLine({ p }: { p: Project }) {
-  const { total, crashed, online } = projectSummary(p);
+  const { t } = useI18n();
+  const { total, crashed, online, deploying } = projectSummary(p);
+  if (total === 0) return null; // 서비스 목록 쪽에서 '서비스가 없어요'를 보여준다
   if (crashed > 0) {
     return (
-      <div className="pc-status">
-        <div className="pc-status-icon crashed">
-          <CircleAlert size={16} />
-        </div>
-        <span className="crashed">
-          {crashed}/{total} service crashed
-        </span>
+      <div className="pc-status failed">
+        <CircleAlert size={14} />
+        <span>{t('dash.crashedOf', { n: crashed, total })}</span>
       </div>
     );
   }
+  const tone = deploying > 0 ? 'deploying' : total > 0 && online === total ? 'ok' : 'idle';
   return (
-    <div className="pc-status">
-      <div className="pc-status-row">
-        <div className="pc-dot" />
-        <span>{p.environment}</span>
-        <span>·</span>
-        <span>
-          {online}/{total} service online
-        </span>
-      </div>
+    <div className={`pc-status ${tone}`}>
+      <span className="pc-dot" />
+      <span>{deploying > 0 ? t('dash.deployingOf', { n: deploying }) : t('dash.onlineOf', { n: online, total })}</span>
     </div>
   );
 }
 
+const MAX_ROWS = 4;
+
 function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="pc">
       <Link to={`/project/${p.id}`} className="pc-link">
-        <span className="sr-only">View Project</span>
+        <span className="sr-only">{t('dash.viewProject')}</span>
       </Link>
       <div className="pc-body">
         <div className="pc-head">
@@ -58,7 +58,7 @@ function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () =>
             <div className="pc-fav-wrap">
               <button
                 type="button"
-                aria-label={fav ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={t(fav ? 'dash.favRemove' : 'dash.favAdd')}
                 className={`pc-fav${fav ? ' on' : ''}`}
                 onClick={(e) => {
                   e.preventDefault();
@@ -72,19 +72,17 @@ function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () =>
             </div>
           </div>
         </div>
-        <div className="pc-preview-wrap">
-          <div className="pc-preview">
-            <div className="pc-tiles">
-              {p.services.map((s) => (
-                <Link key={s.id} to={`/project/${p.id}/service/${s.id}`} className="pc-tile-link" title={s.name}>
-                  <div className="pc-tile">
-                    <RepoIcon size={20} />
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <StatusLine p={p} />
-          </div>
+        <StatusLine p={p} />
+        <div className="pc-services">
+          {p.services.length === 0 && <p className="pc-services-empty">{t('dash.noServices')}</p>}
+          {p.services.slice(0, MAX_ROWS).map((s) => (
+            <Link key={s.id} to={`/project/${p.id}/service/${s.id}`} className="pc-svc">
+              <RepoIcon size={16} />
+              <span className="pc-svc-name truncate">{s.name}</span>
+              <ServiceStatusPill service={s} />
+            </Link>
+          ))}
+          {p.services.length > MAX_ROWS && <p className="pc-services-more">{t('dash.moreServices', { n: p.services.length - MAX_ROWS })}</p>}
         </div>
       </div>
     </div>
@@ -92,6 +90,7 @@ function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () =>
 }
 
 function ProjectRow({ p }: { p: Project }) {
+  const { t, lang } = useI18n();
   const { total, crashed, online } = projectSummary(p);
   return (
     <Link to={`/project/${p.id}`} className="pl-row">
@@ -101,16 +100,16 @@ function ProjectRow({ p }: { p: Project }) {
       <div className="pl-main">
         <span className="pl-name">{p.name}</span>
         <span className="pl-sub">
-          {p.services.length} service{p.services.length === 1 ? '' : 's'} · updated {timeAgo(p.updatedAt)}
+          {t(p.services.length === 1 ? 'dash.serviceOne' : 'dash.serviceOther', { n: p.services.length })} · {t('dash.updated', { ago: formatAgo(p.updatedAt, lang) })}
         </span>
       </div>
       {crashed > 0 ? (
         <span className="pl-state crashed">
-          <CircleAlert size={14} /> {crashed} / {total} crashed
+          <CircleAlert size={14} /> {t('dash.crashedOf', { n: crashed, total })}
         </span>
       ) : (
         <span className="pl-state">
-          <span className="pc-dot" /> {p.environment} · {online} / {total} online
+          <span className="pc-dot" /> {p.environment} · {t('dash.onlineOf', { n: online, total })}
         </span>
       )}
     </Link>
@@ -118,6 +117,7 @@ function ProjectRow({ p }: { p: Project }) {
 }
 
 export function Dashboard() {
+  const { t } = useI18n();
   const { status, error, projects, reload } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const [sort, setSort] = useState<Sort>('updatedAt');
@@ -156,13 +156,13 @@ export function Dashboard() {
       <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <div className="page-inner">
         <div className="dash-title-row">
-          <h1 className="page-title dash-h1">Projects</h1>
+          <h1 className="page-title dash-h1">{t('dash.title')}</h1>
           <div>
             <button type="button" className="btn btn-primary dash-new" onClick={() => setCreateOpen(true)}>
               <div className="side-icon">
                 <Plus size={16} strokeWidth={2.25} />
               </div>
-              <span>New</span>
+              <span>{t('dash.new')}</span>
             </button>
           </div>
         </div>
@@ -175,7 +175,7 @@ export function Dashboard() {
                   <div className="side-icon dash-count-icon">
                     <LayoutGrid size={16} />
                   </div>
-                  {status === 'ready' ? list.length : '–'} Projects
+                  {t('dash.count', { n: status === 'ready' ? list.length : '–' })}
                 </button>
               </div>
               <Popover anchor={filterPop.anchor} onClose={filterPop.close} width={200}>
@@ -188,7 +188,7 @@ export function Dashboard() {
                     filterPop.close();
                   }}
                 >
-                  <Folder size={16} className="menu-icon" /> All Projects
+                  <Folder size={16} className="menu-icon" /> {t('dash.all')}
                 </button>
                 <button
                   type="button"
@@ -199,19 +199,19 @@ export function Dashboard() {
                     filterPop.close();
                   }}
                 >
-                  <Star size={16} className="menu-icon" /> Favorites
+                  <Star size={16} className="menu-icon" /> {t('dash.favorites')}
                 </button>
               </Popover>
               <div className="dash-vsep" />
               <div className="dash-sort">
                 <label htmlFor="project-sort" className="sr-only">
-                  Project sort
+                  {t('dash.sort')}
                 </label>
                 <div className="dash-sort-box">
-                  <select id="project-sort" aria-label="Project sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-                    <option value="updatedAt">Sort By: Recent Activity</option>
-                    <option value="createdAt">Sort By: Creation Date</option>
-                    <option value="alphabetical">Sort By: Alphabetical</option>
+                  <select id="project-sort" aria-label={t('dash.sort')} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+                    <option value="updatedAt">{t('dash.sort.updated')}</option>
+                    <option value="createdAt">{t('dash.sort.created')}</option>
+                    <option value="alphabetical">{t('dash.sort.alpha')}</option>
                   </select>
                   <div className="dash-sort-chevron">
                     <div className="side-icon">
@@ -222,7 +222,7 @@ export function Dashboard() {
               </div>
             </div>
             <div className="dash-view">
-              <div role="group" aria-label="View display" className="view-toggle">
+              <div role="group" aria-label={t('dash.view')} className="view-toggle">
                 <button type="button" role="radio" aria-checked={view === 'grid'} data-state={view === 'grid' ? 'on' : 'off'} onClick={() => setViewPersist('grid')}>
                   {view === 'grid' && <div className="view-thumb" />}
                   <div className="view-icon">
@@ -241,27 +241,27 @@ export function Dashboard() {
 
           {status === 'error' ? (
             <div className="dash-empty" role="alert">
-              <p>Couldn't load projects</p>
+              <p>{t('dash.loadError')}</p>
               <span>{error}</span>
               <button type="button" className="btn btn-secondary" onClick={() => void reload()}>
-                Retry
+                {t('dash.retry')}
               </button>
             </div>
           ) : status !== 'ready' ? (
             <div className="dash-empty" role="status">
-              <p>Loading projects…</p>
+              <p>{t('dash.loading')}</p>
             </div>
           ) : list.length === 0 ? (
             <div className="dash-empty">
               {filter === 'favorites' ? (
                 <>
-                  <p>No favorite projects yet</p>
-                  <span>Star a project to pin it here.</span>
+                  <p>{t('dash.noFavTitle')}</p>
+                  <span>{t('dash.noFavBody')}</span>
                 </>
               ) : (
                 <>
-                  <p>No projects yet</p>
-                  <span>Create a project from a GitHub repository to get started.</span>
+                  <p>{t('dash.emptyTitle')}</p>
+                  <span>{t('dash.emptyBody')}</span>
                 </>
               )}
             </div>
@@ -280,7 +280,7 @@ export function Dashboard() {
           )}
         </div>
         <button type="button" className="sr-only" onClick={() => navigate('/workspace/templates')}>
-          Browse templates
+          {t('dash.templates')}
         </button>
       </div>
     </div>
