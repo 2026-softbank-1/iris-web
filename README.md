@@ -124,7 +124,7 @@ Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를
 
 - Dashboard New, 커맨드 팔레트 New Project, 프로젝트 Create는 Create 흐름을 엽니다. 선택할 수 있는 항목은 GitHub Repository뿐이고 나머지는 Coming soon으로 표시됩니다.
 - Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(`local` 은 아직 지원하지 않아 비활성으로 표시) Deploy 를 누르면 프로젝트와 서비스를 만들고 첫 배포(MANUAL)를 요청합니다(서비스 생성이 실패하면 방금 만든 빈 프로젝트를 지우고, 첫 배포 요청만 실패하면 서비스는 남기고 알려 줍니다). Control API 는 배포 요청을 DB 에 기록하고, 빌드·배포는 Worker 가 합니다. Worker 가 없는 로컬에서는 배포가 Queued 에서 멈춥니다. 진행 중인 배포는 3초마다 다시 불러옵니다.
-- 프로젝트와 서비스 삭제는 was 가 소프트 삭제로 처리합니다.
+- 프로젝트와 서비스 삭제(`DELETE`, 204)는 was 가 소프트 삭제하면서 떠 있는 앱도 클러스터에서 내립니다. 화면에서는 바로 사라지지만 앱이 내려가는 데 2~3분 걸리고 그동안 공개 주소가 응답할 수 있어서, Danger 설명에 몇 분 걸릴 수 있다고 안내합니다. 앱 내리기가 실패해도 화면에서는 알 수 없으니(서버 로그에만 남음) 즉시 내려간다고 단정하지 않습니다. 진행 중인 배포(QUEUED·BUILDING·DEPLOYING)가 있으면 was 가 아무것도 지우지 않고 409 `DEPLOYMENT_IN_PROGRESS` 를 주고(프로젝트는 소속 서비스 하나라도 진행 중이면 전체가 409), 삭제 화면은 이때 삭제 맥락의 문구("A deployment is in progress. Wait for it to finish, then delete the service.")를 토스트로 보여 주며 서비스·프로젝트를 화면에 그대로 둡니다. Deploy·Restart 등 다른 화면의 공용 오류 문구(`describeError`)는 바꾸지 않았습니다.
 - 세션이 만료돼 API 가 401 을 주면 `/login` 으로 이동합니다.
 - 로그인 여부는 시작할 때 was 의 `GET /api/v1/me` 로 확인합니다. 로그인하지 않았으면 보호된 경로는 `/login` 으로 이동하고, 로그인한 상태로 `/login` 을 열면 대시보드로 이동합니다. 회원가입과 온보딩 흐름은 없습니다.
 - Logout은 was 의 `POST /api/v1/auth/logout` 으로 세션 쿠키를 지우고 `/login` 으로 이동합니다.

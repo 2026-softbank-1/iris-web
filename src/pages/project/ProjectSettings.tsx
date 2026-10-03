@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useUI } from '../../components/ui';
 import { useProject, useProjects } from '../../data/ProjectsContext';
-import { describeError } from '../../lib/api';
+import { ApiError, describeError } from '../../lib/api';
 import type { ProjectUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
 
@@ -61,7 +61,7 @@ export function ProjectSettings() {
       toast(t('project.settings.deleted'));
       navigate('/dashboard', { replace: true });
     } catch (e) {
-      toast(describeError(e));
+      toast(e instanceof ApiError && e.code === 'DEPLOYMENT_IN_PROGRESS' ? t('project.settings.deleteInProgress') : describeError(e));
       setBusy(false);
     }
   };
