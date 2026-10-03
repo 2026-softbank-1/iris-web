@@ -79,7 +79,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               </div>
             </div>
           ) : (
-            <p className="svc-node-offline">{service.deploying ? 'Deploying' : service.state === 'crashed' ? 'Deployment failed' : 'Service is offline'}</p>
+            <p className="svc-node-offline">{service.offlineLabel ?? (service.deploying ? 'Deploying' : service.state === 'crashed' ? 'Deployment failed' : 'Service is offline')}</p>
           )}
         </a>
       </span>

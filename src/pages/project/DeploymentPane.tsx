@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import { apiStatusLabel, deploymentLabel, failureText } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, deploymentLabel, failureText } from '../../data/deploymentModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
@@ -32,9 +32,11 @@ function headlineOf(d: Deployment): string {
   switch (d.status) {
     case 'ACTIVE': return 'Deployment successful';
     case 'REMOVED': return 'Deployment succeeded and was replaced by a newer one';
-    case 'FAILED': return failureText(d.failureCode) ?? 'Deployment failed';
+    case 'TAKEN_DOWN': return 'The deployment was removed from the cluster. The service is offline until you deploy it again';
+    case 'REMOVING': return 'Removing the deployment from the cluster…';
+    case 'FAILED': return d.trigger === 'REMOVE' ? 'Removing the service failed. The service was not changed' : (failureText(d.failureCode) ?? 'Deployment failed');
     case 'ROLLED_BACK': return 'Deployment failed and was rolled back';
-    case 'MANUAL_INTERVENTION': return 'Deployment needs manual intervention';
+    case 'MANUAL_INTERVENTION': return d.trigger === 'REMOVE' ? 'Removing the service needs manual intervention. The app may still be running' : 'Deployment needs manual intervention';
     default: return `${deploymentLabel(d.status)}…`;
   }
 }
@@ -82,7 +84,7 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
       </div>
 
       <div className="details-source">
-        <p className="details-h">Deployed via {d.via ?? 'GitHub'}</p>
+        <p className="details-h">{d.trigger === 'REMOVE' ? 'Removed deployment' : `Deployed via ${d.via ?? 'GitHub'}`}</p>
         <div className="details-box">
           <a href={d.commitUrl} target="_blank" rel="noreferrer" className="details-commit">
             <AuthorAvatar d={d} />
@@ -215,7 +217,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   horizontal
                   className="btn btn-icon-only dp-action"
                   deployment={deployment}
-                  onRedeploy={() => void run(() => deps.redeploy(deployment.id), 'Redeploy requested')}
+                  onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), 'Redeploy requested') : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), 'Rollback requested') : undefined}
                 />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">

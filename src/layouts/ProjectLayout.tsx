@@ -23,7 +23,7 @@ import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-
 import { LogoMark, RepoIcon } from '../components/brand';
 import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, Tooltip, usePopover } from '../components/ui';
-import { apiStatusLabel } from '../data/deploymentModel';
+import { activityOf } from '../data/deploymentModel';
 import { timeAgo, workspace, type Project, type Service } from '../data/mock';
 import { useProject, useProjectDomains, useProjects } from '../data/ProjectsContext';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
@@ -144,21 +144,24 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
       <div className="side-drawer-body">
         {items === null && <p className="activity-empty">Loading…</p>}
         {items?.length === 0 && <p className="activity-empty">No activity yet.</p>}
-        {items?.map(({ s, d }) => (
-          <div key={d.id} className="activity-item">
-            <div className="activity-icon">
-              <RepoIcon size={16} />
+        {items?.map(({ s, d }) => {
+          const { noun, state } = activityOf(d);
+          return (
+            <div key={d.id} className="activity-item">
+              <div className="activity-icon">
+                <RepoIcon size={16} />
+              </div>
+              <div className="activity-text">
+                <p>
+                  <b>{s.name}</b> {noun} <span className={`activity-state ${d.status.toLowerCase()}`}>{state}</span>
+                </p>
+                <span>
+                  {d.sourceCommitMessage?.split('\n')[0] ?? `Commit ${d.sourceSha.slice(0, 7)}`} · {timeAgo(d.createdAt)}
+                </span>
+              </div>
             </div>
-            <div className="activity-text">
-              <p>
-                <b>{s.name}</b> deployment <span className={`activity-state ${d.status.toLowerCase()}`}>{apiStatusLabel(d.status).toLowerCase()}</span>
-              </p>
-              <span>
-                {d.sourceCommitMessage?.split('\n')[0] ?? `Commit ${d.sourceSha.slice(0, 7)}`} · {timeAgo(d.createdAt)}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
