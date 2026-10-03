@@ -28,7 +28,7 @@ import { useNavigate } from 'react-router-dom';
 import { RepoIcon } from '../../components/brand';
 
 import { ConfirmDialog, useUI } from '../../components/ui';
-import { DEPLOYMENT_STRATEGIES, MIN_REPLICAS_FOR_PROGRESSIVE, fallsBackToRolling, isStrategyRejected, needsReplicas, strategyDescKey, strategyLabel, strategyOf } from '../../data/deploymentStrategyModel';
+import { DEPLOYMENT_STRATEGIES, MIN_REPLICAS_FOR_PROGRESSIVE, fallsBackToRolling, isRollingOnlyTarget, isStrategyRejected, needsReplicas, strategyDescKey, strategyLabel, strategyOf } from '../../data/deploymentStrategyModel';
 import type { Project, Service } from '../../data/mock';
 import { useProjects } from '../../data/ProjectsContext';
 import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
@@ -158,13 +158,14 @@ function LimitSlider({ name, ready, stops, value, parse, format, disabled, onCha
 /**
  * 배포 방식을 고르는 즉시 저장한다. 저장하는 동안은 다시 고를 수 없고, 저장에 실패하면 저장된 값으로 되돌린다.
  * 카나리·블루그린은 **저장된** 레플리카(savedReplicas)가 2개 이상일 때만 고를 수 있다. 아직 모르면(불러오는 중·실패) 고를 수 없다.
+ * 온프레미스 타깃(rollingOnly)은 레플리카와 상관없이 롤링만 고를 수 있다.
  */
-function StrategyPicker({ value, savedReplicas, replicasUnknown, onSave }: { value: DeploymentStrategy; savedReplicas: number | null; replicasUnknown: boolean; onSave: (strategy: DeploymentStrategy) => Promise<boolean> }) {
+function StrategyPicker({ value, savedReplicas, replicasUnknown, rollingOnly, onSave }: { value: DeploymentStrategy; savedReplicas: number | null; replicasUnknown: boolean; rollingOnly: boolean; onSave: (strategy: DeploymentStrategy) => Promise<boolean> }) {
   const { t } = useI18n();
   const [shown, setShown] = useState(value);
   const [busy, setBusy] = useState(false);
   useEffect(() => setShown(value), [value]);
-  const canProgressive = savedReplicas !== null && savedReplicas >= MIN_REPLICAS_FOR_PROGRESSIVE;
+  const canProgressive = !rollingOnly && savedReplicas !== null && savedReplicas >= MIN_REPLICAS_FOR_PROGRESSIVE;
   const choose = async (next: DeploymentStrategy) => {
     if (busy || next === shown) return;
     setShown(next);
@@ -177,13 +178,15 @@ function StrategyPicker({ value, savedReplicas, replicasUnknown, onSave }: { val
   const vars = { min: MIN_REPLICAS_FOR_PROGRESSIVE, strategy: label(value) };
   const hint = busy
     ? { text: t('svcSettings.strategy.saving') }
-    : savedReplicas !== null && fallsBackToRolling(value, savedReplicas)
-      ? { text: t('svcSettings.strategy.fallback', vars), warn: true }
-      : savedReplicas !== null && !canProgressive
-        ? { text: t('svcSettings.strategy.needsReplicas', vars) }
-        : replicasUnknown
-          ? { text: t('svcSettings.strategy.replicasUnknown') }
-          : null;
+    : rollingOnly
+      ? { text: t('svcSettings.strategy.onPremOnly'), warn: needsReplicas(value) }
+      : savedReplicas !== null && fallsBackToRolling(value, savedReplicas)
+        ? { text: t('svcSettings.strategy.fallback', vars), warn: true }
+        : savedReplicas !== null && !canProgressive
+          ? { text: t('svcSettings.strategy.needsReplicas', vars) }
+          : replicasUnknown
+            ? { text: t('svcSettings.strategy.replicasUnknown') }
+            : null;
   return (
     <>
       <div className="st-strategies" role="radiogroup" aria-label={t('svcSettings.strategy.title')} aria-busy={busy}>
@@ -285,10 +288,12 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [skipped, setSkipped] = useState(false);
   const scale = useServiceScaling(service.id);
   const strategy = strategyOf(remote);
+  // 온프레미스 타깃은 롤링만 지원한다. 타깃 목록을 아직 받지 못했으면 서버의 422 가 막는다.
+  const rollingOnly = isRollingOnlyTarget(targets.find((target) => target.id === remote?.targetIds[0]));
   const [downscaleWarning, setDownscaleWarning] = useState(false);
   // 저장된 레플리카로는 고른 방식을 쓰다가 이번 적용으로 2개 미만이 되면, 롤링으로 대체된다고 먼저 알린다.
   const requestScale = () => {
-    const willFallBack = scale.savedReplicas !== null && scale.replicas !== null && !fallsBackToRolling(strategy, scale.savedReplicas) && fallsBackToRolling(strategy, scale.replicas);
+    const willFallBack = !rollingOnly && scale.savedReplicas !== null && scale.replicas !== null && !fallsBackToRolling(strategy, scale.savedReplicas) && fallsBackToRolling(strategy, scale.replicas);
     if (willFallBack) setDownscaleWarning(true);
     else void applyScale();
   };
@@ -304,6 +309,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
       return true;
     } catch (e) {
       if (!isStrategyRejected(e)) toast(describeError(e));
+      else if (rollingOnly) toast(t('svcSettings.strategy.onPremOnly'));
       else if (scale.savedReplicas !== null && scale.savedReplicas < MIN_REPLICAS_FOR_PROGRESSIVE) toast(t('svcSettings.strategy.needsReplicas', { min: MIN_REPLICAS_FOR_PROGRESSIVE }));
       else toast(t('svcSettings.strategy.unavailable'));
       return false;
@@ -752,7 +758,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               </Item>
               {remote && (
                 <Item title={t('svcSettings.strategy.title')} desc={t('svcSettings.strategy.desc')} id="deployment-strategy">
-                  <StrategyPicker value={strategy} savedReplicas={scale.savedReplicas} replicasUnknown={!!scale.error} onSave={saveStrategy} />
+                  <StrategyPicker value={strategy} savedReplicas={scale.savedReplicas} replicasUnknown={!!scale.error} rollingOnly={rollingOnly} onSave={saveStrategy} />
                 </Item>
               )}
               <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">

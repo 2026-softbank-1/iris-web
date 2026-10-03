@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { apiStatusLabel, canRedeploy, deploymentLabel, failureKey } from '../../data/deploymentModel';
-import { MIN_REPLICAS_FOR_PROGRESSIVE, strategyLabel } from '../../data/deploymentStrategyModel';
+import { MIN_REPLICAS_FOR_PROGRESSIVE, isRollingOnlyTarget, strategyLabel } from '../../data/deploymentStrategyModel';
 import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
@@ -65,6 +65,8 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
   const strategy = detail?.deploymentStrategy ?? d.deploymentStrategy;
   const requestedStrategy = detail?.requestedDeploymentStrategy ?? d.requestedDeploymentStrategy;
   const fellBackFrom = strategy === 'ROLLING' && requestedStrategy !== 'ROLLING' ? requestedStrategy : undefined;
+  // 온프레미스 타깃은 레플리카와 상관없이 롤링으로 배포하니 대체 이유가 다르다.
+  const onPrem = !!detail?.configuration.deploy.targets.some(isRollingOnlyTarget);
   return (
     <div className="details">
       <div className={`details-status${problem ? ' crashed' : ''}`}>
@@ -194,7 +196,7 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
                       {fellBackFrom && (
                         <p className="details-strategy-note">
                           <TriangleAlert size={14} />
-                          <span>{t('service.dp.strategyFallback', { requested: strategyLabel(t, fellBackFrom), min: MIN_REPLICAS_FOR_PROGRESSIVE })}</span>
+                          <span>{t(onPrem ? 'service.dp.strategyFallbackOnPrem' : 'service.dp.strategyFallback', { requested: strategyLabel(t, fellBackFrom), min: MIN_REPLICAS_FOR_PROGRESSIVE })}</span>
                         </p>
                       )}
                     </KV>
