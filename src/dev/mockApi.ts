@@ -114,7 +114,7 @@ const deployment = (
 // 서비스마다 다른 상태가 보이게 둔다: 성공 / 빌드 중 / 실패 / 배포 중 / 배포 이력 없음.
 const deployments: MockDeployment[] = [
   deployment(11, 3 * DAY, 'SUCCEEDED', 'PUSH', 'chore: 초기 설정'),
-  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED', 'build'), // ① 진단 없음 → 진행 중 → 성공
+  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED', 'build'), // ① 진단 없음(404) → 서버가 자동 시작 → 진행 중 → 성공
   deployment(11, 26 * HOUR, 'ROLLED_BACK', 'PUSH', 'fix: 차트 빌드 오류 수정', undefined, 'runtime'), // ④ 이미 성공한 진단이 있다
   deployment(11, 25 * HOUR, 'SUCCEEDED', 'ROLLBACK', 'chore: 초기 설정'),
   deployment(11, 2 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 랜딩 페이지 추가'),
@@ -287,6 +287,9 @@ function metricsFor(s: MockService, q: Query): MetricSeriesDto[] {
 /* ------------------------------------------------------------------ */
 
 const DIAGNOSIS_RUN_MS = 8_000; // 진짜는 20~60초지만 화면을 보려고 짧게 한다
+/** 서버는 배포 실패를 확정하면 진단을 스스로 시작한다. 처음 조회한 지 이만큼 지나면 그렇게 시작한 것으로 친다(그 전에는 404). */
+const DIAGNOSIS_AUTO_START_MS = 4_000;
+const firstSeen = new Map<number, number>();
 const DIAGNOSIS_STALE_MS = 4 * MIN;
 const DIAGNOSIS_FAIL_CODES = ['MODEL_TIMEOUT', 'DIAGNOSIS_LOGS_UNAVAILABLE', 'INTERNAL_ERROR', 'MODEL_RATE_LIMIT', 'BUSY', 'EXTERNAL_ERROR'];
 let failCursor = 0;
@@ -508,6 +511,28 @@ function toDiagnosisDto(m: MockDiagnosis): DiagnosisDto {
   };
 }
 
+/** 진단 행을 하나 만든다. 서버가 자동으로 시작할 때와 POST 로 시작할 때 모두 이것을 쓴다. */
+function newDiagnosis(d: MockDeployment): MockDiagnosis {
+  const scenario = d.diagnosis ?? 'build';
+  const m: MockDiagnosis = { id: nextDiagnosisId++, deploymentId: d.id, startedAt: Date.now(), outcome: scenario };
+  if (scenario === 'error') m.errorCode = DIAGNOSIS_FAIL_CODES[failCursor++ % DIAGNOSIS_FAIL_CODES.length];
+  diagnoses.push(m);
+  return m;
+}
+
+const isFailedStatus = (d: MockDeployment) => d.triggerType !== 'REMOVE' && ['FAILED', 'ROLLED_BACK', 'MANUAL_INTERVENTION'].includes(toDeploymentDto(d).status);
+
+/** 조회. 실패한 배포에 진단이 아직 없으면 서버가 스스로 시작한 것처럼, 처음 조회한 지 몇 초 뒤부터 진단이 생긴다. */
+function getDiagnosis(d: MockDeployment): MockResponse {
+  let latest = latestDiagnosis(d.id);
+  if (!latest && d.diagnosis && isFailedStatus(d)) {
+    const seen = firstSeen.get(d.id) ?? Date.now();
+    firstSeen.set(d.id, seen);
+    if (Date.now() - seen >= DIAGNOSIS_AUTO_START_MS) latest = newDiagnosis(d);
+  }
+  return latest ? ok(toDiagnosisDto(latest)) : fail(404, 'DIAGNOSIS_NOT_FOUND', 'Diagnosis not found');
+}
+
 /** 진단을 시작한다. 성공한 진단이 있으면 모델을 다시 부르지 않고 200 으로 돌려주고, refresh 면 새로 한다. */
 function startDiagnosis(d: MockDeployment, refresh: boolean): MockResponse {
   const dto = toDeploymentDto(d);
@@ -522,11 +547,7 @@ function startDiagnosis(d: MockDeployment, refresh: boolean): MockResponse {
     latest.outcome = 'abandoned';
   }
   if (current?.status === 'SUCCEEDED' && !refresh) return ok(current);
-  const scenario = d.diagnosis ?? 'build';
-  const m: MockDiagnosis = { id: nextDiagnosisId++, deploymentId: d.id, startedAt: Date.now(), outcome: scenario };
-  if (scenario === 'error') m.errorCode = DIAGNOSIS_FAIL_CODES[failCursor++ % DIAGNOSIS_FAIL_CODES.length];
-  diagnoses.push(m);
-  return ok(toDiagnosisDto(m), 202);
+  return ok(toDiagnosisDto(newDiagnosis(d)), 202);
 }
 
 // 시드: 이미 성공한 진단(④)과 서버가 죽어 멈춘 진단.
@@ -660,8 +681,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
     if (!d) return fail(404, 'DEPLOYMENT_REQUEST_NOT_FOUND', 'Deployment not found');
     if (seg[4] === 'diagnose' && method === 'POST') return startDiagnosis(d, q.refresh === 'true');
-    const latest = latestDiagnosis(d.id);
-    if (seg[4] === 'diagnosis' && method === 'GET') return latest ? ok(toDiagnosisDto(latest)) : fail(404, 'DIAGNOSIS_NOT_FOUND', 'Diagnosis not found');
+    if (seg[4] === 'diagnosis' && method === 'GET') return getDiagnosis(d);
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} ${path}`);
 }
