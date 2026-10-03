@@ -478,13 +478,13 @@ export const listBranches = (fullName: string) => {
 
 /* code repair: credentials stay in WAS; candidate generation never publishes by itself. */
 export type RepairAccessDto = { repository: string; canWrite: boolean; installationUrl: string; reason?: string };
-export type RepairPublicationDto = { status: 'PR_OPENED' | 'MERGED' | 'ERROR'; branch?: string; commitSha?: string; pullUrl?: string; mergeCommitSha?: string; errorCode?: string };
+export type RepairPublicationDto = { status: 'QUEUED' | 'PR_OPENED' | 'MERGED' | 'ERROR' | 'WAITING_CHECKS' | 'RECOVERING' | 'SKIPPED'; branch?: string; commitSha?: string; pullUrl?: string; mergeCommitSha?: string; errorCode?: string };
 export type RepairDto = {
   id: number; deploymentId: number; diagnosisId: number;
   status: 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN_OUTCOME'; sourceSha: string;
   planIds: string[]; errorCode?: string; createdAt: string; finishedAt?: string;
   result?: { status?: string; changedFiles?: { path: string }[]; artifacts?: { name: string }[] };
-  publication?: RepairPublicationDto;
+  publication?: RepairPublicationDto; autoMerge?: boolean;
 };
 export const getRepairAccess = (serviceId: string, signal?: AbortSignal) => request<RepairAccessDto>(`/services/${serviceId}/repair-access`, { signal });
 export const getLatestRepair = (serviceId: string, deploymentId: string, diagnosisId: number, signal?: AbortSignal) => request<RepairDto>(`/services/${serviceId}/deployments/${deploymentId}/repairs/latest`, { query: { diagnosisId }, signal });
@@ -493,3 +493,6 @@ export const getRepair = (serviceId: string, repairId: number, signal?: AbortSig
 export const publishRepair = (serviceId: string, repairId: number) => request<RepairDto>(`/services/${serviceId}/repairs/${repairId}/publish`, { method: 'POST' });
 export const mergeRepair = (serviceId: string, repairId: number) => request<RepairDto>(`/services/${serviceId}/repairs/${repairId}/merge`, { method: 'POST' });
 export const repairArtifactUrl = (serviceId: string, repairId: number, name: string) => apiUrl(`/services/${serviceId}/repairs/${repairId}/artifacts/${encodeURIComponent(name)}`);
+
+export const requestAutomaticRepair = (serviceId: string, deploymentId: string, diagnosisId: number, key: string) => request<RepairDto>(`/services/${serviceId}/deployments/${deploymentId}/auto-repair`, { method: 'POST', json: { diagnosisId }, headers: { 'Idempotency-Key': key } });
+export const resumeAutomaticRepair = (serviceId: string, repairId: number) => request<RepairDto>(`/services/${serviceId}/repairs/${repairId}/auto`, { method: 'POST' });
