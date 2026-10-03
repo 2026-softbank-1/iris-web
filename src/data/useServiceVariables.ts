@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MessageKey, Vars } from '../i18n';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { INVALID_INPUT_KEYS, validationKey, withVariable, withoutVariable } from './variablesModel';
+import { INVALID_INPUT_KEYS, rawIssues, validationKey, withVariable, withoutVariable } from './variablesModel';
 
 type Loaded = { serviceId: string; data?: api.ServiceVariablesDto; failure?: { error: unknown } };
 
@@ -31,6 +31,23 @@ export function describeVariablesError(error: unknown, t: (key: MessageKey, vars
   }
   if (error.status >= 500) return t('service.vars.err.server');
   return describeError(error);
+}
+
+/**
+ * Raw 저장이 실패한 이유. describeVariablesError 의 문구에 서버가 알려 준 줄(과 키)을 붙인다.
+ * 서버가 아무것도 바꾸지 않고 거절한 422 면 그것도 알린다.
+ */
+export function describeRawError(error: unknown, t: (key: MessageKey, vars?: Vars) => string): string {
+  const issues = error instanceof ApiError ? rawIssues(error.details) : [];
+  // 서버 message 는 첫 위반의 것이라, 줄 사유가 더 구체적이면 그 문구를 쓴다.
+  const first = issues[0];
+  let text = first?.unclosedQuote ? t('service.vars.err.unclosedQuote') : first?.keyTooLong ? t('service.vars.err.keyTooLong') : describeVariablesError(error, t);
+  if (issues.length > 0) {
+    const where = issues.map((i) => t('service.vars.err.atLine', { line: i.line }) + (i.key ? ` (${i.key})` : '')).join(', ');
+    text += ` [${where}]`;
+  }
+  if (error instanceof ApiError && error.status === 422) text += ` ${t('service.vars.err.nothingChanged')}`;
+  return text;
 }
 
 /**
