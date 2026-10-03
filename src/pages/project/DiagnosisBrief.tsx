@@ -1,5 +1,5 @@
-import { environmentVariableNames, environmentVariablesUrl } from '../../data/environmentConfiguration';
-import { EnvironmentVariablesNotice } from './EnvironmentVariablesNotice';
+import { environmentVariableNames, environmentVariablesUrl, requiresManualRepair } from '../../data/environmentConfiguration';
+import { ManualRepairActions } from './ManualRepairActions';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useRef, useState } from 'react';
@@ -28,7 +28,7 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
   const analysis = diagnosis?.status === 'SUCCEEDED' ? diagnosis.analysis : undefined;
   const [requiredNames, setRequiredNames] = useState<string[] | null>(null);
   const environmentNames = environmentVariableNames(diagnosis);
-  const needsEnvironment = requiredNames !== null || environmentNames.length > 0;
+  const needsEnvironment = requiredNames !== null || requiresManualRepair(diagnosis);
   const doneAt = diagnosis && diagnosis.status !== 'RUNNING' ? (diagnosis.finishedAt ?? diagnosis.createdAt) : undefined;
 
   async function fix() {
@@ -73,7 +73,7 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
         )}
       </div>
       {body}
-      {needsEnvironment && <EnvironmentVariablesNotice names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(to)} />}
+      {needsEnvironment && <ManualRepairActions serviceId={service.id} names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(to)} />}
       {repairError && <p role="alert">{repairError}</p>}
       {needsAccess && <a href={githubInstallUrl()} className="btn btn-outline">{t('repair.connect')}</a>}
       <div className="diag-brief-actions">

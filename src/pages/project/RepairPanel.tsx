@@ -1,5 +1,5 @@
-import { environmentVariableNames, environmentVariablesUrl } from '../../data/environmentConfiguration';
-import { EnvironmentVariablesNotice } from './EnvironmentVariablesNotice';
+import { environmentVariableNames, environmentVariablesUrl, requiresManualRepair } from '../../data/environmentConfiguration';
+import { ManualRepairActions } from './ManualRepairActions';
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n';
@@ -24,7 +24,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
   const submitting = useRef(false);
   const mounted = useRef(true);
   const publication = repair?.publication;
-  const needsEnvironment = requiredNames !== null || environmentNames.length > 0 || repair?.result?.status === 'configuration_required';
+  const needsEnvironment = requiredNames !== null || requiresManualRepair(diagnosis) || repair?.result?.status === 'configuration_required';
   const candidate = repair?.status === 'SUCCEEDED' && repair.result?.status === 'candidate_ready';
   const generating = isAutomaticRepairPending(repair);
 
@@ -98,7 +98,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
   return (
     <section id="repair" className="diag-summary repair-panel" aria-label={t('repair.title')}>
       <div className="diag-bar"><b><Sparkles size={16} /> {t('repair.title')}</b><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => setReload((v) => v + 1)}><RefreshCw size={14} />{t('repair.refresh')}</button></div>
-      {needsEnvironment ? <EnvironmentVariablesNotice names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(window.location.pathname)} /> : <p className="diag-muted">{t('repair.note')}</p>}
+      {needsEnvironment ? <ManualRepairActions serviceId={serviceId} names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(window.location.pathname)} /> : <p className="diag-muted">{t('repair.note')}</p>}
       {!needsEnvironment && <p role="status">{t(`repair.state.${state}`)}</p>}
       {repair && <p className="diag-muted mono">#{repair.id} · {repair.sourceSha.slice(0, 7)}</p>}
       {!needsEnvironment && !repair && eligible.length === 0 && <p>{t('repair.noCode')}</p>}
