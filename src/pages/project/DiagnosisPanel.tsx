@@ -7,6 +7,7 @@ import {
   describeFailure,
   evidenceDomId,
   formatElapsed,
+  isAutoDiagnosisPending,
   needsFilling,
   splitSnippet,
   stageKey,
@@ -485,7 +486,7 @@ function Failed({ errorCode, base, busy, onRetry }: { errorCode?: string; base: 
 /* ------------------------------------------------------------------ */
 
 /**
- * 실패한 배포의 AI 진단. 진단이 없으면 시작 버튼, 진행 중이면 진행 표시, 성공하면 요약·원인·해결책·근거, 실패하면 이유와 다시 시도를 보여준다.
+ * 실패한 배포의 AI 진단. 진단이 아직 없으면 안내(방금 실패했으면 서버가 자동으로 시작하고, 오래된 실패는 시작 버튼), 진행 중이면 진행 표시, 성공하면 요약·원인·해결책·근거, 실패하면 이유와 다시 시도를 보여준다.
  * 해결책은 제안일 뿐이라 서버가 실행하지 않고 배포 상태도 바뀌지 않는다. base 는 이 배포 패널의 주소(`…/deployment/{id}`)다.
  */
 export function DiagnosisPanel({ service, deployment, base }: { service: Service; deployment: Deployment; base: string }) {
@@ -512,22 +513,27 @@ export function DiagnosisPanel({ service, deployment, base }: { service: Service
       </section>
     );
   } else if (view.kind === 'none') {
+    // 서버는 실패가 확정된 직후의 배포만 스스로 진단한다. 곧 시작될 배포는 안내만 보여 주고(10초마다 다시 확인한다),
+    // 이미 오래된 실패는 서버가 진단하지 않으니 사용자가 직접 시작하는 버튼을 준다.
+    const pending = isAutoDiagnosisPending(deployment.updatedAt);
     body = (
-      <section className="diag-card">
+      <section className="diag-card" role="status">
         <div className="diag-card-icon accent">
           <Sparkles size={20} />
         </div>
         <div>
-          <h2 className="diag-card-title">{t('diag.none.title')}</h2>
-          <p className="diag-card-body">{t('diag.none.body')}</p>
+          <h2 className="diag-card-title">{t(pending ? 'diag.none.title' : 'diag.none.old.title')}</h2>
+          <p className="diag-card-body">{t(pending ? 'diag.none.body' : 'diag.none.old.body')}</p>
           <p className="diag-muted">{t('diag.none.note')}</p>
         </div>
-        <div className="diag-card-actions">
-          <button type="button" className="btn btn-primary" disabled={starting} onClick={() => void start()}>
-            <Sparkles size={16} />
-            {starting ? t('diag.starting') : t('diag.action')}
-          </button>
-        </div>
+        {!pending && (
+          <div className="diag-card-actions">
+            <button type="button" className="btn btn-primary" disabled={starting} onClick={() => void start()}>
+              <Sparkles size={16} />
+              {starting ? t('diag.starting') : t('diag.action')}
+            </button>
+          </div>
+        )}
       </section>
     );
   } else {

@@ -47,7 +47,7 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   }
 }
 
-function Details({ d, service, diagnosisTo }: { d: Deployment; service: Service; diagnosisTo: string }) {
+function Details({ d, service }: { d: Deployment; service: Service }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
   const [statusOpen, setStatusOpen] = useState(false);
@@ -88,15 +88,6 @@ function Details({ d, service, diagnosisTo }: { d: Deployment; service: Service;
             </div>
           )}
         </div>
-        {canDiagnose(d) && (
-          <div className="details-ai">
-            <span>{t('diag.callout')}</span>
-            <Link to={diagnosisTo} className="btn btn-sm btn-primary">
-              <Sparkles size={14} />
-              {t('diag.action')}
-            </Link>
-          </div>
-        )}
       </div>
 
       <div className="details-source">
@@ -278,7 +269,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
             ))}
           </div>
           <div role="tabpanel" aria-label={currentTab.ai ? t(currentTab.label) : `${t(currentTab.label)} ${t('service.dtab.logs')}`} className="dp-panel" data-state="active">
-            {current === 'details' && <Details d={deployment} service={service} diagnosisTo={`${base}/diagnosis`} />}
+            {current === 'details' && <Details d={deployment} service={service} />}
             {current === 'diagnosis' && <DiagnosisPanel key={deployment.id} service={service} deployment={deployment} base={base} />}
             {current !== 'details' && current !== 'diagnosis' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel={t('service.dp.noLogs')} />}
           </div>

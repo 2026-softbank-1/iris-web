@@ -699,21 +699,3 @@ button.diag-chip:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-
-/* Entry points in the service / deployment panes */
-.deps-warning-action {
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-.details-ai {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--fg-muted);
-  border-top: 1px solid var(--red-line);
-}
