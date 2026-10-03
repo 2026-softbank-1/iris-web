@@ -1,6 +1,7 @@
 // was 의 배포 요청을 화면 모델(Deployment)로 바꾸는 순수 함수들. 훅은 useDeployments.ts 에 있다.
+import type { MessageKey, Vars } from '../i18n';
 import type { DeploymentDto, DeploymentStatus as ApiStatus, DeploymentTrigger, FailureCode, LatestDeploymentDto, SessionUser } from '../lib/endpoints';
-import type { Deployment, DeploymentStatus, Service } from './mock';
+import type { Deployment, DeploymentStatus, Msg, Service } from './mock';
 
 const LABELS: Record<DeploymentStatus, string> = {
   ACTIVE: 'Active',
@@ -40,13 +41,19 @@ const VIA: Record<DeploymentTrigger, string> = {
   REMOVE: 'Remove',
 };
 
-export function failureText(code?: FailureCode): string | undefined {
+/** 배포가 실패한 이유 문장의 키. 모르는 코드는 undefined 라서 이유 없이 실패했다고만 알린다. */
+export function failureKey(code?: FailureCode): MessageKey | undefined {
   switch (code) {
-    case 'BUILD_CONFIG_REQUIRED': return 'Build configuration is required. Choose a builder in Settings.';
-    case 'BUILD_FAILED': return 'The build failed.';
-    case 'DEPLOY_FAILED': return 'The deployment failed to start.';
+    case 'BUILD_CONFIG_REQUIRED': return 'service.failure.configRequired';
+    case 'BUILD_FAILED': return 'service.failure.buildFailed';
+    case 'DEPLOY_FAILED': return 'service.failure.deployFailed';
     default: return undefined;
   }
+}
+
+/** Msg 를 지금 언어의 문장으로. then 이 있으면 sep(기본 공백)으로 이어 붙인다. 일본어는 `。` 뒤에 공백을 두지 않는다. */
+export function renderMsg(t: (key: MessageKey, vars?: Vars) => string, msg: Msg, sep = ' '): string {
+  return msg.then ? `${t(msg.key, msg.vars)}${sep}${t(msg.then)}` : t(msg.key, msg.vars);
 }
 
 /**
@@ -54,18 +61,18 @@ export function failureText(code?: FailureCode): string | undefined {
  * 성공·롤백됨은 online(롤백됨은 이전 버전이 계속 서비스한다), 진행 중은 deploying, 실패·수동 개입은 crashed.
  * 서비스를 내리는 요청(REMOVE)은 removeStatusOf 가 따로 정한다.
  */
-export function serviceStatusOf(latest: Pick<LatestDeploymentDto, 'status' | 'triggerType' | 'sourceSha' | 'failureCode'> | undefined): Pick<Service, 'state' | 'deploying' | 'crashedBanner' | 'removed' | 'offlineLabel'> {
+export function serviceStatusOf(latest: Pick<LatestDeploymentDto, 'status' | 'triggerType' | 'sourceSha' | 'failureCode'> | undefined): Pick<Service, 'state' | 'deploying' | 'crashedBanner' | 'removed' | 'offlineLabel' | 'crashedLabel'> {
   if (!latest) return { state: 'offline' };
   if (latest.triggerType === 'REMOVE') return removeStatusOf(latest.status);
   const sha = latest.sourceSha.slice(0, 7);
   switch (latest.status) {
     case 'SUCCEEDED': return { state: 'online' };
-    case 'ROLLED_BACK': return { state: 'online', crashedBanner: `Deployment ${sha} failed and was rolled back to the previous version.` };
+    case 'ROLLED_BACK': return { state: 'online', crashedBanner: { key: 'service.banner.rolledBack', vars: { sha } } };
     case 'QUEUED':
     case 'BUILDING':
     case 'DEPLOYING': return { state: 'offline', deploying: true };
-    case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: `Deployment ${sha} needs manual intervention.` };
-    case 'FAILED': return { state: 'crashed', crashedBanner: `Deployment ${sha} failed. ${failureText(latest.failureCode) ?? ''}`.trim() };
+    case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: { key: 'service.banner.manual', vars: { sha } } };
+    case 'FAILED': return { state: 'crashed', crashedBanner: { key: 'service.banner.failed', vars: { sha }, then: failureKey(latest.failureCode) } };
   }
 }
 
@@ -81,8 +88,8 @@ function removeStatusOf(status: ApiStatus): ReturnType<typeof serviceStatusOf> {
     case 'BUILDING':
     case 'DEPLOYING': return { state: 'offline', deploying: true, offlineLabel: 'Removing' };
     case 'FAILED':
-    case 'ROLLED_BACK': return { state: 'online', crashedBanner: 'Removing the service failed. The service was not changed.' };
-    case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: 'Removing the service needs manual intervention. The app may still be running.', offlineLabel: 'Remove needs attention' };
+    case 'ROLLED_BACK': return { state: 'online', crashedBanner: { key: 'service.dp.removeFailed' } };
+    case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: { key: 'service.dp.removeManual' }, crashedLabel: { key: 'service.canvas.removeAttention' } };
   }
 }
 

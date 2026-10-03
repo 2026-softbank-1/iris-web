@@ -1,6 +1,7 @@
 // Types for the dashboard plus sample data for what the API does not provide yet
 // (deployments, logs, metrics). Projects and services come from the API (see ProjectsContext).
 
+import type { MessageKey, Vars } from '../i18n';
 import type { DeploymentTrigger, FailureCode, ServiceDto } from '../lib/endpoints';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
@@ -66,6 +67,16 @@ export interface Deployment {
 
 export type ServiceState = 'online' | 'offline' | 'crashed';
 
+/**
+ * 화면에서 번역할 문구. 데이터 계층이 영어 문장을 만들어 두면 언어를 바꿔도 따라오지 않으니, 키와 값을 들고 있다가 화면이 t() 로 바꾼다.
+ * then 은 이어 붙이는 두 번째 문장(예: 배포 실패 문장 뒤의 실패 이유)이다.
+ */
+export interface Msg {
+  key: MessageKey;
+  vars?: Vars;
+  then?: MessageKey;
+}
+
 /** 서비스가 한 타깃에서 열리는 공개 주소(was 의 도메인 조회 결과 중 host 가 있는 것). */
 export interface ServiceDomain {
   host: string;
@@ -89,14 +100,17 @@ export interface Service {
   regionLong: string;
   replicas: number;
   state: ServiceState;
-  crashedBanner?: string;
+  /** 서비스 패널 위에 띄우는 실패 안내. */
+  crashedBanner?: Msg;
   deployments: Deployment[];
   /** 최근 배포가 진행 중인지(QUEUED·BUILDING·DEPLOYING). */
   deploying?: boolean;
   /** 서비스가 클러스터에서 내려갔다(가장 최근 요청이 성공한 REMOVE). 서비스 정의는 남아 있어 다시 배포할 수 있다. */
   removed?: boolean;
-  /** 서비스가 online 이 아닐 때 캔버스에 보여줄 문구. 없으면 상태로 정한다. */
+  /** 서비스가 online 이 아닐 때 캔버스에 보여줄 상태 이름(Removing 같은 상태 이름은 번역하지 않는다). 없으면 상태로 정한다. */
   offlineLabel?: string;
+  /** 서비스가 crashed 일 때 캔버스의 서비스 아래에 보여줄 문구. 없으면 "배포에 실패했어요". */
+  crashedLabel?: Msg;
   /** was 에서 온 서비스의 원본 값. 설정 화면이 이 값을 읽고 고친다. */
   remote?: ServiceDto;
 }
@@ -381,7 +395,6 @@ export const projects: Project[] = [
         // The latest deployment crash-looped (SESSION_SECRET too short) and was removed,
         // so the service is now offline. Use 'crashed' to show the red dashboard state instead.
         state: 'offline',
-        crashedBanner: "Deployment was removed because it's been crashed for too long",
         deployments: [
           {
             id: '8e31b2c0-77a4-4b0e-9d3f-1c2b3a4d5e6f',

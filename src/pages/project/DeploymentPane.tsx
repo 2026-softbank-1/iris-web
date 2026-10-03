@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import { apiStatusLabel, canRedeploy, deploymentLabel, failureText } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, deploymentLabel, failureKey } from '../../data/deploymentModel';
 import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
@@ -40,7 +40,7 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
     case 'REMOVED': return t('service.dp.replaced');
     case 'TAKEN_DOWN': return t('service.dp.takenDown');
     case 'REMOVING': return t('service.dp.removing');
-    case 'FAILED': return d.trigger === 'REMOVE' ? t('service.dp.removeFailed') : (failureText(d.failureCode) ?? t('service.dp.failed'));
+    case 'FAILED': return d.trigger === 'REMOVE' ? t('service.dp.removeFailed') : t(failureKey(d.failureCode) ?? 'service.dp.failed');
     case 'ROLLED_BACK': return t('service.dp.rolledBack');
     case 'MANUAL_INTERVENTION': return t(d.trigger === 'REMOVE' ? 'service.dp.removeManual' : 'service.dp.manual');
     default: return `${deploymentLabel(d.status)}…`;
@@ -80,7 +80,7 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                     <span>{apiStatusLabel(h.toStatus)}</span>
                     <span className="set-muted">
                       {fmtKst(h.createdAt)}
-                      {h.failureCode ? ` · ${failureText(h.failureCode)}` : ''}
+                      {failureKey(h.failureCode) ? ` · ${t(failureKey(h.failureCode)!)}` : ''}
                     </span>
                   </div>
                 );

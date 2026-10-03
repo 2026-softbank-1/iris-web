@@ -27,7 +27,7 @@ import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
 import { canDiagnose } from '../../data/diagnosisModel';
-import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration, renderMsg } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
@@ -72,7 +72,7 @@ function SuccessSteps({ service, deployment }: { service: Service; deployment: D
 }
 
 function DeploymentsTab({ project, service, deps }: { project: Project; service: Service; deps: DeploymentsApi }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const { busy, run } = useRunner();
   const active = deps.items.find((d) => d.status === 'ACTIVE');
@@ -157,7 +157,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           <div className="deps-warning-icon">
             <TriangleAlert size={20} />
           </div>
-          {service.crashedBanner}
+          {renderMsg(t, service.crashedBanner, lang === 'ja' ? '' : ' ')}
           {service.remote?.latestDeployment?.failureCode === 'BUILD_CONFIG_REQUIRED' && (
             <>
               {' '}
