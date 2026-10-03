@@ -76,7 +76,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
           </div>
           <div className="svc-node-bottom">
             <ServiceStatusPill service={service} />
-            {service.state === 'crashed' && !service.deploying && <p className="svc-node-failed truncate">{service.offlineLabel ?? t('project.canvas.deployFailed')}</p>}
+            {service.state === 'crashed' && !service.deploying && <p className="svc-node-failed truncate">{service.crashedLabel ? t(service.crashedLabel.key, service.crashedLabel.vars) : t('project.canvas.deployFailed')}</p>}
           </div>
         </a>
       </span>
