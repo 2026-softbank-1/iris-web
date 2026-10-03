@@ -1,6 +1,5 @@
 import { ChevronRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useUI } from '../../components/ui';
 import { describeFailure, isAutoDiagnosisPending, supportKey } from '../../data/diagnosisModel';
 import { fmtKstFull, type Service } from '../../data/mock';
 import { useDiagnosis } from '../../data/useDiagnosis';
@@ -9,18 +8,17 @@ import type { DiagnosisAnalysisDto } from '../../lib/endpoints';
 
 /**
  * 서비스 실패 배너 아래에 보여 주는, 가장 최근 실패한 배포의 AI 진단 요약. 결과를 짧게 보여 주고 상세 페이지로 가는 버튼과,
- * 아직 화면만 있는 `AI 수정` 버튼(API 호출 없음)을 둔다. 진단 상태는 배포 패널의 AI 진단 탭과 같은 훅으로 받는다.
+ * 코드수정 화면으로 가는 `AI 수정` 버튼을 둔다. 진단 상태는 배포 패널의 AI 진단 탭과 같은 훅으로 받는다.
  */
 export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { service: Service; deploymentId: string; updatedAt: string; to: string }) {
   const { t, lang } = useI18n();
-  const { toast } = useUI();
   const { view } = useDiagnosis(service.id, deploymentId);
 
   const diagnosis = view.kind === 'ready' ? view.diagnosis : undefined;
   const analysis = diagnosis?.status === 'SUCCEEDED' ? diagnosis.analysis : undefined;
   const plans = analysis?.remediation.plans ?? [];
   // AI 수정은 제안된 해결책을 적용하는 버튼이라, 해결책이 있을 때만 쓸 수 있다.
-  const canFix = plans.length > 0;
+  const canFix = plans.some((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code'));
   const doneAt = diagnosis && diagnosis.status !== 'RUNNING' ? (diagnosis.finishedAt ?? diagnosis.createdAt) : undefined;
 
   let body;
@@ -62,10 +60,10 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
           {t('diag.brief.detail')}
           <ChevronRight size={16} />
         </Link>
-        <button type="button" className="btn btn-primary" disabled={!canFix} title={canFix ? undefined : t('diag.brief.fixNeedsDiagnosis')} onClick={() => toast(t('diag.brief.fixSoon'))}>
+        <Link to={`${to}#repair`} className="btn btn-primary" title={canFix ? undefined : t('diag.brief.fixNeedsDiagnosis')}>
           <Sparkles size={16} />
           {t('diag.brief.fix')}
-        </button>
+        </Link>
       </div>
     </section>
   );

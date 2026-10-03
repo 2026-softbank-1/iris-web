@@ -1,3 +1,4 @@
+import { RepairPanel } from './RepairPanel';
 import { ChevronDown, Copy, Info, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -298,7 +299,7 @@ function remediationNotice(analysis: DiagnosisAnalysisDto, t: Translate) {
   }
 }
 
-function Result({ diagnosis, analysis, busy, onRerun }: { diagnosis: DiagnosisDto; analysis: DiagnosisAnalysisDto; busy: boolean; onRerun: () => void }) {
+function Result({ serviceId, deploymentId, diagnosis, analysis, busy, onRerun }: { serviceId: string; deploymentId: string; diagnosis: DiagnosisDto; analysis: DiagnosisAnalysisDto; busy: boolean; onRerun: () => void }) {
   const { t, lang } = useI18n();
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [focus, setFocus] = useState<EvidenceFocus>(null);
@@ -377,6 +378,8 @@ function Result({ diagnosis, analysis, busy, onRerun }: { diagnosis: DiagnosisDt
           </div>
         )}
       </Section>
+
+      <RepairPanel key={diagnosis.id} serviceId={serviceId} deploymentId={deploymentId} diagnosis={diagnosis} />
 
       {checks.length > 0 && (
         <Section title={t('diag.sec.checks')}>
@@ -559,7 +562,7 @@ export function DiagnosisPanel({ service, deployment, base }: { service: Service
     } else if (d.status === 'RUNNING') {
       body = <Running createdAt={d.createdAt} />;
     } else if (d.status === 'SUCCEEDED' && d.analysis) {
-      body = <Result diagnosis={d} analysis={d.analysis} busy={starting} onRerun={() => setConfirmOpen(true)} />;
+      body = <Result serviceId={service.id} deploymentId={deployment.id} diagnosis={d} analysis={d.analysis} busy={starting} onRerun={() => setConfirmOpen(true)} />;
     } else {
       // FAILED. 분석 없이 SUCCEEDED 로 온 이상한 응답도 같은 안내로 받는다.
       body = <Failed errorCode={d.errorCode} base={base} busy={starting} onRetry={() => void retry()} />;

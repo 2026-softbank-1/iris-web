@@ -807,3 +807,12 @@ button.diag-chip:hover {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.repair-panel { margin-top: 24px; scroll-margin-top: 24px; }
+.repair-panel .diag-bar b { display: flex; align-items: center; gap: 6px; }
+.repair-plans { display: grid; gap: 10px; border: 0; padding: 12px 0; }
+.repair-plans label { display: flex; gap: 8px; align-items: baseline; }
+.repair-access { margin: 16px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.repair-access p { width: 100%; }
+.repair-patch { max-height: 420px; overflow: auto; white-space: pre; }
+.repair-panel summary { cursor: pointer; padding: 12px 0; }
