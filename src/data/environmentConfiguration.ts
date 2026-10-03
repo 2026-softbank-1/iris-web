@@ -15,3 +15,12 @@ export function environmentVariableNames(diagnosis?: DiagnosisDto): string[] {
   return [...names].sort();
 }
 export const environmentVariablesUrl = (deploymentUrl: string) => deploymentUrl.replace(/\/deployment\/[^/]+.*$/, '/variables');
+
+
+/** A successful diagnosis without an applicable code plan needs human remediation. */
+export function requiresManualRepair(diagnosis?: DiagnosisDto): boolean {
+  if (environmentVariableNames(diagnosis).length > 0) return true;
+  if (diagnosis?.status !== 'SUCCEEDED') return false;
+  return !(diagnosis.analysis?.remediation.plans ?? []).some(p =>
+    (p.changes?.length ?? 0) > 0 && p.changes!.every(c => c.kind === 'code'));
+}
