@@ -73,6 +73,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | 서비스 Metrics 탭 (CPU, Memory) | `GET /services/{id}/metrics` |
 | 서비스 Metrics 탭 (Public Network Traffic, Requests, Request Error Rate, Response Time) | `GET /services/{id}/traffic-metrics` |
 | 서비스 Settings 의 Scale (Replica 수, CPU·메모리 한도) | `GET·PUT /services/{id}/scaling` |
+| 서비스 Settings 의 Deploy 배포 방식 (롤링·카나리·블루그린) | `PATCH /services/{id}` 의 `deploymentStrategy` |
 | 서비스 Variables 탭 (추가·수정·삭제, Raw Editor, LikeLion 이 넣는 변수) | `GET·POST·PUT /services/{id}/variables`, `PUT·DELETE /services/{id}/variables/{key}` |
 | 배포 패널 AI 진단 탭 (실패한 배포의 원인·해결책) | `GET /services/{id}/deployments/{deploymentId}/diagnosis`, `POST …/diagnose[?refresh=true]` |
 
@@ -91,6 +92,8 @@ Public Network Traffic·Requests·Request Error Rate·Response Time 은 ALB 접�
 - 이 API 가 아직 없는 was 는 404 를 주는데, 오류로 보지 않고 '지표가 없어요' 빈 상태로 둡니다. API 가 나가면 다음 조회부터 자동으로 동작합니다.
 
 서비스 Settings 의 Scale 은 was 가 저장한 **원하는** 설정(Replica 수, Pod 하나의 CPU·메모리 limits)을 보여 주고, 실제로 떠 있는 Pod 수나 적용 완료를 뜻하지는 않습니다. 슬라이더는 정해진 칸(CPU 0.25·0.5·1·2 vCPU, 메모리 256 MiB~4 GiB)에서 고르고, was 에 이미 다른 값이 저장돼 있으면 그 값도 칸으로 보여 줍니다. 적용(PUT)은 Pod 이 새로 시작되는 RESTART 배포를 만드니 값을 고칠 때마다 보내지 않고 Apply 를 눌러야 보냅니다. requests 는 화면에서 고치지 않고 저장된 값을 그대로 보내되, 새 limits 보다 크면 limits 로 낮춥니다. 배포가 진행 중이면 Apply 를 막고, 성공한 배포가 없으면 서버가 409 를 줍니다. CPU 최대 2 vCPU 는 iris-infra 노드(`m7i-flex.large`, 2 vCPU·8 GiB)의 크기에 맞춘 값입니다. Replica 는 0~10이고 0 이면 요청을 처리하지 못합니다.
+
+서비스 Settings 의 Deploy 에서 배포 방식(롤링·카나리·블루그린)을 고르면 바로 `PATCH /services/{id}` 로 저장합니다. 저장은 배포를 만들지 않고 다음 배포부터 쓰입니다. 카나리·블루그린은 Scale 의 **저장된** Replica(편집 중인 값이 아니라 `GET /scaling` 응답)가 2개 이상일 때만 고를 수 있고, 서버도 그보다 적거나 기능을 아직 켜지 않았으면 422 `INVALID_INPUT`(`details[].field = deploymentStrategy`)로 거절합니다. 카나리·블루그린으로 저장된 서비스에서 Replica 를 2개 미만으로 Apply 하려 하면 롤링으로 대체된다는 확인 창을 먼저 띄우고, 취소하면 적용하지 않습니다. 배포 요청은 요청 방식(`requestedDeploymentStrategy`)과 실제 방식(`deploymentStrategy`)을 갖고, 배포 상세의 Deploy 구성에 실제 방식을, 둘이 다르면 롤링으로 대체됐다는 안내를 보여 줍니다. 목록 행에는 롤링이 아닐 때만 방식 이름을 붙입니다. `deploymentStrategy` 를 주지 않는 was(구버전)는 롤링으로 보고, 배포 방식 도입 전 요청에는 표시하지 않습니다. mock(`VITE_MOCK_API=1`)의 `web` 은 카나리·Replica 2, softbank-iris 의 `gateway` 는 블루그린·Replica 1(진행 중 배포가 롤링으로 대체됨)입니다.
 
 서비스 Variables 탭은 was 가 저장한 환경변수를 보여 주고 고칩니다. 값은 소유자에게 평문으로 오므로 눈(보기)·복사 버튼이 그대로 동작하고, 화면은 값을 콘솔에 찍거나 오류에 싣지 않습니다. **변수를 바꿔도 실행 중인 앱은 그대로**이고, 다음 배포(Deploy·Redeploy)나 Restart 부터 그 시점의 변수가 반영됩니다. Rollback 은 그 배포 당시의 변수를 되돌리니, 롤백 직후에는 이 탭의 현재 값과 실행 중인 값이 다를 수 있습니다. 변수 하나는 `POST`(이미 있으면 409 `VARIABLE_CONFLICT`)·`PUT /{key}`·`DELETE /{key}`(없으면 404 `VARIABLE_NOT_FOUND`)로 바꾸고, Raw Editor 는 서버 응답의 변수를 `KEY="값"` 줄로 채워 보여 주다가 저장하면 텍스트 그대로 `PUT /variables {raw}` 로 보냅니다. 이 호출은 변수 **전체를 교체**해서 텍스트에 없는 변수는 지워지고(편집기에 안내가 있습니다), 파싱과 검증은 서버가 합니다. 형식이 틀린 줄이 있으면 422 `INVALID_INPUT` 이고 아무것도 바뀌지 않으며 응답에 줄 번호는 없습니다. 서버 규칙은 키가 영문·숫자·밑줄(숫자로 시작 불가, 128자 이하), `PORT`·`IRIS_` 로 시작하는 이름은 예약, 서비스당 100개, 값 32KiB 이하이고 빈 값은 허용합니다. 서버에 암호화 키가 없으면 503 `NOT_CONFIGURED` 입니다. 하단의 "variables added by LikeLion" 은 응답의 `systemVariables`(이름·설명, 서비스만으로 정해지는 변수는 값도)입니다.
 

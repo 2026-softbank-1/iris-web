@@ -25,6 +25,11 @@ export type DeploymentStatus = 'QUEUED' | 'BUILDING' | 'DEPLOYING' | 'SUCCEEDED'
  */
 export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART' | 'REMOVE';
 export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED';
+/**
+ * 새 버전의 Pod 를 띄우는 방식. CANARY·BLUE_GREEN 은 저장된 레플리카가 2개 이상일 때만 저장할 수 있고(아니면 422 INVALID_INPUT),
+ * 저장해도 배포를 만들지 않고 다음 배포부터 쓴다. 배포할 때 레플리카가 2개 미만이면 서버가 ROLLING 으로 대체한다.
+ */
+export type DeploymentStrategy = 'ROLLING' | 'CANARY' | 'BLUE_GREEN';
 
 /** 서비스 응답에 붙는 가장 최근 배포 요청. */
 export type LatestDeploymentDto = {
@@ -45,6 +50,10 @@ export type DeploymentDto = LatestDeploymentDto & {
   sourceDeploymentId?: number;
   /** QUEUED·BUILDING·DEPLOYING 이면 진행 중이다. */
   isActive: boolean;
+  /** 요청 시점에 서비스에 저장돼 있던 배포 방식. 배포 방식 도입 전 요청과 REMOVE 요청에는 없다. */
+  requestedDeploymentStrategy?: DeploymentStrategy;
+  /** 실제로 쓴 배포 방식. 레플리카가 2개 미만이었으면 요청과 달리 ROLLING 이다. requestedDeploymentStrategy 와 함께 있거나 함께 없다. */
+  deploymentStrategy?: DeploymentStrategy;
 };
 export type DeploymentStageDto = { status: DeploymentStatus; startedAt: string; finishedAt?: string; durationSeconds?: number };
 export type DeploymentHistoryDto = { fromStatus?: DeploymentStatus; toStatus: DeploymentStatus; failureCode?: FailureCode; createdAt: string };
@@ -121,6 +130,8 @@ export type ServiceDto = {
   buildCommand?: string;
   startCommand?: string;
   targetIds: number[];
+  /** 배포 방식을 모르는 서버(구버전)는 보내지 않는다. 그때는 ROLLING 으로 본다. */
+  deploymentStrategy?: DeploymentStrategy;
   /** 가장 최근 배포 요청. 배포한 적이 없으면 없다. */
   latestDeployment?: LatestDeploymentDto;
   createdAt: string;
@@ -172,6 +183,7 @@ export type ServiceUpdate = {
   buildCommand?: string | null;
   startCommand?: string | null;
   targetIds?: number[];
+  deploymentStrategy?: DeploymentStrategy;
 };
 
 /* auth */

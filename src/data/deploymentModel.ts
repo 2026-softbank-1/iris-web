@@ -155,6 +155,8 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
       failureCode: dto.failureCode,
       requestedBy: dto.requestedBy,
       isActive: dto.isActive,
+      requestedDeploymentStrategy: dto.requestedDeploymentStrategy,
+      deploymentStrategy: dto.deploymentStrategy,
     };
   });
 }
