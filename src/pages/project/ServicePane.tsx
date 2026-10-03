@@ -455,7 +455,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
             {current === 'variables' && <VariablesTab service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}
-            {current === 'settings' && <ServiceSettings project={project} service={service} />}
+            {current === 'settings' && <ServiceSettings project={project} service={service} onScaled={() => void deps.reload()} />}
           </div>
         </div>
       </div>

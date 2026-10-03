@@ -168,6 +168,30 @@ export const createDeployment = (serviceId: number | string, json: DeploymentCre
 export const getDeployment = (serviceId: number | string, deploymentId: number | string) =>
   request<DeploymentDetailDto>(`/services/${serviceId}/deployments/${deploymentId}`);
 
+/* scaling */
+/** Kubernetes 수량 문자열. cpu 는 `"1"`·`"0.5"`·`"250m"`, memory 는 `"536870912"`·`"512Mi"`·`"1Gi"` 같은 표기다. */
+export type ResourceQuantityDto = { cpu: string; memory: string };
+export type ScalingUpdate = {
+  /** 0~10. 0 이면 Pod 이 없어 요청을 처리하지 못한다. */
+  replicas: number;
+  /** Pod 하나의 자원. requests 는 limits 이하여야 하고 네 값을 모두 보내야 한다. */
+  resources: { requests: ResourceQuantityDto; limits: ResourceQuantityDto };
+};
+/** 저장된 **원하는** 설정이다. 실제 Pod 수나 적용 완료를 뜻하지 않는다. 설정한 적 없는 서비스는 서버 기본값이 온다. */
+export type ScalingDto = ScalingUpdate & {
+  serviceId: number;
+  /** PUT 응답에만 있다. 적용하려고 만든 RESTART 배포 요청이다. */
+  deploymentRequestId?: number;
+};
+export const getServiceScaling = (serviceId: number | string, signal?: AbortSignal) => request<ScalingDto>(`/services/${serviceId}/scaling`, { signal });
+/**
+ * 설정 전체를 바꾼다. 202 로 접수하고 성공한 현재 이미지로 RESTART 배포를 만들어 빌드 없이 적용하니 Pod 이 새로 시작된다.
+ * 배포가 진행 중이면 409 DEPLOYMENT_IN_PROGRESS, 성공한 배포가 없으면 409 NO_SUCCEEDED_DEPLOYMENT 다.
+ * idempotencyKey 가 같고 설정도 같으면 서버가 새로 만들지 않고 처음 만든 요청을 돌려준다.
+ */
+export const updateServiceScaling = (serviceId: number | string, json: ScalingUpdate, idempotencyKey?: string) =>
+  request<ScalingDto>(`/services/${serviceId}/scaling`, { method: 'PUT', json, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
+
 /* logs */
 /** 런타임 로그 한 줄. timestampNs 는 Unix 나노초이고, number 로는 정밀도가 모자라서 문자열로 온다. */
 export type LogEntryDto = { timestampNs: string; message: string; pod: string; container: string };

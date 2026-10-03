@@ -23,13 +23,15 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RepoIcon } from '../../components/brand';
 
 import { useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
 import { useProjects } from '../../data/ProjectsContext';
+import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
+import { useServiceScaling } from '../../data/useServiceScaling';
 import { describeError } from '../../lib/api';
 import { isTargetSupported, listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
 
@@ -119,15 +121,46 @@ function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label
   );
 }
 
+/** 정해진 칸 중 하나를 고르는 슬라이더. 고른 칸의 값을 머리에 보여준다. 값이 없으면(아직 못 받았으면) 고를 수 없다. */
+function LimitSlider({ name, ready, stops, value, parse, format, disabled, onChange }: { name: string; ready: boolean; stops: Stop[]; value: string; parse: (qty: string) => number; format: (amount: number) => { value: string; unit: string }; disabled: boolean; onChange: (qty: string) => void }) {
+  const index = stopIndex(stops, value, parse);
+  const ratio = stops.length > 1 ? index / (stops.length - 1) : 1;
+  const label = ready ? format(stops[index].amount) : null;
+  const text = label ? `${label.value} ${label.unit}` : 'loading';
+  return (
+    <div className="st-limit">
+      <div className="st-limit-head">
+        <span>
+          {name}: <b>{label?.value ?? '–'}</b> {label?.unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        className="st-range"
+        aria-label={`${name} limit`}
+        aria-valuetext={text}
+        min={0}
+        max={stops.length - 1}
+        step={1}
+        value={index}
+        disabled={disabled}
+        style={{ '--ratio': ratio } as CSSProperties}
+        onChange={(e) => onChange(stops[Number(e.target.value)].qty)}
+      />
+    </div>
+  );
+}
+
 const SECTIONS = ['Source', 'Networking', 'Edge', 'Scale', 'Build', 'Deploy', 'Config-as-code', 'Feature-flags', 'Danger'];
 
 /* ------------------------------------------------------------------ */
 /* Settings tab                                                        */
 /* ------------------------------------------------------------------ */
 
-export function ServiceSettings({ project, service }: { project: Project; service: Service }) {
+/** onScaled 는 Pod 수·자원 변경이 접수돼 RESTART 배포가 만들어진 뒤 부른다(배포 목록을 바로 다시 받으려는 것). */
+export function ServiceSettings({ project, service, onScaled }: { project: Project; service: Service; onScaled?: () => void }) {
   const { toast } = useUI();
-  const { targets, updateService, removeService } = useProjects();
+  const { targets, updateService, removeService, refreshService } = useProjects();
   const navigate = useNavigate();
   const remote = service.remote;
   const [branches, setBranches] = useState<string[]>([]);
@@ -156,6 +189,17 @@ export function ServiceSettings({ project, service }: { project: Project; servic
     }
   };
 
+  const applyScale = async () => {
+    try {
+      await scale.apply();
+      toast('Scale change requested. The service is restarting.');
+      void refreshService(project.id, service.id).catch(() => undefined);
+      onScaled?.();
+    } catch (e) {
+      toast(describeError(e));
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     listBranches(service.repo).then(
@@ -170,7 +214,7 @@ export function ServiceSettings({ project, service }: { project: Project; servic
   const [teardown, setTeardown] = useState(false);
   const [serverless, setServerless] = useState(false);
   const [skipped, setSkipped] = useState(false);
-  const [replicas, setReplicas] = useState('1');
+  const scale = useServiceScaling(service.id);
   const [retries, setRetries] = useState('10');
   const [paths, setPaths] = useState<string[]>([]);
   const [pathDraft, setPathDraft] = useState('');
@@ -481,32 +525,63 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                     })}
                   </div>
                   <label className="st-replicas">
-                    <input aria-label="Replicas" placeholder="1" value={replicas} onChange={(e) => setReplicas(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+                    <input
+                      aria-label="Replicas"
+                      inputMode="numeric"
+                      placeholder="1"
+                      value={scale.replicasText}
+                      disabled={!scale.ready || scale.busy}
+                      aria-invalid={scale.ready && !scale.valid}
+                      onChange={(e) => scale.setReplicasText(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    />
                     <span>Replica</span>
                   </label>
                 </div>
+                {scale.ready && !scale.valid && <p className="st-hint error">Enter a whole number from {MIN_REPLICAS} to {MAX_REPLICAS}.</p>}
+                {scale.replicas === 0 && <p className="st-hint">With 0 replicas the service runs no pods and can't handle requests.</p>}
               </Item>
               <Item title="Replica Limits" desc="Maximum vCPU and memory for each replica." id="limits">
                 <div className="st-limits">
-                  {[
-                    ['CPU', '2', 'vCPU'],
-                    ['Memory', '1', 'GB'],
-                  ].map(([name, v, unit], i) => (
-                    <div key={name}>
-                      {i > 0 && <hr className="st-limit-hr" />}
-                      <div className="st-limit">
-                        <div className="st-limit-head">
-                          <span>
-                            {name}: <b>{v}</b> {unit}
-                          </span>
-                        </div>
-                        <div className="st-slider">
-                          <div />
-                          <span />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <LimitSlider
+                    name="CPU"
+                    ready={scale.ready}
+                    stops={scale.cpuStops}
+                    value={scale.cpu}
+                    parse={cpuCores}
+                    format={cpuLabel}
+                    disabled={!scale.ready || scale.busy}
+                    onChange={scale.setCpu}
+                  />
+                  <hr className="st-limit-hr" />
+                  <LimitSlider
+                    name="Memory"
+                    ready={scale.ready}
+                    stops={scale.memoryStops}
+                    value={scale.memory}
+                    parse={memoryMiB}
+                    format={memoryLabel}
+                    disabled={!scale.ready || scale.busy}
+                    onChange={scale.setMemory}
+                  />
+                </div>
+                <div className="st-apply">
+                  <p className={`st-hint${scale.error ? ' error' : ''}`}>
+                    {scale.error ?? (scale.loading ? 'Loading the current scale…' : service.deploying ? 'Wait for the current deployment to finish before applying.' : 'Applying restarts the service with its current image. No rebuild.')}
+                  </p>
+                  {scale.error ? (
+                    <button type="button" className="btn btn-outline" onClick={scale.retry}>
+                      Retry
+                    </button>
+                  ) : (
+                    <>
+                      <button type="button" className="btn btn-outline" disabled={!scale.edited || scale.busy} onClick={scale.reset}>
+                        Reset
+                      </button>
+                      <button type="button" className="btn btn-purple-outline" disabled={!scale.dirty || scale.busy || !!service.deploying} onClick={() => void applyScale()}>
+                        {scale.busy ? 'Applying…' : 'Apply'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </Item>
             </Section>
