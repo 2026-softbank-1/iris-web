@@ -44,6 +44,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const [submitting, setSubmitting] = useState(false);
 
   const isUrl = URL_LIKE.test(query.trim());
+  const selectedTarget = targets.find((target) => target.id === targetId && isTargetSupported(target));
 
   useEffect(() => {
     if (!open) return;
@@ -111,6 +112,17 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     return () => { cancelled = true; };
   }, [open, step, repo]);
 
+  // 타깃 목록이 늦게 도착해도 선택을 채운다. AWS가 없으면 첫 지원 타깃을 쓴다.
+  useEffect(() => {
+    if (!open || step !== 'review' || targets.length === 0) return;
+    setTargetId((current) => {
+      if (targets.some((target) => target.id === current && isTargetSupported(target))) return current;
+      return (targets.find((target) => target.name === 'aws' && isTargetSupported(target))
+        ?? targets.find((target) => target.kind === 'AWS')
+        ?? targets.find(isTargetSupported))?.id;
+    });
+  }, [open, step, targets]);
+
   const select = (value: api.RepositoryDto) => {
     const name = value.fullName.split('/')[1];
     setRepo(value);
@@ -119,7 +131,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setBranch(value.defaultBranch);
     setRoot('/');
     setAutoDeploy(true);
-    setTargetId((targets.find((t) => t.name === 'aws') ?? targets.find((t) => t.kind === 'AWS'))?.id);
+    setTargetId(undefined);
     setStep('review');
     setNotice('');
   };
@@ -127,7 +139,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const goInstall = () => window.location.assign(api.githubInstallUrl());
 
   const deploy = async () => {
-    if (!repo || !serviceName.trim() || !branch.trim() || submitting) return;
+    if (!repo || !serviceName.trim() || !branch.trim() || !selectedTarget || submitting) return;
     setSubmitting(true);
     setNotice('');
     let createdProjectId: string | null = null;
@@ -143,8 +155,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         branch: branch.trim(),
         rootDirectory: root.trim() || undefined,
         isAutoDeploy: autoDeploy,
-        // 타깃을 불러오지 못했으면 생략한다(서버 기본값은 aws 타깃이다).
-        targetIds: targetId !== undefined ? [targetId] : undefined,
+        targetIds: [selectedTarget.id],
       });
       // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
       let deploymentId: number | null = null;
@@ -208,7 +219,8 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       </div>
       {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="radio" name="create-target" disabled={!supported} checked={supported && targetId === tg.id} onChange={() => setTargetId(tg.id)} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />{t('create.autoDeploy')}</label>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim())}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
+      {!selectedTarget && <p className="create-notice" role="status">{t('create.targetsUnavailable')}</p>}
+      <button type="submit" className="btn btn-primary" disabled={submitting || !selectedTarget || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim())}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;
