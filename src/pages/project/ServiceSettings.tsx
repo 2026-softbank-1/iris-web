@@ -183,6 +183,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [deleteName, setDeleteName] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  const targetLocked = !!remote?.latestDeployment;
   const save = async (changes: ServiceUpdate, message = t('svcSettings.saved')) => {
     try {
       await updateService(project.id, service.id, changes);
@@ -516,30 +517,23 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     <Earth size={16} />
                     {targets.map((target) => {
                       const supported = isTargetSupported(target);
-                      const checked = remote?.targetIds.includes(target.id) ?? false;
+                      const checked = remote?.targetIds[0] === target.id;
                       return (
                         <label key={target.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : t('svcSettings.notSupported')}>
                           <input
-                            type="checkbox"
+                            type="radio"
+                            name="service-target"
                             checked={checked}
-                            // 지원하지 않는 타깃은 새로 고를 수 없다. 이미 들어 있으면 뺄 수는 있다.
-                            disabled={!supported && !checked}
-                            onChange={(e) => {
-                              const current = remote?.targetIds ?? [];
-                              const next = e.target.checked ? [...current, target.id] : current.filter((id) => id !== target.id);
-                              const hasSupported = next.some((id) => {
-                                const found = targets.find((x) => x.id === id);
-                                return found ? isTargetSupported(found) : false;
-                              });
-                              if (!hasSupported) toast(t('svcSettings.needTarget'));
-                              else void save({ targetIds: next });
-                            }}
+                            // 한 번 배포한 서비스는 타깃을 바꿀 수 없다.
+                            disabled={!supported || targetLocked}
+                            onChange={() => void save({ targetIds: [target.id] })}
                           />
                           {target.name}
                           {!supported && <span className="st-note">{t('svcSettings.notSupported')}</span>}
                         </label>
                       );
                     })}
+                    {targetLocked && <span className="st-note">{t('svcSettings.targetLocked')}</span>}
                   </div>
                   <label className="st-replicas">
                     <input

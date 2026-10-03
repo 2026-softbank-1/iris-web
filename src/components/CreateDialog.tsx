@@ -40,7 +40,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const [branches, setBranches] = useState<string[]>([]);
   const [root, setRoot] = useState('/');
   const [autoDeploy, setAutoDeploy] = useState(true);
-  const [targetIds, setTargetIds] = useState<number[]>([]);
+  const [targetId, setTargetId] = useState<number>();
   const [submitting, setSubmitting] = useState(false);
 
   const isUrl = URL_LIKE.test(query.trim());
@@ -119,7 +119,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setBranch(value.defaultBranch);
     setRoot('/');
     setAutoDeploy(true);
-    setTargetIds(targets.filter(isTargetSupported).map((t) => t.id));
+    setTargetId((targets.find((t) => t.name === 'aws') ?? targets.find((t) => t.kind === 'AWS'))?.id);
     setStep('review');
     setNotice('');
   };
@@ -143,8 +143,8 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         branch: branch.trim(),
         rootDirectory: root.trim() || undefined,
         isAutoDeploy: autoDeploy,
-        // 타깃을 불러오지 못했으면 생략한다(서버는 모든 타깃에 배포한다).
-        targetIds: targetIds.length > 0 ? targetIds : undefined,
+        // 타깃을 불러오지 못했으면 생략한다(서버 기본값은 aws 타깃이다).
+        targetIds: targetId !== undefined ? [targetId] : undefined,
       });
       // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
       let deploymentId: number | null = null;
@@ -206,9 +206,9 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         <label>{t('create.branch')}<select required value={branch} onChange={e => setBranch(e.target.value)}>{branchOptions.map(b => <option key={b}>{b}</option>)}</select></label>
         <label>{t('create.rootDir')}<input value={root} onChange={e => setRoot(e.target.value)} /></label>
       </div>
-      {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="checkbox" disabled={!supported} checked={supported && targetIds.includes(tg.id)} onChange={e => setTargetIds(ids => e.target.checked ? [...ids, tg.id] : ids.filter(id => id !== tg.id))} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
+      {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="radio" name="create-target" disabled={!supported} checked={supported && targetId === tg.id} onChange={() => setTargetId(tg.id)} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />{t('create.autoDeploy')}</label>
-      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim()) || (targets.length > 0 && targetIds.length === 0)}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
+      <button type="submit" className="btn btn-primary" disabled={submitting || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim())}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
     </form>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;
