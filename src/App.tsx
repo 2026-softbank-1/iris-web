@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPages';
 import { Landing } from './pages/Landing';
 import { ProjectsProvider } from './data/ProjectsContext';
+import { I18nProvider } from './i18n';
 
 function RequireAuth() {
   const { status } = useAuth();
@@ -37,7 +38,7 @@ function TitleSync() {
 
 export function App() {
   return (
-    <AuthProvider><UIProvider><ProjectsProvider>
+    <I18nProvider><AuthProvider><UIProvider><ProjectsProvider>
       <TitleSync />
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -72,6 +73,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       <AuthenticatedOverlays />
-    </ProjectsProvider></UIProvider></AuthProvider>
+    </ProjectsProvider></UIProvider></AuthProvider></I18nProvider>
   );
 }

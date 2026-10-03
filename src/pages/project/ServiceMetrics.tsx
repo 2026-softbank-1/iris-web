@@ -17,6 +17,18 @@ import {
 } from '../../data/metricsModel';
 import type { Service } from '../../data/mock';
 import { useServiceMetrics } from '../../data/useServiceMetrics';
+import { useI18n, type MessageKey } from '../../i18n';
+
+type T = ReturnType<typeof useI18n>['t'];
+
+// METRIC_RANGES 의 영어 라벨 → 번역 키. 모르는 라벨은 그대로 보여준다.
+const RANGE_KEYS: Record<string, MessageKey> = {
+  'Last 15 min': 'service.metrics.range.15m',
+  'Last 1 hour': 'service.metrics.range.1h',
+  'Last 6 hours': 'service.metrics.range.6h',
+  'Last 1 day': 'service.metrics.range.1d',
+  'Last 7 days': 'service.metrics.range.7d',
+};
 
 const CHART_HEIGHT = 299;
 const NETWORK_HEIGHT = 268;
@@ -132,12 +144,13 @@ function LegendToggle({ label, color, on, title, onClick }: { label: string; col
 }
 
 function EmptyMetric({ title, what, tall }: { title: string; what: string; tall?: boolean }) {
+  const { t } = useI18n();
   return (
     <div className="metric-card flush">
       <p className="metric-title">{title}</p>
       <div className="metric-empty" style={{ minHeight: tall ? 300 : 260 }}>
-        <p className="metric-empty-title">No {what} metrics available</p>
-        <p className="metric-empty-sub">They will show up here once your service starts receiving traffic</p>
+        <p className="metric-empty-title">{t('service.metrics.none', { what })}</p>
+        <p className="metric-empty-sub">{t('service.metrics.noneSub')}</p>
       </div>
     </div>
   );
@@ -156,15 +169,13 @@ function MetricMessage({ title, sub, minHeight = 260 }: { title: string; sub?: s
 type MetricsView = ReturnType<typeof useServiceMetrics>;
 
 /** 카드가 차트 대신 보여줄 안내. 차트를 그릴 수 있으면 null. */
-function messageFor(view: MetricsView, what: string, hasData: boolean, error: string | undefined) {
-  if (!view.hasTarget) return { title: "Metrics aren't available yet", sub: "This service isn't deployed to a target yet" };
+function messageFor(view: MetricsView, what: string, hasData: boolean, error: string | undefined, t: T) {
+  if (!view.hasTarget) return { title: t('service.metrics.notYet'), sub: t('service.metrics.notDeployed') };
   if (hasData && view.window) return null;
-  if (view.loading) return { title: 'Loading metrics…' };
-  if (error) return { title: `Couldn't load ${what} metrics`, sub: error };
-  return { title: `No ${what} metrics available`, sub: 'Nothing was recorded for this time range yet' };
+  if (view.loading) return { title: t('service.metrics.loading') };
+  if (error) return { title: t('service.metrics.loadError', { what }), sub: error };
+  return { title: t('service.metrics.none', { what }), sub: t('service.metrics.noneInRange') };
 }
-
-const REPLICAS_UNAVAILABLE = "Per-replica metrics aren't available yet";
 
 /** CPU·Memory 카드. 범례의 Sum·Replicas 로 합계 한 줄과 Pod 별 선을 켜고 끈다. */
 function ResourceCard({
@@ -190,6 +201,7 @@ function ResourceCard({
   onToggleSum: () => void;
   onToggleReplicas: () => void;
 }) {
+  const { t } = useI18n();
   const sum = useMemo(() => sumPoints(view.total.data, metric), [view.total.data, metric]);
   const replicas = useMemo(() => replicaLines(view.pods.data, metric).filter((l) => l.points.length > 0), [view.pods.data, metric]);
   // 서버가 groupBy 를 모르면(구버전) 합계만 온다. 오류로 보지 않고 합계 한 줄로 그리고 Replicas 는 쓸 수 없는 것으로 보여준다.
@@ -205,15 +217,15 @@ function ResourceCard({
 
   const hasData = sum.length > 0 || (replicasShown && replicas.length > 0);
   const error = view.total.error ?? (replicasOn ? view.pods.error : undefined);
-  const message = messageFor(view, what, hasData, error);
+  const message = messageFor(view, what, hasData, error, t);
 
   return (
     <div className="metric-card">
       <div className="metric-head">
         <p className="metric-title">{title}</p>
         <div className="metric-legend">
-          <LegendToggle label="Sum" color={color} on={sumOn} onClick={onToggleSum} />
-          <LegendToggle label="Replicas" color="var(--fg)" on={replicasOn && !unsupported} title={replicasOn && unsupported ? REPLICAS_UNAVAILABLE : undefined} onClick={onToggleReplicas} />
+          <LegendToggle label={t('service.metrics.sum')} color={color} on={sumOn} onClick={onToggleSum} />
+          <LegendToggle label={t('service.metrics.replicas')} color="var(--fg)" on={replicasOn && !unsupported} title={replicasOn && unsupported ? t('service.metrics.replicasUnavailable') : undefined} onClick={onToggleReplicas} />
         </div>
       </div>
       {replicasShown && replicas.length > 0 && (
@@ -227,13 +239,14 @@ function ResourceCard({
         </div>
       )}
       {!message && error && <p className="metric-note">{error}</p>}
-      {message ? <MetricMessage {...message} /> : <LineChart lines={lines} kind={kind} span={view.window!} label={`${title} over time`} />}
+      {message ? <MetricMessage {...message} /> : <LineChart lines={lines} kind={kind} span={view.window!} label={t('service.metrics.overTime', { title })} />}
     </div>
   );
 }
 
 /** Pod 의 네트워크 rate. 공용 트래픽만 따로 가른 값이 아니다. */
 function NetworkCard({ view }: { view: MetricsView }) {
+  const { t } = useI18n();
   const egress = useMemo(() => sumPoints(view.total.data, 'network_transmit'), [view.total.data]);
   const ingress = useMemo(() => sumPoints(view.total.data, 'network_receive'), [view.total.data]);
   const lines = useMemo<ChartLine[]>(
@@ -243,12 +256,12 @@ function NetworkCard({ view }: { view: MetricsView }) {
     ],
     [egress, ingress],
   );
-  const message = messageFor(view, 'network', egress.length > 0 || ingress.length > 0, view.total.error);
+  const message = messageFor(view, t('service.metrics.what.network'), egress.length > 0 || ingress.length > 0, view.total.error, t);
 
   return (
     <div className="metric-card flush">
       <div className="metric-head">
-        <p className="metric-title">Public Network Traffic</p>
+        <p className="metric-title">{t('service.metrics.network')}</p>
       </div>
       {!message && view.total.error && <p className="metric-note">{view.total.error}</p>}
       <div className="metric-chart-300">
@@ -256,15 +269,15 @@ function NetworkCard({ view }: { view: MetricsView }) {
           <MetricMessage {...message} minHeight={NETWORK_HEIGHT} />
         ) : (
           <>
-            <LineChart height={NETWORK_HEIGHT} lines={lines} kind="rate" span={view.window!} label="Public Network Traffic over time" />
+            <LineChart height={NETWORK_HEIGHT} lines={lines} kind="rate" span={view.window!} label={t('service.metrics.overTime', { title: t('service.metrics.network') })} />
             <div className="metric-legend bottom">
               <div className="metric-legend-item static" style={{ color: EGRESS_COLOR }}>
                 <span className="metric-swatch" style={{ background: EGRESS_COLOR, borderColor: EGRESS_COLOR }} />
-                <span className="metric-legend-label">Egress</span>
+                <span className="metric-legend-label">{t('service.metrics.egress')}</span>
               </div>
               <div className="metric-legend-item static">
                 <span className="metric-swatch" style={{ background: INGRESS_COLOR, borderColor: INGRESS_COLOR }} />
-                <span className="metric-legend-label">Ingress</span>
+                <span className="metric-legend-label">{t('service.metrics.ingress')}</span>
               </div>
             </div>
           </>
@@ -275,7 +288,9 @@ function NetworkCard({ view }: { view: MetricsView }) {
 }
 
 export function ServiceMetrics({ service }: { service: Service }) {
+  const { t } = useI18n();
   const [layout, setLayout] = useState<'grid' | 'rows'>('grid');
+  const rangeLabel = (label: string) => (RANGE_KEYS[label] ? t(RANGE_KEYS[label]) : label);
   const [range, setRange] = useState(0);
   const [live, setLive] = useState(true);
   const [sum, setSum] = useState({ cpu: true, memory: true });
@@ -306,7 +321,7 @@ export function ServiceMetrics({ service }: { service: Service }) {
             <div className="tool-icon dim">
               <Clock size={16} />
             </div>
-            <span>{METRIC_RANGES[range].label}</span>
+            <span>{rangeLabel(METRIC_RANGES[range].label)}</span>
           </button>
           <Popover anchor={rangePop.anchor} onClose={rangePop.close} align="end" width={180}>
             {METRIC_RANGES.map((r, i) => (
@@ -320,11 +335,11 @@ export function ServiceMetrics({ service }: { service: Service }) {
                   rangePop.close();
                 }}
               >
-                {r.label}
+                {rangeLabel(r.label)}
               </button>
             ))}
           </Popover>
-          <button type="button" title={live ? 'Pause live updates' : 'Resume live updates'} className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)}>
+          <button type="button" title={live ? t('service.metrics.pause') : t('service.metrics.resume')} className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)}>
             <div className="tool-icon">{live ? <Pause size={16} /> : <Play size={16} />}</div>
           </button>
         </div>
@@ -343,8 +358,8 @@ export function ServiceMetrics({ service }: { service: Service }) {
           onToggleReplicas={() => toggle(setReplicas, 'cpu')}
         />
         <ResourceCard
-          title="Memory"
-          what="memory"
+          title={t('service.metrics.memory')}
+          what={t('service.metrics.what.memory')}
           metric="memory"
           kind="bytes"
           color="var(--primary)"
@@ -355,9 +370,9 @@ export function ServiceMetrics({ service }: { service: Service }) {
           onToggleReplicas={() => toggle(setReplicas, 'memory')}
         />
         <NetworkCard view={view} />
-        <EmptyMetric title="Requests" what="request" tall />
-        <EmptyMetric title="Request Error Rate" what="error rate" />
-        <EmptyMetric title="Response Time" what="response time" />
+        <EmptyMetric title={t('service.metrics.requests')} what={t('service.metrics.what.request')} tall />
+        <EmptyMetric title={t('service.metrics.errorRate')} what={t('service.metrics.what.errorRate')} />
+        <EmptyMetric title={t('service.metrics.responseTime')} what={t('service.metrics.what.responseTime')} />
       </div>
     </div>
   );

@@ -86,7 +86,7 @@
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.12);
 
-  --fg: #ffffff;
+  --fg: var(--bg);
   --fg-2: #f8f7f5;
   --fg-muted: #a8a29a;
   --fg-subtle: #8c867d;
@@ -650,4 +650,20 @@ kbd {
   color: var(--green-soft);
   background: var(--green-bg);
   border-color: var(--green-dim);
+}
+
+/* Language menu: narrow; current = amber fill, hover = lighter amber */
+.lang-menu {
+  min-width: 0;
+}
+
+.lang-menu .menu-item:hover {
+  background: color-mix(in srgb, var(--primary-bg) 55%, transparent);
+  color: var(--primary-text);
+}
+
+.lang-menu .menu-item[data-active='true'] {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font-weight: 600;
 }

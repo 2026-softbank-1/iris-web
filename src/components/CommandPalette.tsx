@@ -4,6 +4,7 @@ import {
   Clock,
   FolderKanban,
   Globe,
+  Languages,
   LayoutTemplate,
   Palette,
   Plus,
@@ -18,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { toggleTheme } from '../lib/theme';
+import { LANGS, useI18n, type Lang } from '../i18n';
 import { CreateDialog } from './CreateDialog';
 import { Dialog, useUI } from './ui';
 
@@ -31,9 +33,15 @@ interface Cmd {
   keywords?: string;
 }
 
+const nextLang = (lang: Lang) => {
+  const codes = Object.keys(LANGS) as Lang[];
+  return codes[(codes.indexOf(lang) + 1) % codes.length];
+};
+
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, toast } = useUI();
   const { projects } = useProjects();
+  const { t, lang, setLang } = useI18n();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -67,21 +75,22 @@ export function CommandPalette() {
 
   const base: Cmd[] = useMemo(
     () => [
-      { id: 'new-project', label: 'New Project', icon: Plus, group: 'Dashboard', shortcut: ['⌘', '/'], run: () => (close(), setCreateOpen(true)) },
-      { id: 'new-ws', label: 'New Workspace', icon: Briefcase, group: 'Dashboard', run: () => (close(), toast('Workspaces are not available yet')) },
-      { id: 'templates', label: 'Go to Templates', icon: LayoutTemplate, group: 'General', run: go('/workspace/templates') },
+      { id: 'new-project', label: t('cmd.newProject'), icon: Plus, group: t('cmd.group.dashboard'), shortcut: ['⌘', '/'], run: () => (close(), setCreateOpen(true)) },
+      { id: 'new-ws', label: t('cmd.newWorkspace'), icon: Briefcase, group: t('cmd.group.dashboard'), run: () => (close(), toast(t('cmd.toast.workspaces'))) },
+      { id: 'templates', label: t('cmd.templates'), icon: LayoutTemplate, group: t('cmd.group.general'), run: go('/workspace/templates') },
       // Usage is disabled for now (non-MVP)
       // { id: 'usage', label: 'Go to Usage', icon: ChartNoAxesColumn, group: 'General', run: go('/workspace/usage') },
-      { id: 'search-projects', label: 'Search Projects...', icon: FolderKanban, group: 'General', run: () => setQ('project ') },
-      { id: 'search-services', label: 'Search Services...', icon: Box, group: 'General', run: () => setQ('service ') },
-      { id: 'account', label: 'Account', icon: User, group: 'General', run: () => (close(), toast('Account settings are not available yet')) },
-      { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toggleTheme()) },
-      { id: 'utils', label: 'Utilities', icon: Wrench, group: 'General', run: () => (close(), toast('Utilities are not available yet')) },
-      { id: 'region', label: 'Update Preferred Region', icon: Globe, group: 'General', run: () => (close(), toast('Preferred region: US West')) },
-      { id: 'time', label: 'Time', icon: Clock, group: 'Internationalization', run: () => (close(), toast('Times are shown in GMT+9')) },
+      { id: 'search-projects', label: t('cmd.searchProjects'), icon: FolderKanban, group: t('cmd.group.general'), run: () => setQ('project ') },
+      { id: 'search-services', label: t('cmd.searchServices'), icon: Box, group: t('cmd.group.general'), run: () => setQ('service ') },
+      { id: 'account', label: t('cmd.account'), icon: User, group: t('cmd.group.general'), run: () => (close(), toast(t('cmd.toast.account'))) },
+      { id: 'theme', label: t('cmd.theme'), icon: Palette, group: t('cmd.group.general'), run: () => (close(), toggleTheme()) },
+      { id: 'utils', label: t('cmd.utilities'), icon: Wrench, group: t('cmd.group.general'), run: () => (close(), toast(t('cmd.toast.utilities'))) },
+      { id: 'region', label: t('cmd.region'), icon: Globe, group: t('cmd.group.general'), run: () => (close(), toast(t('cmd.toast.region'))) },
+      { id: 'time', label: t('cmd.time'), icon: Clock, group: t('cmd.group.i18n'), run: () => (close(), toast(t('cmd.toast.time'))) },
+      { id: 'language', label: t('cmd.language'), icon: Languages, group: t('cmd.group.i18n'), run: () => (close(), setLang(nextLang(lang))) },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [t, lang],
   );
 
   const items: Cmd[] = useMemo(() => {
@@ -94,19 +103,19 @@ export function CommandPalette() {
     if (!serviceMode) {
       for (const p of projects) {
         if (!term || p.name.toLowerCase().includes(term))
-          out.push({ id: 'p-' + p.id, label: p.name, icon: FolderKanban, group: 'Projects', run: go(`/project/${p.id}`) });
+          out.push({ id: 'p-' + p.id, label: p.name, icon: FolderKanban, group: t('cmd.group.projects'), run: go(`/project/${p.id}`) });
       }
     }
     if (!projectMode) {
       for (const p of projects)
         for (const s of p.services)
           if (!term || s.name.toLowerCase().includes(term))
-            out.push({ id: 's-' + s.id, label: `${s.name}`, icon: Box, group: `Services`, keywords: p.name, run: go(`/project/${p.id}/service/${s.id}`) });
+            out.push({ id: 's-' + s.id, label: `${s.name}`, icon: Box, group: t('cmd.group.services'), keywords: p.name, run: go(`/project/${p.id}/service/${s.id}`) });
     }
     if (!projectMode && !serviceMode) out.push(...base.filter((c) => c.label.toLowerCase().includes(query)));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, base, projects]);
+  }, [q, base, projects, t]);
 
   useEffect(() => setIdx(0), [q]);
 
@@ -139,7 +148,7 @@ export function CommandPalette() {
     <>
     <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     <Dialog open={paletteOpen} onClose={close} className="cmdk" label="Enter a command">
-      <h3 className="sr-only">Enter a command</h3>
+      <h3 className="sr-only">{t('cmd.heading')}</h3>
       <button type="button" className="sr-only" onClick={close}>
         Dismiss
       </button>
@@ -151,7 +160,7 @@ export function CommandPalette() {
           id="cmdk-input"
           autoFocus
           className="cmdk-input"
-          placeholder="What can we help with?"
+          placeholder={t('cmd.placeholder')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKeyDown}
@@ -162,7 +171,7 @@ export function CommandPalette() {
       <div className="cmdk-list" role="listbox" ref={listRef}>
         {groups.length === 0 && (
           <div className="cmdk-empty">
-            <Search size={16} /> No results for “{q}”
+            <Search size={16} /> {t('cmd.noResults', { q })}
           </div>
         )}
         {groups.map(([g, cmds]) => (

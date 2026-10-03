@@ -13,7 +13,7 @@
 }
 
 .dash-new {
-  width: 80px;
+  min-width: 80px;
 }
 
 .dash-grid {

@@ -17,17 +17,18 @@ import { useUI } from '../../components/ui';
 import { useProject, useProjects } from '../../data/ProjectsContext';
 import { describeError } from '../../lib/api';
 import type { ProjectUpdate } from '../../lib/endpoints';
+import { useI18n, type MessageKey } from '../../i18n';
 
-const NAV: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: '', label: 'General', icon: Settings },
-  { id: 'usage', label: 'Usage', icon: ChartNoAxesColumn },
-  { id: 'environments', label: 'Environments', icon: Server },
-  { id: 'variables', label: 'Shared Variables', icon: Globe },
-  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-  { id: 'feature-flags', label: 'Feature Flags', icon: Flag },
-  { id: 'tokens', label: 'Tokens', icon: Coins },
-  { id: 'integrations', label: 'Integrations', icon: Package },
-  { id: 'danger', label: 'Danger', icon: TriangleAlert },
+const NAV: { id: string; label: MessageKey; icon: LucideIcon }[] = [
+  { id: '', label: 'project.settings.general', icon: Settings },
+  { id: 'usage', label: 'project.settings.usage', icon: ChartNoAxesColumn },
+  { id: 'environments', label: 'project.environments', icon: Server },
+  { id: 'variables', label: 'project.settings.variables', icon: Globe },
+  { id: 'webhooks', label: 'project.settings.webhooks', icon: Webhook },
+  { id: 'feature-flags', label: 'project.settings.featureFlags', icon: Flag },
+  { id: 'tokens', label: 'project.settings.tokens', icon: Coins },
+  { id: 'integrations', label: 'project.settings.integrations', icon: Package },
+  { id: 'danger', label: 'project.settings.danger', icon: TriangleAlert },
 ];
 
 export function ProjectSettings() {
@@ -37,6 +38,7 @@ export function ProjectSettings() {
   const { updateProject, removeProject } = useProjects();
   const navigate = useNavigate();
   const { toast } = useUI();
+  const { t } = useI18n();
   const [name, setName] = useState(project.name);
   const [desc, setDesc] = useState(project.description ?? '');
   const [busy, setBusy] = useState(false);
@@ -52,7 +54,7 @@ export function ProjectSettings() {
     setBusy(true);
     try {
       await updateProject(project.id, changes);
-      toast('Project updated');
+      toast(t('project.settings.updated'));
     } catch (e) {
       toast(describeError(e));
     } finally {
@@ -64,7 +66,7 @@ export function ProjectSettings() {
     setBusy(true);
     try {
       await removeProject(project.id);
-      toast('Project deleted');
+      toast(t('project.settings.deleted'));
       navigate('/dashboard', { replace: true });
     } catch (e) {
       toast(describeError(e));
@@ -77,7 +79,7 @@ export function ProjectSettings() {
     <div className="proj-page-region">
       <div className="proj-frame psettings">
         <header className="ps-head">
-          <p>Project Settings</p>
+          <p>{t('project.settings.title')}</p>
         </header>
         <div className="ps-scroll">
           <div className="ps-layout">
@@ -85,7 +87,7 @@ export function ProjectSettings() {
               {NAV.map((n) => (
                 <NavLink key={n.id} to={n.id ? `${base}/${n.id}` : base} end className={({ isActive }) => `ps-nav-item${isActive ? ' active' : ''}`}>
                   <n.icon size={20} />
-                  <p>{n.label}</p>
+                  <p>{t(n.label)}</p>
                 </NavLink>
               ))}
             </nav>
@@ -93,65 +95,69 @@ export function ProjectSettings() {
               {section === '' && (
                 <>
                   <section className="ps-section">
-                    <h4>Project Info</h4>
-                    <label className="ps-label">Name</label>
+                    <h4>{t('project.settings.info')}</h4>
+                    <label className="ps-label">{t('project.settings.name')}</label>
                     <input className="input ps-input" value={name} onChange={(e) => setName(e.target.value)} />
-                    <label className="ps-label">Description</label>
-                    <input className="input ps-input" placeholder="Optional description of this project" value={desc} onChange={(e) => setDesc(e.target.value)} />
-                    <label className="ps-label">Project ID</label>
+                    <label className="ps-label">{t('project.settings.description')}</label>
+                    <input className="input ps-input" placeholder={t('project.settings.descPlaceholder')} value={desc} onChange={(e) => setDesc(e.target.value)} />
+                    <label className="ps-label">{t('project.settings.projectId')}</label>
                     <pre className="ps-id">
                       <span className="mono">{project.id}</span>
                       <button
                         type="button"
                         className="icon-btn"
-                        aria-label="Copy project ID"
+                        aria-label={t('project.settings.copyId')}
                         onClick={() => {
                           navigator.clipboard?.writeText(project.id);
-                          toast('Project ID copied');
+                          toast(t('project.settings.idCopied'));
                         }}
                       >
                         <Copy size={16} />
                       </button>
                     </pre>
                     <button type="button" className="btn btn-primary ps-update" disabled={!dirty || !name.trim() || busy} onClick={() => void save()}>
-                      Update
+                      {t('project.settings.update')}
                     </button>
                   </section>
                   <section className="ps-section">
-                    <h4>Visibility</h4>
+                    <h4>{t('project.settings.visibility')}</h4>
                     <p className="ps-p">
-                      This project is <b>PRIVATE</b>. Only project members can see it.
+                      {t('project.settings.visibilityPre')}
+                      <b>{t('project.settings.private')}</b>
+                      {t('project.settings.visibilityPost')}
                     </p>
-                    <button type="button" className="btn btn-primary-outline ps-btn" onClick={() => toast('Visibility change is mocked')}>
-                      Change visibility
+                    <button type="button" className="btn btn-primary-outline ps-btn" onClick={() => toast(t('project.settings.visibilityToast'))}>
+                      {t('project.settings.changeVisibility')}
                     </button>
                   </section>
                   <section className="ps-section">
-                    <h4>Generate Template from Project</h4>
-                    <p className="ps-p">Turn this project into a one-click template that others can deploy.</p>
-                    <button type="button" className="btn btn-outline ps-btn" onClick={() => toast('Template generation is mocked')}>
-                      Create Template
+                    <h4>{t('project.settings.templateTitle')}</h4>
+                    <p className="ps-p">{t('project.settings.templateDesc')}</p>
+                    <button type="button" className="btn btn-outline ps-btn" onClick={() => toast(t('project.settings.templateToast'))}>
+                      {t('project.settings.createTemplate')}
                     </button>
                   </section>
                 </>
               )}
               {section === 'danger' && (
                 <section className="ps-section">
-                  <h4>Danger</h4>
-                  <p className="ps-p">Deleting the project removes every service in it.</p>
+                  <h4>{t('project.settings.danger')}</h4>
+                  <p className="ps-p">{t('project.settings.dangerDesc')}</p>
                   <label className="ps-label">
-                    Type <b>{project.name}</b> to confirm
+                    {t('project.settings.confirmPre')}
+                    <b>{project.name}</b>
+                    {t('project.settings.confirmPost')}
                   </label>
                   <input className="input ps-input" value={confirmName} onChange={(e) => setConfirmName(e.target.value)} />
                   <button type="button" className="btn btn-danger ps-btn" disabled={confirmName !== project.name || busy} onClick={() => void remove()}>
-                    Delete project
+                    {t('project.settings.deleteProject')}
                   </button>
                 </section>
               )}
               {section !== '' && section !== 'danger' && (
                 <section className="ps-section">
-                  <h4>{NAV.find((n) => n.id === section)?.label}</h4>
-                  <p className="ps-p">Nothing configured here yet.</p>
+                  <h4>{t(NAV.find((n) => n.id === section)!.label)}</h4>
+                  <p className="ps-p">{t('project.settings.nothingHere')}</p>
                 </section>
               )}
             </div>

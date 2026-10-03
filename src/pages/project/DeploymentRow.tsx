@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
 import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
 import { deploymentLabel } from '../../data/deploymentModel';
-import { fmtKstFull, timeAgo, type Deployment } from '../../data/mock';
+import { fmtKstFull, type Deployment } from '../../data/mock';
+import { formatAgo, useI18n } from '../../i18n';
 
 export function AuthorAvatar({ d }: { d: Deployment }) {
   return (
@@ -34,11 +35,12 @@ export function DeploymentActions({
 }) {
   const pop = usePopover();
   const { toast } = useUI();
+  const { t } = useI18n();
   return (
     <>
       <button
         type="button"
-        title="Deployment actions"
+        title={t('service.row.actions')}
         className={className}
         data-state={pop.isOpen ? 'open' : 'closed'}
         onClick={(e) => {
@@ -62,7 +64,7 @@ export function DeploymentActions({
               onRedeploy();
             }}
           >
-            <RotateCcw size={16} className="menu-icon" /> Redeploy
+            <RotateCcw size={16} className="menu-icon" /> {t('service.row.redeploy')}
           </button>
         )}
         {onRollback && (
@@ -75,7 +77,7 @@ export function DeploymentActions({
               onRollback();
             }}
           >
-            <Undo2 size={16} className="menu-icon" /> Roll back to this
+            <Undo2 size={16} className="menu-icon" /> {t('service.row.rollback')}
           </button>
         )}
         <button
@@ -85,10 +87,10 @@ export function DeploymentActions({
             e.stopPropagation();
             pop.close();
             navigator.clipboard?.writeText(deployment.id);
-            toast('Deployment ID copied');
+            toast(t('service.dp.idCopied'));
           }}
         >
-          <Copy size={16} className="menu-icon" /> Copy ID
+          <Copy size={16} className="menu-icon" /> {t('service.row.copyId')}
         </button>
       </Popover>
     </>
@@ -96,6 +98,7 @@ export function DeploymentActions({
 }
 
 export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onRedeploy?: () => void; onRollback?: () => void }) {
+  const { t, lang } = useI18n();
   const status = d.status.toLowerCase();
   return (
     <Link to={to} className={`dep-row-link ${variant}`}>
@@ -109,8 +112,8 @@ export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: D
             <div className="dep-text-col">
               <p className="dep-msg truncate">{d.message}</p>
               <p className="dep-meta">
-                <time title={fmtKstFull(d.createdAt)}>{timeAgo(d.createdAt)}</time>
-                {'  '}via{'  '}
+                <time title={fmtKstFull(d.createdAt)}>{formatAgo(d.createdAt, lang)}</time>
+                {'  '}{t('service.row.via')}{'  '}
                 <span>{d.via ?? 'GitHub'}</span>
               </p>
             </div>
@@ -119,7 +122,7 @@ export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: D
             <DeploymentActions deployment={d} onRedeploy={onRedeploy} onRollback={onRollback} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
-                <span>View details</span>
+                <span>{t('service.row.viewDetails')}</span>
               </span>
             </div>
           </div>

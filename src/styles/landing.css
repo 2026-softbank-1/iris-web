@@ -28,6 +28,12 @@
   color: var(--fg);
 }
 
+.landing-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .landing-header-link {
   font-size: 14px;
   font-weight: 500;
@@ -55,6 +61,8 @@
 }
 
 .landing-hero h1 {
+  min-height: 2.5em; /* two lines; translations should fit in two */
+  text-wrap: balance;
   margin: 0 0 16px;
   font-size: 44px;
   font-weight: 700;

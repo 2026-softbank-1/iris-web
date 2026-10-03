@@ -17,14 +17,16 @@ import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 import { getTheme, toggleTheme } from '../lib/theme';
+import { LanguageButton } from '../components/LanguageButton';
+import { useI18n, type MessageKey } from '../i18n';
 
-const SETTINGS_LINKS = [
-  { to: '/workspace/domains', label: 'Domains' },
-  { to: '/workspace/audit-logs', label: 'Audit Logs' },
-  { to: '/workspace/developer', label: 'Developer' },
-  { to: '/workspace/ssh-keys', label: 'SSH Keys' },
-  { to: '/workspace/earnings', label: 'Earnings' },
-  { to: '/workspace/referrals', label: 'Referrals' },
+const SETTINGS_LINKS: { to: string; label: MessageKey }[] = [
+  { to: '/workspace/domains', label: 'nav.domains' },
+  { to: '/workspace/audit-logs', label: 'nav.auditLogs' },
+  { to: '/workspace/developer', label: 'nav.developer' },
+  { to: '/workspace/ssh-keys', label: 'nav.sshKeys' },
+  { to: '/workspace/earnings', label: 'nav.earnings' },
+  { to: '/workspace/referrals', label: 'nav.referrals' },
 ];
 
 function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label: string; end?: boolean }) {
@@ -45,6 +47,7 @@ function AccountButton() {
   const auth = useAuth();
   const user = useSessionUser();
   const navigate = useNavigate();
+  const { t } = useI18n();
   return (
     <>
       <button type="button" className="account-btn" data-state={pop.isOpen ? 'open' : 'closed'} onClick={(e) => pop.toggle(e.currentTarget)}>
@@ -60,17 +63,17 @@ function AccountButton() {
         <div className="menu-label">@{user.login}</div>
         <button type="button" className="menu-item" onClick={pop.close}>
           <User size={16} className="menu-icon" />
-          Account Settings
+          {t('menu.account')}
         </button>
         <button type="button" className="menu-item" onClick={() => { pop.close(); toggleTheme(); }}>
           {getTheme() === 'dark' ? <Moon size={16} className="menu-icon" /> : <Sun size={16} className="menu-icon" />}
-          Theme
-          <span className="menu-right">{getTheme() === 'dark' ? 'Dark' : 'Light'}</span>
+          {t('menu.theme')}
+          <span className="menu-right">{t(getTheme() === 'dark' ? 'menu.themeDark' : 'menu.themeLight')}</span>
         </button>
         <div className="menu-sep" />
         <button type="button" className="menu-item" onClick={async () => { pop.close(); await auth.logout(); navigate('/login'); }}>
           <LogOut size={16} className="menu-icon" />
-          Logout
+          {t('menu.logout')}
         </button>
       </Popover>
     </>
@@ -79,6 +82,7 @@ function AccountButton() {
 
 export function WorkspaceLayout() {
   const location = useLocation();
+  const { t } = useI18n();
   const inSettings = SETTINGS_LINKS.some((l) => location.pathname.startsWith(l.to));
   const [settingsOpen, setSettingsOpen] = useState(inSettings);
   useEffect(() => {
@@ -99,7 +103,7 @@ export function WorkspaceLayout() {
           <div className="side-divider" />
           <div className="side-section">
             <nav className="side-nav">
-              <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label="Projects" />
+              <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label={t('nav.projects')} />
               <div className="side-divider inset" />
               {/* Usage is disabled for now (non-MVP) */}
               {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
@@ -108,7 +112,7 @@ export function WorkspaceLayout() {
                   <Settings size={16} />
                 </div>
                 <span className="side-btn-label">
-                  Settings
+                  {t('nav.settings')}
                   <div className="side-icon">{settingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
                 </span>
               </button>
@@ -120,7 +124,7 @@ export function WorkspaceLayout() {
                       {({ isActive }) => (
                         <div className={`side-item sub${isActive ? ' active' : ''}`}>
                           <span className="side-sub-spacer" />
-                          <span>{l.label}</span>
+                          <span>{t(l.label)}</span>
                         </div>
                       )}
                     </NavLink>
@@ -134,7 +138,7 @@ export function WorkspaceLayout() {
         <div className="ws-aside-bottom">
           <AccountButton />
         </div>
-        <button type="button" aria-label="Collapse sidebar" className="side-collapse">
+        <button type="button" aria-label={t('nav.collapse')} className="side-collapse">
           <div />
         </button>
       </aside>
@@ -142,6 +146,7 @@ export function WorkspaceLayout() {
         <header className="ws-header">
           <div className="ws-header-left" />
           <div className="ws-header-actions">
+            <LanguageButton />
             <NotificationsButton />
           </div>
         </header>

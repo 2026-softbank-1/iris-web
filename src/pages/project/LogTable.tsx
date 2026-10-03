@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Popover, usePopover } from '../../components/ui';
 import { fmtKst, fmtKstFull, type LogLine } from '../../data/mock';
+import { useI18n } from '../../i18n';
 
 function LevelBar({ level }: { level: LogLine['level'] }) {
   return (
@@ -99,7 +100,7 @@ export function LogTable({
   range,
   kind,
   explorerHref,
-  emptyLabel = 'No logs in this time range',
+  emptyLabel,
 }: {
   lines: LogLine[];
   range?: { start: string; end: string };
@@ -107,6 +108,7 @@ export function LogTable({
   explorerHref?: string;
   emptyLabel?: string;
 }) {
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const [wrap, setWrap] = useState(true);
   const [showAttrs, setShowAttrs] = useState(true);
@@ -145,7 +147,8 @@ export function LogTable({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const dataLabel = kind === 'build' ? 'Message' : 'Data';
+  const dataLabel = kind === 'build' ? t('service.logs.message') : t('service.logs.data');
+  const searchLabel = kind === 'build' ? t('service.logs.searchBuild') : t('service.logs.filter');
 
   return (
     <div className="logs">
@@ -156,10 +159,10 @@ export function LogTable({
               <Search size={16} />
             </div>
             <div className="logs-filter-field">
-              {!q && <span className="logs-filter-ph">{kind === 'build' ? 'Search build logs' : 'Filter and search logs'}</span>}
+              {!q && <span className="logs-filter-ph">{searchLabel}</span>}
               <textarea
                 ref={inputRef}
-                aria-label={kind === 'build' ? 'Search build logs' : 'Filter and search logs'}
+                aria-label={searchLabel}
                 rows={1}
                 value={q}
                 spellCheck={false}
@@ -167,30 +170,30 @@ export function LogTable({
               />
             </div>
             {!q && (
-              <div className="logs-filter-kbd" title="Focus input" onClick={() => inputRef.current?.focus()}>
+              <div className="logs-filter-kbd" title={t('service.logs.focus')} onClick={() => inputRef.current?.focus()}>
                 <span>/</span>
               </div>
             )}
           </div>
-          <button type="button" title={kind === 'build' ? 'Download logs' : 'Options'} className="logs-tool-btn" onClick={(e) => optionsPop.toggle(e.currentTarget)}>
+          <button type="button" title={kind === 'build' ? t('service.logs.download') : t('service.logs.options')} className="logs-tool-btn" onClick={(e) => optionsPop.toggle(e.currentTarget)}>
             <div className="tool-icon">
               <Download size={14} />
             </div>
           </button>
           <Popover anchor={optionsPop.anchor} onClose={optionsPop.close} align="end" width={220}>
-            <div className="menu-label">Options</div>
+            <div className="menu-label">{t('service.logs.options')}</div>
             <button type="button" className="menu-item" onClick={() => setWrap((v) => !v)}>
-              Wrap lines
+              {t('service.logs.wrap')}
               <span className="switch menu-right" role="switch" aria-checked={wrap} />
             </button>
             <button type="button" className="menu-item" onClick={() => setShowAttrs((v) => !v)}>
-              Show attributes
+              {t('service.logs.attrs')}
               <span className="switch menu-right" role="switch" aria-checked={showAttrs} />
             </button>
           </Popover>
           {kind !== 'build' && explorerHref && (
             <div>
-              <Link to={explorerHref} title="Open in Log Explorer" className="logs-tool-btn">
+              <Link to={explorerHref} title={t('service.logs.explorer')} className="logs-tool-btn">
                 <div className="tool-icon">
                   <ExternalLink size={14} />
                 </div>
@@ -204,7 +207,7 @@ export function LogTable({
           <div role="rowgroup" className="logs-head">
             <div role="row" className="logs-row head">
               <div role="columnheader" className="logs-th time">
-                Time (GMT+9)
+                {t('service.logs.timeCol')}
                 <div className="logs-resize">
                   <div />
                 </div>
@@ -213,7 +216,7 @@ export function LogTable({
                 {dataLabel}
               </div>
               <div role="columnheader" className="logs-th settings">
-                <button type="button" title="Layout settings" className="logs-layout-btn" onClick={(e) => layoutPop.toggle(e.currentTarget)}>
+                <button type="button" title={t('service.logs.layout')} className="logs-layout-btn" onClick={(e) => layoutPop.toggle(e.currentTarget)}>
                   <div className="tool-icon">
                     <Settings size={14} />
                   </div>
@@ -222,9 +225,9 @@ export function LogTable({
             </div>
           </div>
           <Popover anchor={layoutPop.anchor} onClose={layoutPop.close} align="end" width={200}>
-            <div className="menu-label">Columns</div>
+            <div className="menu-label">{t('service.logs.columns')}</div>
             <button type="button" className="menu-item" data-active="true">
-              Time
+              {t('service.logs.time')}
             </button>
             <button type="button" className="menu-item" data-active="true">
               {dataLabel}
@@ -232,8 +235,8 @@ export function LogTable({
           </Popover>
           <div className="logs-scroll" ref={scrollRef}>
             <div role="rowgroup" className={`logs-body kind-${kind}${wrap ? '' : ' nowrap'}`}>
-              {range && !q && <RangeMarker label="You reached the start of the range" time={range.start} />}
-              {filtered.length === 0 && <div className="logs-empty">{q ? `No logs match “${q}”` : emptyLabel}</div>}
+              {range && !q && <RangeMarker label={t('service.logs.rangeStart')} time={range.start} />}
+              {filtered.length === 0 && <div className="logs-empty">{q ? t('service.logs.noMatch', { q }) : (emptyLabel ?? t('service.logs.empty'))}</div>}
               {filtered.map((l, i) => (
                 <div role="row" key={i} className={`logs-row level-${l.level}${kind === 'build' && l.step ? ' step' : ''}`}>
                   <div role="cell" className="logs-td time">
@@ -264,14 +267,14 @@ export function LogTable({
                   </div>
                 </div>
               ))}
-              {range && !q && <RangeMarker label="You reached the end of the range" time={range.end} />}
+              {range && !q && <RangeMarker label={t('service.logs.rangeEnd')} time={range.end} />}
             </div>
           </div>
           <div className="logs-jump">
-            <button type="button" className="logs-jump-btn" aria-label="Scroll to top" onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <button type="button" className="logs-jump-btn" aria-label={t('service.logs.top')} onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
               <ArrowUp size={16} />
             </button>
-            <button type="button" className="logs-jump-btn" aria-label="Scroll to bottom" onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}>
+            <button type="button" className="logs-jump-btn" aria-label={t('service.logs.bottom')} onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}>
               <ArrowDown size={16} />
             </button>
           </div>

@@ -39,6 +39,7 @@ import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
 import { useProject, useProjects } from '../../data/ProjectsContext';
 import { useDeployments } from '../../data/useDeployments';
+import { useI18n, type MessageKey } from '../../i18n';
 import { DeploymentPane } from './DeploymentPane';
 import { ServicePane } from './ServicePane';
 
@@ -51,6 +52,7 @@ type ServiceNodeType = Node<ServiceNodeData, 'service'>;
 
 function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
   const { service, selected } = data;
+  const { t } = useI18n();
   const online = service.state === 'online';
   return (
     <div className="svc-node-wrap">
@@ -79,7 +81,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               </div>
             </div>
           ) : (
-            <p className="svc-node-offline">{service.deploying ? 'Deploying' : service.state === 'crashed' ? 'Deployment failed' : 'Service is offline'}</p>
+            <p className="svc-node-offline">{service.deploying ? 'Deploying' : service.state === 'crashed' ? t('project.canvas.deployFailed') : t('project.canvas.offline')}</p>
           )}
         </a>
       </span>
@@ -104,21 +106,22 @@ function ToolButton({ title, onClick, children, disabled }: { title: string; onC
   );
 }
 
-const ADD_OPTIONS = [
-  { icon: FolderGit2, label: 'GitHub Repository' },
-  { icon: Database, label: 'Database' },
-  { icon: LayoutTemplate, label: 'Template' },
-  { icon: Container, label: 'Docker Image' },
-  { icon: SquareFunction, label: 'Function' },
-  { icon: HardDrive, label: 'Bucket' },
-  { icon: HardDrive, label: 'Volume' },
-  { icon: Box, label: 'Empty Service' },
+const ADD_OPTIONS: { icon: typeof Box; label: MessageKey }[] = [
+  { icon: FolderGit2, label: 'project.canvas.add.github' },
+  { icon: Database, label: 'project.canvas.add.database' },
+  { icon: LayoutTemplate, label: 'project.canvas.add.template' },
+  { icon: Container, label: 'project.canvas.add.docker' },
+  { icon: SquareFunction, label: 'project.canvas.add.function' },
+  { icon: HardDrive, label: 'project.canvas.add.bucket' },
+  { icon: HardDrive, label: 'project.canvas.add.volume' },
+  { icon: Box, label: 'project.canvas.add.empty' },
 ];
 
 function Canvas({ project, selectedId }: { project: Project; selectedId?: string }) {
   const navigate = useNavigate();
   const rf = useReactFlow();
   const { toast } = useUI();
+  const { t } = useI18n();
   const [createOpen, setCreateOpen] = useState(false);
   const addPop = usePopover();
   const settingsPop = usePopover();
@@ -194,36 +197,36 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
     >
       <Background variant={BackgroundVariant.Dots} gap={24} size={1} offset={0.5} color="var(--dot)" />
       <Panel position="bottom-left" className="toolbar-left">
-        <div role="toolbar" aria-label="Canvas options" className="toolbar">
-          <ToolButton title="Canvas settings" onClick={(e) => settingsPop.toggle(e.currentTarget)}>
+        <div role="toolbar" aria-label={t('project.canvas.options')} className="toolbar">
+          <ToolButton title={t('project.canvas.settings')} onClick={(e) => settingsPop.toggle(e.currentTarget)}>
             <Grip size={16} />
           </ToolButton>
-          <div role="group" aria-label="canvas action" className="tool-group">
-            <ToolButton title="Zoom in" onClick={() => rf.zoomIn({ duration: 150 })}>
+          <div role="group" aria-label={t('project.canvas.action')} className="tool-group">
+            <ToolButton title={t('project.canvas.zoomIn')} onClick={() => rf.zoomIn({ duration: 150 })}>
               <Plus size={16} />
             </ToolButton>
-            <ToolButton title="Zoom out" onClick={() => rf.zoomOut({ duration: 150 })}>
+            <ToolButton title={t('project.canvas.zoomOut')} onClick={() => rf.zoomOut({ duration: 150 })}>
               <Minus size={16} />
             </ToolButton>
-            <ToolButton title="Center canvas" onClick={() => rf.fitView({ duration: 200, minZoom: 1, maxZoom: 1 })}>
+            <ToolButton title={t('project.canvas.center')} onClick={() => rf.fitView({ duration: 200, minZoom: 1, maxZoom: 1 })}>
               <Expand size={16} />
             </ToolButton>
           </div>
-          <div role="group" aria-label="canvas action" className="tool-group">
-            <ToolButton title="Undo">
+          <div role="group" aria-label={t('project.canvas.action')} className="tool-group">
+            <ToolButton title={t('project.canvas.undo')}>
               <Undo size={16} />
             </ToolButton>
-            <ToolButton title="Redo">
+            <ToolButton title={t('project.canvas.redo')}>
               <Redo size={16} />
             </ToolButton>
           </div>
-          <ToolButton title="Visibility layers" onClick={(e) => layersPop.toggle(e.currentTarget)}>
+          <ToolButton title={t('project.canvas.layers')} onClick={(e) => layersPop.toggle(e.currentTarget)}>
             <Layers size={16} />
           </ToolButton>
         </div>
       </Panel>
       <Popover anchor={settingsPop.anchor} onClose={settingsPop.close} side="right" align="start" width={230}>
-        <div className="menu-label">Canvas settings</div>
+        <div className="menu-label">{t('project.canvas.settings')}</div>
         <button
           type="button"
           className="menu-item"
@@ -233,17 +236,17 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
             localStorage.setItem('ll:snap', v ? '1' : '0');
           }}
         >
-          <Grip size={16} className="menu-icon" /> Snap to grid
+          <Grip size={16} className="menu-icon" /> {t('project.canvas.snap')}
           <span className="switch menu-right" aria-checked={snap} role="switch" />
         </button>
         <button type="button" className="menu-item" onClick={() => rf.fitView({ duration: 200, maxZoom: 1 })}>
-          <Maximize size={16} className="menu-icon" /> Fit all services
+          <Maximize size={16} className="menu-icon" /> {t('project.canvas.fitAll')}
         </button>
       </Popover>
       <Popover anchor={layersPop.anchor} onClose={layersPop.close} side="right" align="end" width={230}>
-        <div className="menu-label">Visibility layers</div>
+        <div className="menu-label">{t('project.canvas.layers')}</div>
         <button type="button" className="menu-item" onClick={() => setShowDomains((v) => !v)}>
-          <Eye size={16} className="menu-icon" /> Public domains
+          <Eye size={16} className="menu-icon" /> {t('project.canvas.publicDomains')}
           <span className="switch menu-right" aria-checked={showDomains} role="switch" />
         </button>
       </Popover>
@@ -253,12 +256,12 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
             <div className="tool-icon">
               <Plus size={16} />
             </div>
-            <span>Create</span>
+            <span>{t('project.canvas.create')}</span>
           </button>
         </div>
       </Panel>
       <Popover anchor={addPop.anchor} onClose={addPop.close} align="end" width={260}>
-        <div className="menu-label">What would you like to create?</div>
+        <div className="menu-label">{t('project.canvas.whatCreate')}</div>
         {ADD_OPTIONS.map((o) => (
           <button
             key={o.label}
@@ -270,7 +273,7 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
             }}
           >
             <o.icon size={16} className="menu-icon" />
-            {o.label}
+            {t(o.label)}
           </button>
         ))}
         <div className="menu-sep" />
@@ -279,10 +282,10 @@ function Canvas({ project, selectedId }: { project: Project; selectedId?: string
           className="menu-item"
           onClick={() => {
             addPop.close();
-            toast('Compose import is not available yet');
+            toast(t('project.canvas.composeToast'));
           }}
         >
-          <FileCode2 size={16} className="menu-icon" /> Import from Compose
+          <FileCode2 size={16} className="menu-icon" /> {t('project.canvas.importCompose')}
         </button>
       </Popover>
     </ReactFlow>

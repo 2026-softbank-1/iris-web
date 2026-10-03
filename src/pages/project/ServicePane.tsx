@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
+import { useI18n, type MessageKey } from '../../i18n';
 import { apiStatusLabel, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
@@ -32,12 +33,12 @@ import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
 import { ServiceConsole } from './ServiceConsole';
 
-const TABS = [
-  { id: 'deployments', label: 'Deployments' },
-  { id: 'variables', label: 'Variables' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'console', label: 'Console' },
-  { id: 'settings', label: 'Settings' },
+const TABS: { id: string; label: MessageKey }[] = [
+  { id: 'deployments', label: 'service.tab.deployments' },
+  { id: 'variables', label: 'service.tab.variables' },
+  { id: 'metrics', label: 'service.tab.metrics' },
+  { id: 'console', label: 'service.tab.console' },
+  { id: 'settings', label: 'nav.settings' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -46,9 +47,10 @@ const TABS = [
 
 /** 배포 요청의 단계(대기·빌드·배포)와 단계별 소요 시간. 상세 API 에서 받는다. */
 function SuccessSteps({ service, deployment }: { service: Service; deployment: Deployment }) {
+  const { t } = useI18n();
   const { detail, error } = useDeploymentDetail(service.id, deployment.id);
   if (error) return <p className="st-muted">{error}</p>;
-  if (!detail) return <p className="st-muted">Loading…</p>;
+  if (!detail) return <p className="st-muted">{t('service.loading')}</p>;
   // 마지막 단계(성공·실패 등)는 끝난 상태라서 소요 시간이 없다. 진행하는 단계만 보여준다.
   const stages = detail.stages.filter((stage) => isDeploymentInProgress(stage.status));
   return (
@@ -65,6 +67,7 @@ function SuccessSteps({ service, deployment }: { service: Service; deployment: D
 }
 
 function DeploymentsTab({ project, service, deps }: { project: Project; service: Service; deps: DeploymentsApi }) {
+  const { t } = useI18n();
   const { busy, run } = useRunner();
   const active = deps.items.find((d) => d.status === 'ACTIVE');
   const building = deps.items.find((d) => d.isActive);
@@ -73,6 +76,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const base = `/project/${project.id}/service/${service.id}`;
+  const [repoPre, repoPost] = t('service.deployRepo').split('{repo}');
 
   return (
     <div className="deps">
@@ -93,14 +97,14 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                 <EyeOffIcon size={16} />
               </div>
               <Link to={`${base}/settings`} className="deps-unexposed">
-                Unexposed service
+                {t('service.unexposed')}
               </Link>
             </>
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-primary-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, 'Deployment requested')}>
-            Deploy
+          <button type="button" className="btn btn-primary-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
+            {t('service.deploy')}
           </button>
           {service.runtime && (
             <div className="deps-meta">
@@ -126,7 +130,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                 <GalleryHorizontalEnd size={16} />
               </div>
               <Link to={`${base}/settings`}>
-                {service.replicas} Replica{service.replicas === 1 ? '' : 's'}
+                {t(service.replicas === 1 ? 'service.replicaOne' : 'service.replicaOther', { n: service.replicas })}
               </Link>
             </div>
           )}
@@ -142,7 +146,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           {service.remote?.latestDeployment?.failureCode === 'BUILD_CONFIG_REQUIRED' && (
             <>
               {' '}
-              <Link to={`${base}/settings`}>Open Settings</Link>
+              <Link to={`${base}/settings`}>{t('service.openSettings')}</Link>
             </>
           )}
         </div>
@@ -154,7 +158,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
             <DeploymentRow d={building} to={`${base}/deployment/${building.id}`} variant="active" />
             <div className="deps-success-wrap">
               <Link className="deps-success" to={`${base}/deployment/${building.id}`}>
-                <div className="deps-success-left"><Clock size={16} /><p>{deploymentLabel(building.status)} deployment</p></div>
+                <div className="deps-success-left"><Clock size={16} /><p>{t('service.inProgress', { status: deploymentLabel(building.status) })}</p></div>
                 <ChevronRight size={16} />
               </Link>
             </div>
@@ -164,14 +168,14 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
       {active ? (
         <div className="deps-active-wrap">
           <div className="deps-active">
-            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" onRedeploy={() => void run(() => deps.redeploy(active.id), 'Redeploy requested')} />
+            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" onRedeploy={() => void run(() => deps.redeploy(active.id), t('service.redeployRequested'))} />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
                 <div className="deps-success-left">
                   <div className="side-icon">
                     <CircleCheckBig size={16} />
                   </div>
-                  <p>Deployment successful</p>
+                  <p>{t('service.deploySuccess')}</p>
                 </div>
                 <div className="side-icon deps-success-chev">{stepsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
               </button>
@@ -181,12 +185,14 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         </div>
       ) : !building ? (
         <div className="deps-empty">
-          <p>{deps.loading ? 'Loading deployments…' : (deps.error ?? 'There is no active deployment for this service.')}</p>
+          <p>{deps.loading ? t('service.loadingDeployments') : (deps.error ?? t('service.noActive'))}</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, 'Deployment requested')}>
+            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
               <span>
                 <span>
-                  Deploy the repo <b>{service.repo}</b>
+                  {repoPre}
+                  <b>{service.repo}</b>
+                  {repoPost}
                 </span>
               </span>
             </button>
@@ -199,14 +205,14 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           <div className="deps-history-head">
             <button type="button" className="deps-history-toggle" data-state={historyOpen ? 'open' : 'closed'} onClick={() => setHistoryOpen((v) => !v)}>
               <div className="tool-icon">{historyOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
-              <p>History</p>
+              <p>{t('service.history')}</p>
             </button>
             <button type="button" className="deps-hide-skipped" onClick={() => setHideSkipped((v) => !v)}>
-              {hideSkipped ? 'Show Skipped' : 'Hide Skipped'}
+              {hideSkipped ? t('service.showSkipped') : t('service.hideSkipped')}
             </button>
           </div>
           {historyOpen && (
-            <div role="region" aria-label="History" className="deps-history-list">
+            <div role="region" aria-label={t('service.history')} className="deps-history-list">
               {history
                 .filter((d) => !hideSkipped || d.status !== 'SKIPPED')
                 .map((d) => (
@@ -215,8 +221,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     d={d}
                     to={`${base}/deployment/${d.id}`}
                     variant="history"
-                    onRedeploy={() => void run(() => deps.redeploy(d.id), 'Redeploy requested')}
-                    onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), 'Rollback requested') : undefined}
+                    onRedeploy={() => void run(() => deps.redeploy(d.id), t('service.redeployRequested'))}
+                    onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), t('service.rollbackRequested')) : undefined}
                   />
                 ))}
             </div>
@@ -241,6 +247,7 @@ function useServiceVars(serviceId: string) {
 }
 
 function VariablesTab({ service }: { service: Service }) {
+  const { t } = useI18n();
   const { toast } = useUI();
   const [vars, setVars] = useServiceVars(service.id);
   const [adding, setAdding] = useState(false);
@@ -278,20 +285,22 @@ function VariablesTab({ service }: { service: Service }) {
     setRaw(false);
   };
 
+  const [emptyPre, emptyPost] = t('service.vars.emptySub').split('{editor}');
+
   return (
     <div className="vars">
       <div className="vars-head">
         <div className="vars-head-row">
           <div className="vars-title">
-            <div>Service Variables</div>
+            <div>{t('service.vars.title')}</div>
           </div>
           <div className="vars-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => toast('Shared variables live in Project Settings')}>
+            <button type="button" className="btn btn-ghost" onClick={() => toast(t('service.vars.sharedToast'))}>
               <div className="btn-icon">
                 <CornerRightDown size={16} />
               </div>
               <span>
-                <span className="btn-label-muted">Shared Variable</span>
+                <span className="btn-label-muted">{t('service.vars.shared')}</span>
               </span>
             </button>
             <button type="button" className="btn btn-ghost" onClick={openRaw}>
@@ -299,14 +308,14 @@ function VariablesTab({ service }: { service: Service }) {
                 <Braces size={16} />
               </div>
               <span>
-                <span className="btn-label-muted">Raw Editor</span>
+                <span className="btn-label-muted">{t('service.vars.raw')}</span>
               </span>
             </button>
             <button type="button" className="btn btn-primary-outline" onClick={() => setAdding(true)}>
               <div className="btn-icon">
                 <Plus size={16} />
               </div>
-              <span>New Variable</span>
+              <span>{t('service.vars.new')}</span>
             </button>
           </div>
         </div>
@@ -316,11 +325,11 @@ function VariablesTab({ service }: { service: Service }) {
         {adding && (
           <div className="vars-new">
             <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))} onKeyDown={(e) => e.key === 'Enter' && add()} />
-            <input className="input mono" placeholder="VALUE or ${{REF}}" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+            <input className="input mono" placeholder={t('service.vars.valuePh')} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
             <button type="button" className="btn btn-primary" onClick={add} disabled={!name.trim()}>
-              Add
+              {t('service.vars.add')}
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label="Cancel" onClick={() => setAdding(false)}>
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={() => setAdding(false)}>
               <X size={16} />
             </button>
           </div>
@@ -328,26 +337,27 @@ function VariablesTab({ service }: { service: Service }) {
 
         {raw ? (
           <div className="vars-raw">
-            <p className="vars-raw-hint">ENV or JSON style, one variable per line.</p>
+            <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
             <textarea className="vars-raw-text mono" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder={'SESSION_SECRET="..."\nPORT=8080'} />
             <div className="vars-raw-actions">
               <button type="button" className="btn btn-outline" onClick={() => setRaw(false)}>
-                Cancel
+                {t('service.vars.cancel')}
               </button>
               <button type="button" className="btn btn-primary" onClick={saveRaw}>
-                Update Variables
+                {t('service.vars.update')}
               </button>
             </div>
           </div>
         ) : vars.length === 0 ? (
           <div className="vars-empty-wrap">
             <div className="vars-empty">
-              <p className="vars-empty-title">No Environment Variables</p>
+              <p className="vars-empty-title">{t('service.vars.emptyTitle')}</p>
               <p className="vars-empty-sub">
-                Import all your variables using the{' '}
+                {emptyPre}
                 <button type="button" onClick={openRaw}>
-                  Raw Editor
+                  {t('service.vars.raw')}
                 </button>
+                {emptyPost}
               </p>
             </div>
           </div>
@@ -358,21 +368,21 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="vars-key mono">{v.key}</span>
                 <span className="vars-val mono">{revealed.includes(v.key) ? v.value || '""' : '*******'}</span>
                 <div className="vars-row-actions">
-                  <button type="button" className="icon-btn" aria-label="Reveal" onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
+                  <button type="button" className="icon-btn" aria-label={t('service.vars.reveal')} onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
                     {revealed.includes(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                   <button
                     type="button"
                     className="icon-btn"
-                    aria-label="Copy"
+                    aria-label={t('service.vars.copy')}
                     onClick={() => {
                       navigator.clipboard?.writeText(v.value);
-                      toast(`Copied ${v.key}`);
+                      toast(t('service.vars.copied', { key: v.key }));
                     }}
                   >
                     <Copy size={14} />
                   </button>
-                  <button type="button" className="icon-btn" aria-label="Delete" onClick={() => setVars((all) => all.filter((x) => x.key !== v.key))}>
+                  <button type="button" className="icon-btn" aria-label={t('service.vars.delete')} onClick={() => setVars((all) => all.filter((x) => x.key !== v.key))}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -385,7 +395,7 @@ function VariablesTab({ service }: { service: Service }) {
           <div>
             <button type="button" className="vars-system-btn" data-state={systemOpen ? 'open' : 'closed'} onClick={() => setSystemOpen((v) => !v)}>
               <div className="side-icon">{systemOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
-              <p>{service.platformVariables.length} variables added by LikeLion</p>
+              <p>{t('service.vars.platform', { n: service.platformVariables.length })}</p>
             </button>
           </div>
           {systemOpen && (
@@ -409,8 +419,9 @@ function VariablesTab({ service }: { service: Service }) {
 /* ------------------------------------------------------------------ */
 
 export function ServicePane({ project, service, tab, stacked, deps }: { project: Project; service: Service; tab?: string; stacked: boolean; deps: DeploymentsApi }) {
+  const { t } = useI18n();
   const navigate = useNavigate();
-  const current = TABS.some((t) => t.id === tab) ? tab! : 'deployments';
+  const current = TABS.some((x) => x.id === tab) ? tab! : 'deployments';
   const base = `/project/${project.id}/service/${service.id}`;
 
   return (
@@ -420,7 +431,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
           <div className="pane-title-row">
             <div className="pane-title-left">
               <div className="pane-title-group">
-                <button type="button" className="pane-svc-icon" aria-label="Service icon">
+                <button type="button" className="pane-svc-icon" aria-label={t('service.icon')}>
                   <div>
                     <RepoIcon size={32} />
                   </div>
@@ -433,7 +444,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
               </div>
             </div>
             <div className="pane-title-right">
-              <Link to={`/project/${project.id}`} className="pane-close" aria-label="Close" onClick={(e) => e.stopPropagation()}>
+              <Link to={`/project/${project.id}`} className="pane-close" aria-label={t('service.close')} onClick={(e) => e.stopPropagation()}>
                 <div className="tool-icon">
                   <X size={16} />
                 </div>
@@ -441,10 +452,10 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
             </div>
           </div>
           <div className="pane-tabs">
-            {TABS.map((t) => (
-              <Link key={t.id} to={t.id === 'deployments' ? base : `${base}/${t.id}`} className={`pane-tab${current === t.id ? ' active' : ''}`}>
-                <div>{t.label}</div>
-                {current === t.id && <div className="pane-tab-line" />}
+            {TABS.map((x) => (
+              <Link key={x.id} to={x.id === 'deployments' ? base : `${base}/${x.id}`} className={`pane-tab${current === x.id ? ' active' : ''}`}>
+                <div>{t(x.label)}</div>
+                {current === x.id && <div className="pane-tab-line" />}
               </Link>
             ))}
           </div>
