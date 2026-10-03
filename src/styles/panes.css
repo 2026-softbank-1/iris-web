@@ -2230,6 +2230,22 @@ button.st-box {
   color: var(--fg-subtle);
 }
 
+.details-status-note {
+  padding: 0 16px 12px 56px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--green-soft);
+}
+
+.details-status-note a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.details-status-note span {
+  color: var(--fg-subtle);
+}
+
 .details-timeline {
   display: flex;
   flex-direction: column;

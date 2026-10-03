@@ -101,10 +101,14 @@ export function useRunner() {
   return { busy, run };
 }
 
-/** 배포 하나의 상세(단계별 소요 시간·상태 이력). 진행 중이면 3초마다 다시 받는다. */
+/**
+ * 배포 하나의 상세(상태 이력·단계별 소요 시간·소스·구성·빌드·release·대체한 배포). 진행 중이면 3초마다 다시 받는다.
+ * error 는 보여줄 문장(영어)이고, failure 는 코드를 풀어 다른 문장으로 바꿀 때 쓰는 원래 오류다.
+ */
 export function useDeploymentDetail(serviceId?: string, deploymentId?: string) {
   const [detail, setDetail] = useState<api.DeploymentDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     if (!serviceId || !deploymentId) return;
@@ -112,14 +116,17 @@ export function useDeploymentDetail(serviceId?: string, deploymentId?: string) {
       const next = await api.getDeployment(serviceId, deploymentId);
       setDetail(next);
       setError(null);
+      setFailure(null);
     } catch (e) {
       setError(describeError(e));
+      setFailure(e);
     }
   }, [serviceId, deploymentId]);
 
   useEffect(() => {
     setDetail(null);
     setError(null);
+    setFailure(null);
     void load();
   }, [load]);
 
@@ -131,5 +138,5 @@ export function useDeploymentDetail(serviceId?: string, deploymentId?: string) {
     return () => window.clearInterval(timer);
   }, [active, load]);
 
-  return { detail: shown, error };
+  return { detail: shown, error, failure };
 }

@@ -1,6 +1,6 @@
 # LikeLion dashboard frontend
 
-React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, 배포·로그·요청 지표 등 API가 아직 없는 화면은 샘플입니다.
+React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, 요청 지표 등 API가 아직 없는 화면은 샘플입니다.
 
 ## 실행
 
@@ -64,7 +64,10 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
 | Create 의 Deploy(첫 배포), Deploy·Redeploy·Restart·Rollback 버튼 | `POST /services/{id}/deployments` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
-| 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
+| 배포 패널 Details(상태 이력, 소스, 구성, 대체한 배포) | `GET /services/{id}/deployments/{deploymentId}` |
+| 배포 패널 Build Logs | `GET /services/{id}/deployments/{deploymentId}/build-logs` |
+| 배포 패널 Deploy Logs | `GET /services/{id}/deployments/{deploymentId}/deploy-logs` |
+| 배포 패널 Network Logs | `GET /services/{id}/deployments/{deploymentId}/network-logs` |
 | 서비스 공개 주소(캔버스 노드, 서비스 패널 상단, Settings 의 Public Networking) | `GET /services/{id}/domains` |
 | 프로젝트 Logs (기간만큼 과거 로그를 받고, 이어서 실시간) | `GET /services/{id}/logs`, `GET /services/{id}/logs/stream` (SSE) |
 | 서비스 Metrics 탭 (CPU, Memory, Public Network Traffic) | `GET /services/{id}/metrics` |
@@ -86,14 +89,20 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 
 결과는 요약 · 원인 · 해결책 · 더 확인할 것 · 더 필요한 정보 · 근거 로그 · 한계 순입니다. 원인에는 확신 정도(`direct` 로그에 직접 나옴 / `supported` 근거로 추정)와 불확실한 점이 붙고, 해결책은 적용 조건 · 수정 예시 · 확인 방법 · 되돌리기 · 주의로 나눕니다. 수정 예시(`changes[].snippet`)는 **템플릿**이라 `{{NAME}}` 자리표시자를 눈에 띄게 하고 "채워서 쓰세요" 안내와 채울 값 목록을 같이 보여 주며, 복사 버튼은 템플릿 그대로 복사합니다(`targetKnown` 이 false 면 대상이 로그에서 확인되지 않았다고 알립니다). 근거 로그(`evidence[]`, 서버가 비밀값 패턴을 가린 줄)는 기본 접혀 있고, 원인·해결책의 근거 ID 를 누르면 펴지면서 그 줄이 강조됩니다(결과에 없는 ID 는 눌러지지 않게 흐리게 보입니다). `analysisStatus` 가 `insufficient_evidence`·`no_failure_evidence` 인 정상 응답은 원인·해결책이 비어 있어도 이유를 설명하는 안내를 보여 주고, 서버가 값이 없는 필드를 응답에서 빼므로 모든 배열은 없어도 그립니다. `errorCode` 는 코드를 그대로 노출하지 않고 문장으로 바꿉니다(`DIAGNOSIS_LOGS_UNAVAILABLE` 은 빌드·배포 로그 탭으로, 나머지는 다시 시도로 안내하고, 모르는 코드는 다시 시도로 받습니다). 진단 내용(요약·원인·해결책·근거)은 서버가 한국어로 주므로 일본어·영어 화면에서도 번역하지 않습니다. mock(`VITE_MOCK_API=1`)에는 시나리오를 넣어 두었습니다: 프로젝트 likelion-web 의 `web` 서비스에서 `feat: 대시보드 차트`(오래된 실패라 진단 없음 → `AI 진단` 버튼 → 진행 중 → 성공)와 `fix: 차트 빌드 오류 수정`(이미 성공한 진단), `sandbox` 서비스(프로젝트 playground)는 가장 최근 배포가 실패했고 성공한 진단이 있어 실패 배너 아래에 진단 요약이 보입니다. `worker` 서비스에서 `refactor: 재시도 정책`(3분 전 실패라 mock 이 4초 뒤 자동 시작한 것처럼 행동하고, 시작할 때마다 다른 오류로 실패. dev 서버를 켠 지 10분이 지나면 오래된 실패로 바뀝니다)·`chore: 의존성 정리`(근거 부족)·`fix: 헬스체크 경로 변경`(실패 흔적 없음), softbank-iris 의 `docs` 서비스에서 `docs: 배포 파이프라인 정리`(멈춘 진단)입니다.
 
+**배포 패널의 Details와 로그 탭**은 배포 상세 `GET /services/{id}/deployments/{deploymentId}` 와 그 아래 `build-logs`·`deploy-logs`·`network-logs` 를 씁니다(was `docs/deployment-details-api.md`). 상세 응답은 패널이 한 번 받아서 Details·Deploy Logs·Network Logs 가 같이 쓰고(진행 중이면 3초마다 다시 받습니다), Details 는 `source`(저장소·브랜치), `configuration`(Configuration Pretty 의 빌더·루트 디렉터리·빌드 명령어 / 대상·포트·시작 명령어, `builder` 가 없으면 Auto-detect)과 `replacedBy`(상태 배너 아래에 `대체한 배포 #id` 링크와 시각)로 그립니다. `configuration` 의 값은 **배포 시점이 아니라 서비스의 지금 설정**이고, 응답을 받기 전에는 서비스의 지금 설정으로 채웁니다. `build`·`releases` 는 Code 보기에서 응답 JSON 그대로 볼 수 있습니다.
+
+Build Logs 는 처음부터 1000줄씩 `nextCursor` 로 이어 읽습니다. 끝난 빌드는 쉬지 않고 읽다가 서버가 `isComplete`(읽은 줄이 없는 응답)를 주면 멈추고, 진행 중인 빌드는 3초마다 새 로그를 기다립니다(숨은 탭에서는 요청하지 않고, 배포가 끝났는데 빌드가 시작하지 않았으면 멈춥니다). 롤백·재시작은 새로 빌드하지 않아서 `loggedDeploymentId` 가 이 배포가 아니면 원본 배포의 로그라는 안내와 그 배포의 Build Logs 로 가는 링크를 보여 주고, `isPartial` 이면 앞부분이 빠졌다는 안내를, 10,000줄에서는 읽기를 멈췄다는 안내를 보여 줍니다. CodeBuild 줄은 `[Container]` 앞머리까지 그대로 보여 주고 레벨은 본문으로 추정합니다. 검색창은 읽어 온 줄에서 거르고, 다운로드는 읽어 온 줄을 `build-logs-{서비스}-{배포}.txt` 로 내려받습니다(서버 다운로드 API 는 없습니다). 같은 시각(`timestampNs`)의 줄이 여럿이라 행의 키는 순번입니다.
+
+Deploy Logs 는 이 배포의 release 가 붙은 앱 컨테이너 로그를 최근 1000줄까지(시간 오름차순) 받아서, 프로젝트 Logs 와 같은 규칙으로 레벨을 추정하고 스택 트레이스를 한 행으로 묶습니다. pod 이 둘 이상이면 `pod` 속성이 붙습니다. 1000줄을 넘으면 최근 줄만 보인다고 알립니다(서버의 `search` 는 대소문자를 구분해서 쓰지 않고, 검색창은 받아 온 줄에서 거릅니다). 배포가 진행 중이면 5초마다 다시 받고, 새로고침 버튼으로 직접 받을 수도 있습니다. Network Logs 는 ALB 접근 로그라서 **URL·메서드·IP 는 없고** 시각·상태·서비스 응답(`targetStatus`)·수신·송신 바이트·응답 시간만 열로 보여 줍니다(응답 시간은 ALB 가 서비스에 요청을 보내고 응답 헤더를 받기까지라서 사용자가 느낀 시간이 아닙니다). `2xx`~`5xx` 버튼은 서버의 `statusClass` 로 거르고 검색창은 받아 온 줄을 상태 코드로 거릅니다. ALB 가 로그를 5분 안팎으로 늦게 올리므로 자동으로 다시 받지 않고(새로고침 버튼) 빈 상태 문구에 그 지연을 적었습니다. 두 탭 모두 배포가 반영한 타깃이 둘 이상이면 로그 위에 타깃 선택이 생기고(`targetId`), 성공하지 못한 배포나 release 가 없는 배포는 빈 응답이라 `아직 로그를 볼 수 없어요` 빈 상태로 보입니다. 로그 오류는 코드(`404`·`422`·`502`·`503`)별 문장과 `다시 시도`로 보여 줍니다. mock(`VITE_MOCK_API=1`)에는 롤백(원본 배포의 빌드 로그)·하루 지난 빌드 실패(`isPartial`)·진행 중인 빌드(새 배포를 만들면 줄이 늘어납니다)·두 타깃 서비스(softbank-iris 의 `gateway`) 시나리오가 있습니다.
+
 - Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
 - 서비스: Deployments, Variables, Metrics, Console, Settings
-- 배포: Details, Build/Deploy/Network Logs, 검색, 단계 펼치기
+- 배포: Details, Build/Deploy/Network Logs(검색, 다운로드, 상태 코드 필터)
 - 프로젝트 Logs, Observability, Sandboxes
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
-요청 지표(Requests·Request Error Rate·Response Time), 빌드·배포 로그 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
+요청 지표(Requests·Request Error Rate·Response Time) API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.
@@ -108,8 +117,6 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 
 Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를 빌드 없이 다시 배포해 Pod 을 새로 시작합니다(`triggerType=RESTART`, `sourceSha`·`sourceDeploymentId` 없이 보냅니다). 서비스 패널 Deployments 탭에서 **Active 배포 행**의 메뉴(Redeploy 아래)에만 있고, 진행 중인 배포가 있거나 서비스가 내려가 Active 행이 없으면 보이지 않습니다. History 행에서 이전 버전으로 되돌리는 것은 Rollback 입니다. 서버가 그래도 409(`DEPLOYMENT_IN_PROGRESS`·`NO_SUCCEEDED_DEPLOYMENT`)를 주면 토스트로 보여 줍니다. 서비스 Settings 의 Scale Apply 도 서버에서 RESTART 배포를 만들며, 그 요청은 이력에 `via Restart` 로 남습니다.
 
-빌드·배포 로그는 API 가 없어서 비어 있고, Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
-
 주요 데스크톱 화면을 기준으로 맞췄습니다. 로고와 장식 그림은 자체 구현입니다. GitHub avatar에는 외부 네트워크가 필요합니다.
 
 ## 구조
@@ -117,6 +124,7 @@ Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를
 - `src/lib/api.ts`, `src/lib/endpoints.ts`: was 호출(주소·오류 처리)과 엔드포인트별 함수·타입
 - `src/auth/AuthContext.tsx`: 로그인 상태(`/me`), 로그인·로그아웃
 - `src/data/ProjectsContext.tsx`: 프로젝트·서비스 목록과 생성·수정·삭제(was 응답을 화면 모델로 바꿈)
+- `src/data/useDeploymentLogs.ts`, `src/data/deploymentLogModel.ts`, `src/data/logLines.ts`, `src/pages/project/DeploymentLogs.tsx`, `src/pages/project/NetworkLogTable.tsx`: 배포 로그 탭의 조회(빌드 로그 이어 읽기·폴링, 한 번 받는 조회), 순수 함수(행 변환·바이트·응답 시간·오류 문구), 레벨 추정·스택 트레이스 묶기(프로젝트 Logs 와 공용), 탭 화면, Network 표
 - `src/data/useDiagnosis.ts`, `src/data/diagnosisModel.ts`, `src/pages/project/DiagnosisPanel.tsx`: AI 진단의 상태·폴링, 순수 함수(진단 가능 여부·오류 문구·자리표시자 분리), 화면
 - `src/data/mock.ts`: 화면 모델 타입, 워크스페이스, 배포 및 로그 샘플
 - `src/layouts`: Workspace/Project 공통 레이아웃

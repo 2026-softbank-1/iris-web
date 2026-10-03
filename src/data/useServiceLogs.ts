@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import type { LogLevel, LogLine, Service } from './mock';
+import { detectLevel, groupLines, nsToMs } from './logLines';
+import type { LogLine, Service } from './mock';
 
 /** 과거 로그를 한 번에 받는 줄 수. 서버 상한이기도 하다. */
 const HISTORY_LIMIT = 1000;
@@ -17,20 +18,6 @@ const RETRY_MAX_MS = 30_000;
 /** 화면의 한 행. 스택 트레이스처럼 이어지는 줄은 앞 줄에 붙어서 message 가 여러 줄이 된다. */
 export type ProjectLogLine = LogLine & { key: string; ns: string; service: string; stream: string };
 type Source = { id: string; name: string; targetId: number };
-
-// was 는 로그 레벨을 따로 주지 않아서 본문에 흔히 적는 표기만 읽는다.
-// 레벨 표기: level=error, "level":"warn", [error], ERROR, WARN
-// 줄 맨 앞 표기: npm error·npm warn, SyntaxError: ..., Traceback (스택 트레이스의 `at ...` 줄은 info 로 둔다)
-const TAG = String.raw`(?:\blevel["']?\s*[=:]\s*["']?|\[)`;
-const LEVEL_RULES: [LogLevel, RegExp][] = [
-  ['error', new RegExp(String.raw`${TAG}(?:error|fatal)\b|\b(?:ERROR|FATAL)\b|^npm error\b|^\s*[\w.$]*(?:Error|Exception):|^Traceback \(most recent call last\)`)],
-  ['warn', new RegExp(String.raw`${TAG}warn(?:ing)?\b|\bWARN(?:ING)?\b|^npm warn\b`)],
-  ['debug', new RegExp(String.raw`${TAG}debug\b|\bDEBUG\b`)],
-];
-const detectLevel = (message: string): LogLevel => LEVEL_RULES.find(([, re]) => re.test(message))?.[0] ?? 'info';
-
-const NS_PER_MS = 1_000_000n;
-const nsToMs = (ns: string) => Number(BigInt(ns) / NS_PER_MS);
 
 function toLine(source: Source, entry: api.LogEntryDto): ProjectLogLine {
   return {
@@ -48,29 +35,6 @@ function toLine(source: Source, entry: api.LogEntryDto): ProjectLogLine {
 
 // 나노초 문자열은 2286년까지 19자리라서 길이가 같으니 사전순이 곧 시간순이다.
 const byTime = (a: { ns: string }, b: { ns: string }) => (a.ns < b.ns ? -1 : a.ns > b.ns ? 1 : 0);
-
-// 앞 줄에 이어지는 줄: 공백으로 시작하거나(`    at ...`, Python `  File ...`), Caused by:·... N more 로 시작한다.
-const CONTINUATION_RE = /^(?:\s+\S|Caused by:|Suppressed:|\.\.\. \d+ (?:more|common frames))/;
-/** 같은 이벤트의 줄은 거의 동시에 찍힌다. 이보다 벌어지면 따로 센다. */
-const MAX_GROUP_GAP_NS = 1_000_000_000n;
-
-/** 시간순 줄에서 이어지는 줄을 같은 pod 의 앞 줄에 붙여 한 행으로 만든다. 행의 시각과 레벨은 첫 줄의 것이다. */
-function groupLines(sorted: ProjectLogLine[]): ProjectLogLine[] {
-  const rows: ProjectLogLine[] = [];
-  const open = new Map<string, { index: number; lastNs: bigint }>();
-  for (const line of sorted) {
-    const ns = BigInt(line.ns);
-    const head = open.get(line.stream);
-    if (head && CONTINUATION_RE.test(line.message) && ns - head.lastNs <= MAX_GROUP_GAP_NS) {
-      rows[head.index] = { ...rows[head.index], message: `${rows[head.index].message}\n${line.message}` };
-      head.lastNs = ns;
-    } else {
-      open.set(line.stream, { index: rows.length, lastNs: ns });
-      rows.push(line);
-    }
-  }
-  return rows;
-}
 
 function mergeLines(current: ProjectLogLine[], incoming: ProjectLogLine[]): ProjectLogLine[] {
   const seen = new Set(current.map((l) => l.key));

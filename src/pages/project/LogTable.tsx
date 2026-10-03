@@ -1,15 +1,98 @@
-import { ArrowDown, ArrowRight, ArrowUp, Check, Download, ExternalLink, Search, Settings, ChevronRight, ChevronDown } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowRight, ArrowUp, Check, Download, ExternalLink, RefreshCw, Search, Settings, ChevronRight, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { Popover, usePopover } from '../../components/ui';
 import { fmtKst, fmtKstFull, type LogLine } from '../../data/mock';
 import { useI18n } from '../../i18n';
 
-function LevelBar({ level }: { level: LogLine['level'] }) {
+export function LevelBar({ level }: { level: LogLine['level'] }) {
   return (
     <button type="button" className="log-level-btn" tabIndex={-1}>
       <div className={`log-level ${level}`} />
     </button>
+  );
+}
+
+/** 로그 검색창. "/" 를 누르면 입력창으로 간다. */
+export function LogSearch({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
+  const { t } = useI18n();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  return (
+    <div className="logs-filter">
+      <div className="logs-filter-icon">
+        <Search size={16} />
+      </div>
+      <div className="logs-filter-field">
+        {!value && <span className="logs-filter-ph">{label}</span>}
+        <textarea ref={inputRef} aria-label={label} rows={1} value={value} spellCheck={false} onChange={(e) => onChange(e.target.value.replace(/\n/g, ''))} />
+      </div>
+      {!value && (
+        <div className="logs-filter-kbd" title={t('service.logs.focus')} onClick={() => inputRef.current?.focus()}>
+          <span>/</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 맨 위·맨 아래로 가는 버튼. */
+export function LogJump({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
+  const { t } = useI18n();
+  return (
+    <div className="logs-jump">
+      <button type="button" className="logs-jump-btn" aria-label={t('service.logs.top')} onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <ArrowUp size={16} />
+      </button>
+      <button type="button" className="logs-jump-btn" aria-label={t('service.logs.bottom')} onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}>
+        <ArrowDown size={16} />
+      </button>
+    </div>
+  );
+}
+
+/** 맨 아래를 보고 있을 때만 새 줄을 따라간다. 위로 올려 읽는 중이면 그대로 둔다. */
+export function useFollowTail(scrollRef: RefObject<HTMLDivElement | null>, deps: unknown[]) {
+  const follow = useRef(true);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && follow.current) el.scrollTop = el.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
+}
+
+/** 표 위아래에 놓는 한 줄 안내(범위가 잘렸다, 원본 배포의 로그다 등). */
+export function LogNotice({ children }: { children: ReactNode }) {
+  return <div className="logs-notice">{children}</div>;
+}
+
+/** 로그를 못 불러왔을 때의 안내. */
+export function LogError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="logs-empty logs-error" role="alert">
+      <p>{message}</p>
+      {onRetry && (
+        <button type="button" className="btn btn-outline" onClick={onRetry}>
+          {t('service.dp.logs.retry')}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -44,9 +127,10 @@ function BuildRow({ line }: { line: LogLine }) {
   );
 
   if (!line.step) {
+    // 단계로 나뉘지 않은 줄(실제 빌드 로그)은 `[Container]` 같은 앞머리까지 그대로 보여 준다.
     return (
       <div className="bl-plain">
-        <span>{text}</span>
+        <span>{line.message || '\u00a0'}</span>
         {size && <span className="bl-size">{size}</span>}
       </div>
     );
@@ -101,19 +185,38 @@ export function LogTable({
   kind,
   explorerHref,
   emptyLabel,
+  loading,
+  error,
+  onRetry,
+  onDownload,
+  onRefresh,
+  header,
+  footer,
 }: {
   lines: LogLine[];
   range?: { start: string; end: string };
   kind: 'build' | 'deploy' | 'http';
   explorerHref?: string;
   emptyLabel?: string;
+  /** 첫 응답을 기다리는 중. */
+  loading?: boolean;
+  /** 못 불러왔을 때의 문장. 받아 둔 줄이 있으면 그 아래에 붙는다. */
+  error?: string | null;
+  onRetry?: () => void;
+  /** 있으면 다운로드 버튼이 이 함수를 부른다(Build). 없으면 옵션 메뉴를 연다. */
+  onDownload?: () => void;
+  /** 있으면 새로고침 버튼을 둔다. */
+  onRefresh?: () => void;
+  /** 툴바 아래에 놓는 안내. */
+  header?: ReactNode;
+  /** 줄 아래에 놓는 안내(새 로그를 기다리는 중 등). */
+  footer?: ReactNode;
 }) {
   const { t } = useI18n();
   const [q, setQ] = useState('');
   const [wrap, setWrap] = useState(true);
   const [showAttrs, setShowAttrs] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const optionsPop = usePopover();
   const layoutPop = usePopover();
 
@@ -129,23 +232,8 @@ export function LogTable({
     });
   }, [q, lines]);
 
-  // Logs follow the tail, like the original viewer
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [filtered.length]);
-
-  // "/" focuses the filter
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // Logs follow the tail, like the original viewer (but not while the reader has scrolled up)
+  const onScroll = useFollowTail(scrollRef, [filtered.length]);
 
   const dataLabel = kind === 'build' ? t('service.logs.message') : t('service.logs.data');
   const searchLabel = kind === 'build' ? t('service.logs.searchBuild') : t('service.logs.filter');
@@ -154,28 +242,14 @@ export function LogTable({
     <div className="logs">
       <div className="logs-toolbar-wrap">
         <div className={`logs-toolbar${kind === 'build' ? ' single' : ''}`}>
-          <div className="logs-filter">
-            <div className="logs-filter-icon">
-              <Search size={16} />
-            </div>
-            <div className="logs-filter-field">
-              {!q && <span className="logs-filter-ph">{searchLabel}</span>}
-              <textarea
-                ref={inputRef}
-                aria-label={searchLabel}
-                rows={1}
-                value={q}
-                spellCheck={false}
-                onChange={(e) => setQ(e.target.value.replace(/\n/g, ''))}
-              />
-            </div>
-            {!q && (
-              <div className="logs-filter-kbd" title={t('service.logs.focus')} onClick={() => inputRef.current?.focus()}>
-                <span>/</span>
-              </div>
-            )}
-          </div>
-          <button type="button" title={kind === 'build' ? t('service.logs.download') : t('service.logs.options')} className="logs-tool-btn" onClick={(e) => optionsPop.toggle(e.currentTarget)}>
+          <LogSearch value={q} onChange={setQ} label={searchLabel} />
+          <button
+            type="button"
+            title={onDownload ? t('service.logs.download') : t('service.logs.options')}
+            className="logs-tool-btn"
+            disabled={onDownload ? lines.length === 0 : undefined}
+            onClick={onDownload ? onDownload : (e) => optionsPop.toggle(e.currentTarget)}
+          >
             <div className="tool-icon">
               <Download size={14} />
             </div>
@@ -191,6 +265,13 @@ export function LogTable({
               <span className="switch menu-right" role="switch" aria-checked={showAttrs} />
             </button>
           </Popover>
+          {onRefresh && (
+            <button type="button" title={t('service.logs.refresh')} aria-label={t('service.logs.refresh')} className="logs-tool-btn" onClick={onRefresh}>
+              <div className="tool-icon">
+                <RefreshCw size={14} />
+              </div>
+            </button>
+          )}
           {kind !== 'build' && explorerHref && (
             <div>
               <Link to={explorerHref} title={t('service.logs.explorer')} className="logs-tool-btn">
@@ -201,6 +282,7 @@ export function LogTable({
             </div>
           )}
         </div>
+        {header}
       </div>
       <div className="logs-table-wrap">
         <div role="table" className="logs-table">
@@ -233,10 +315,14 @@ export function LogTable({
               {dataLabel}
             </button>
           </Popover>
-          <div className="logs-scroll" ref={scrollRef}>
+          <div className="logs-scroll" ref={scrollRef} onScroll={onScroll}>
             <div role="rowgroup" className={`logs-body kind-${kind}${wrap ? '' : ' nowrap'}`}>
               {range && !q && <RangeMarker label={t('service.logs.rangeStart')} time={range.start} />}
-              {filtered.length === 0 && <div className="logs-empty">{q ? t('service.logs.noMatch', { q }) : (emptyLabel ?? t('service.logs.empty'))}</div>}
+              {filtered.length === 0 && !error && (
+                <div className="logs-empty">
+                  {q && lines.length > 0 ? t('service.logs.noMatch', { q }) : loading ? t('service.loading') : (emptyLabel ?? t('service.logs.empty'))}
+                </div>
+              )}
               {filtered.map((l, i) => (
                 <div role="row" key={i} className={`logs-row level-${l.level}${kind === 'build' && l.step ? ' step' : ''}`}>
                   <div role="cell" className="logs-td time">
@@ -268,16 +354,11 @@ export function LogTable({
                 </div>
               ))}
               {range && !q && <RangeMarker label={t('service.logs.rangeEnd')} time={range.end} />}
+              {error && <LogError message={error} onRetry={onRetry} />}
+              {footer}
             </div>
           </div>
-          <div className="logs-jump">
-            <button type="button" className="logs-jump-btn" aria-label={t('service.logs.top')} onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}>
-              <ArrowUp size={16} />
-            </button>
-            <button type="button" className="logs-jump-btn" aria-label={t('service.logs.bottom')} onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })}>
-              <ArrowDown size={16} />
-            </button>
-          </div>
+          <LogJump scrollRef={scrollRef} />
         </div>
       </div>
     </div>

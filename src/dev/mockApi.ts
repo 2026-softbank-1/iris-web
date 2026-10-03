@@ -2,9 +2,13 @@
 // 앱 번들에는 들어가지 않는다. 화면 디자인용이라 상태를 메모리에만 들고, dev 서버를 다시 띄우면 처음으로 돌아간다.
 import type {
   BranchDto,
+  BuildLogsDto,
+  BuildStatus,
   DeploymentDetailDto,
   DeploymentDto,
   DeploymentHistoryDto,
+  DeploymentLogsDto,
+  DeploymentReleaseDto,
   DeploymentStatus,
   DeploymentTrigger,
   DiagnosisAnalysisDto,
@@ -14,6 +18,8 @@ import type {
   InstallationDto,
   LogEntryDto,
   MetricSeriesDto,
+  NetworkLogEntryDto,
+  NetworkLogsDto,
   ProjectDto,
   RepositoryDto,
   ServiceDomainDto,
@@ -78,7 +84,7 @@ const service = (id: number, projectId: number, name: string, repo: string, extr
 });
 
 const services: MockService[] = [
-  service(11, 1, 'web', 'likelion/web'),
+  service(11, 1, 'web', 'likelion/web', { rootDirectory: 'apps/web', buildCommand: 'npm run build', startCommand: 'npm start' }),
   service(12, 1, 'api', 'likelion/api', { port: 8000, builder: 'dockerfile', dockerfilePath: 'Dockerfile' }),
   service(13, 1, 'worker', 'likelion/worker', { port: undefined }),
   service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1, 2] }),
@@ -130,6 +136,12 @@ const deployments: MockDeployment[] = [
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
   deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
+
+// 롤백은 빌드를 새로 하지 않고 원본 배포가 만든 이미지를 쓴다(빌드 로그도 원본 배포의 것이다).
+{
+  const rollback = deployments.find((d) => d.serviceId === 11 && d.triggerType === 'ROLLBACK')!;
+  rollback.sourceDeploymentId = deployments.find((d) => d.serviceId === 11 && d.sourceCommitMessage === rollback.sourceCommitMessage && d.triggerType === 'PUSH')!.id;
+}
 
 const installations: InstallationDto[] = [
   { installationId: 1, accountLogin: 'likelion', accountType: 'Organization' },
@@ -202,7 +214,72 @@ function toDetailDto(d: MockDeployment): DeploymentDetailDto {
   });
   const history: DeploymentHistoryDto[] = stages.map((s, i) => ({ fromStatus: i ? stages[i - 1].status : undefined, toStatus: s.status, createdAt: s.startedAt }));
   if (!dto.isActive) history.push({ fromStatus: stages.at(-1)!.status, toStatus: dto.status, failureCode: dto.failureCode, createdAt: dto.updatedAt });
-  return { ...dto, stages, history };
+  return { ...dto, stages, history, ...detailExtras(d, dto, reached, stages) };
+}
+
+const repoOf = (s: MockService) => s.sourceRepositoryUrl.replace(/^https?:\/\/github\.com\//, '');
+
+/** 성공했던 배포를 더 새로운 성공 배포가 대신했으면 그 배포와 시각. */
+function replacedByOf(d: MockDeployment): DeploymentDetailDto['replacedBy'] {
+  if (statusOf(d) !== 'SUCCEEDED' || d.triggerType === 'REMOVE') return undefined;
+  const newer = deploymentsOf(d.serviceId)
+    .filter((x) => Date.parse(x.createdAt) > Date.parse(d.createdAt) && statusOf(x) === 'SUCCEEDED')
+    .at(-1); // 최신순 목록의 마지막 = 가장 먼저 대신한 배포
+  return newer && { deploymentId: newer.id, at: toDeploymentDto(newer).updatedAt };
+}
+
+/** 이 요청이 만든 빌드의 상태. 빌드를 시작하기 전(QUEUED)에는 없다. */
+function buildStatusOf(d: MockDeployment): BuildStatus | undefined {
+  const status = statusOf(d);
+  if (status === 'QUEUED') return undefined;
+  if (status === 'BUILDING') return 'BUILDING';
+  return d.failureCode === 'BUILD_FAILED' || d.failureCode === 'BUILD_CONFIG_REQUIRED' ? 'FAILED' : 'SUCCEEDED';
+}
+
+/** 상세 응답에 더해진 필드: 소스·구성·빌드·release·대체한 배포. reached 는 요청이 닿은 단계(0 QUEUED, 1 BUILDING, 2 DEPLOYING)다. */
+function detailExtras(d: MockDeployment, dto: DeploymentDto, reached: number, stages: { startedAt: string; finishedAt?: string }[]) {
+  const s = services.find((x) => x.id === d.serviceId)!;
+  const buildStatus = buildStatusOf(d);
+  const releaseStatus: Record<string, DeploymentReleaseDto['status']> = { DEPLOYING: 'PENDING', SUCCEEDED: 'SUCCEEDED', ROLLED_BACK: 'ROLLED_BACK' };
+  const releases: DeploymentReleaseDto[] =
+    reached < 2
+      ? []
+      : [
+          {
+            id: d.id,
+            targetId: s.targetIds[0],
+            status: releaseStatus[dto.status] ?? 'FAILED',
+            ...(dto.status === 'SUCCEEDED' && { argoSyncStatus: 'Synced', argoHealthStatus: 'Healthy' }),
+            ...(dto.status === 'DEPLOYING' && { argoSyncStatus: 'OutOfSync', argoHealthStatus: 'Progressing' }),
+            gitopsCommitSha: Math.abs(d.id * 2654435761).toString(16).padStart(40, '0').slice(0, 40),
+            failureCode: dto.status === 'FAILED' ? 'DEPLOY_FAILED' : undefined,
+            finishedAt: dto.isActive ? undefined : dto.updatedAt,
+          },
+        ];
+  return {
+    source: { repository: repoOf(s), branch: s.sourceBranch },
+    configuration: {
+      build: { builder: s.builder, rootDirectory: s.rootDirectory, buildCommand: s.buildCommand },
+      deploy: {
+        targets: s.targetIds.map((id) => {
+          const target = targets.find((x) => x.id === id)!;
+          return { id, name: target.name, kind: target.kind };
+        }),
+        port: s.port,
+        startCommand: s.startCommand,
+      },
+    },
+    build: buildStatus && {
+      status: buildStatus,
+      builder: s.builder,
+      imageDigest: buildStatus === 'SUCCEEDED' ? `sha256:${Math.abs(d.id * 40503).toString(16).padStart(64, 'c').slice(0, 64)}` : undefined,
+      startedAt: stages[Math.min(1, stages.length - 1)].startedAt,
+      finishedAt: buildStatus === 'BUILDING' ? undefined : stages[Math.min(1, stages.length - 1)].finishedAt ?? dto.updatedAt,
+      failureCode: buildStatus === 'FAILED' ? dto.failureCode : undefined,
+    },
+    releases,
+    replacedBy: replacedByOf(d),
+  };
 }
 
 function domainsOf(s: MockService): ServiceDomainDto[] {
@@ -257,6 +334,172 @@ export function liveLogs(serviceId: number): LogEntryDto[] {
     pod: podOf(s),
     container: s.name,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* 배포 상세의 로그: 빌드 · 배포(앱) · 네트워크(ALB)                           */
+/* ------------------------------------------------------------------ */
+
+const BUILD_LOG_MS = 400; // 진행 중인 빌드가 줄을 늘리는 속도
+const SNAPSHOT_MAX = 1000;
+
+/** 빌드 로그를 만든 배포. 롤백·재시작은 빌드를 새로 하지 않아 원본 배포의 로그다(원본이 없으면 자기 자신). */
+function builtBy(d: MockDeployment): MockDeployment {
+  if ((d.triggerType === 'ROLLBACK' || d.triggerType === 'RESTART') && d.sourceDeploymentId !== undefined) {
+    const source = deployments.find((x) => x.id === d.sourceDeploymentId);
+    if (source) return builtBy(source);
+  }
+  return d;
+}
+
+/** CodeBuild 가 남기는 모양의 빌드 로그 전체. 실패한 빌드는 끝에 오류가 붙는다. */
+function buildLogMessages(d: MockDeployment): string[] {
+  const s = services.find((x) => x.id === d.serviceId)!;
+  const stamp = (n: number) => `2026/10/02 12:16:${String(12 + Math.floor(n / 4)).padStart(2, '0')}.${String(100000 + n * 7919).slice(-6)}`;
+  let n = 0;
+  const agent = (text: string) => `[Container] ${stamp(n++)} ${text}`;
+  const lines = [
+    agent('Running on CodeBuild On-demand'),
+    agent('Waiting for agent ping'),
+    agent('Waiting for DOWNLOAD_SOURCE'),
+    agent('Phase is DOWNLOAD_SOURCE'),
+    agent('CODEBUILD_SRC_DIR=/codebuild/output/src1488065541/src'),
+    agent('Phase complete: DOWNLOAD_SOURCE State: SUCCEEDED'),
+    agent('Phase is INSTALL'),
+    agent(`Running command cd ${s.rootDirectory ?? '.'} && railpack prepare`),
+    '',
+    '↳ Detected Node',
+    '↳ Using npm package manager',
+    agent('Phase complete: INSTALL State: SUCCEEDED'),
+    agent('Phase is BUILD'),
+    agent(`Running command ${s.buildCommand ?? 'npm run build'}`),
+    '',
+    `> ${s.name}@1.0.0 build`,
+    '> vite build',
+    'vite v8.3.2 building for production...',
+    ...Array.from({ length: 36 }, (_, i) => `transforming (${i * 4 + 1}) src/components/Part${i}.tsx`),
+    '✓ 142 modules transformed.',
+    'dist/index.html                  0.46 kB │ gzip:  0.30 kB',
+    'dist/assets/index-DiwrgTda.css  14.20 kB │ gzip:  3.71 kB',
+    'dist/assets/index-BHEvMaTc.js  231.07 kB │ gzip: 74.12 kB',
+    '✓ built in 4.81s',
+  ];
+  if (d.failureCode === 'BUILD_FAILED') {
+    lines.push(
+      'npm error code ELIFECYCLE',
+      'npm error errno 1',
+      `npm error ${s.name}@1.0.0 build: \`vite build\``,
+      'npm error Exit status 1',
+      agent('Command did not exit successfully npm run build exit status 1'),
+      agent('Phase complete: BUILD State: FAILED'),
+      agent('Phase context status code: COMMAND_EXECUTION_ERROR Message: Error while executing command: npm run build. Reason: exit status 1'),
+    );
+  } else {
+    lines.push(agent('Phase complete: BUILD State: SUCCEEDED'), agent('Phase is POST_BUILD'), agent('Running command docker push'), agent('Phase complete: POST_BUILD State: SUCCEEDED'));
+  }
+  return lines;
+}
+
+/** GET /build-logs. cursor 는 다음에 읽을 줄 번호이고, 같은 시각의 줄이 여럿이다(CloudWatch 처럼 묶음으로 들어온다). */
+function buildLogs(d: MockDeployment, q: Query): MockResponse {
+  const status = statusOf(d);
+  const source = builtBy(d);
+  const buildStatus = status === 'QUEUED' ? undefined : source === d ? buildStatusOf(d) : 'SUCCEEDED';
+  const empty: BuildLogsDto = { entries: [], nextCursor: q.cursor, buildStatus, isComplete: false, isPartial: false };
+  if (!buildStatus) return ok(empty);
+
+  const all = buildLogMessages(source);
+  const startMs = Date.parse(source.createdAt) + 3000;
+  const sourceBuilding = statusOf(source) === 'BUILDING';
+  const visible = sourceBuilding ? Math.min(all.length, Math.max(0, Math.floor((Date.now() - startMs) / BUILD_LOG_MS))) : all.length;
+  const at = (i: number) => ns(startMs + Math.floor(i / 3) * 1000);
+  const entry = (i: number) => ({ timestampNs: at(i), message: all[i] });
+
+  // 실패한 지 하루가 지난 빌드는 로그 스트림이 만료되어 Build Worker 가 남긴 끝부분(12줄)만 있다.
+  if (source.failureCode === 'BUILD_FAILED' && Date.now() - Date.parse(source.createdAt) > DAY) {
+    const tail = Array.from({ length: 12 }, (_, k) => all.length - 12 + k);
+    return ok({ entries: tail.map(entry), buildStatus, isComplete: true, isPartial: true, loggedDeploymentId: source.id } satisfies BuildLogsDto);
+  }
+
+  const from = Math.max(0, Number(q.cursor?.replace(/^c:/, '')) || 0);
+  const limit = Math.min(Math.max(Number(q.limit ?? 500), 1), 1000);
+  const slice = Array.from({ length: Math.max(0, Math.min(from + limit, visible) - from) }, (_, k) => from + k);
+  const finished = buildStatus !== 'BUILDING';
+  return ok({
+    entries: slice.map(entry),
+    nextCursor: `c:${from + slice.length}`,
+    buildStatus,
+    isComplete: finished && slice.length === 0,
+    isPartial: false,
+    loggedDeploymentId: source.id,
+  } satisfies BuildLogsDto);
+}
+
+/** 이 배포가 서비스한(DEPLOYING 이 된 때부터 교체될 때까지) 구간. release 가 없는 배포는 없다. */
+function deployWindow(d: MockDeployment): { start: number; end: number } | undefined {
+  const dto = toDeploymentDto(d);
+  if (dto.failureCode === 'BUILD_FAILED' || dto.status === 'QUEUED' || dto.status === 'BUILDING') return undefined;
+  const start = Date.parse(d.createdAt) + 53_000;
+  return { start, end: Date.parse(replacedByOf(d)?.at ?? '') || Date.now() };
+}
+
+// 앞 줄에 이어지는 줄(`    at ...`)은 앞 줄과 거의 같은 시각에 찍힌다. LOG_LINES 의 7·8번째가 6번째에 이어진다.
+const logTime = (i: number) => {
+  const m = ((i % LOG_LINES.length) + LOG_LINES.length) % LOG_LINES.length;
+  const head = m === 7 || m === 8 ? i - (m - 6) : i;
+  return head * 12_000 + (i - head);
+};
+const logPods = (s: MockService, d: MockDeployment) => (s.id === 12 ? [`${s.name}-${d.id}-6f8c9-aaa11`, `${s.name}-${d.id}-6f8c9-bbb22`] : [`${s.name}-${d.id}-6f8c9-aaa11`]);
+
+/** 앱 컨테이너 로그를 시간 오름차순으로. 최근 limit 줄만 주고 search 는 대소문자를 구분한다. */
+function deployLogs(d: MockDeployment, q: Query): MockResponse {
+  const s = services.find((x) => x.id === d.serviceId)!;
+  const win = deployWindow(d);
+  if (!win) return ok({ entries: [], isTruncated: false } satisfies DeploymentLogsDto);
+  const start = q.start ? Date.parse(q.start) : win.start;
+  const end = q.end ? Date.parse(q.end) : win.end;
+  const limit = Math.min(Math.max(Number(q.limit ?? 200), 1), SNAPSHOT_MAX);
+  const pods = logPods(s, d);
+  const out: LogEntryDto[] = [];
+  let truncated = false;
+  for (let i = Math.floor(end / 12_000), guard = 0; logTime(i) >= start && guard < 20_000; i--, guard++) {
+    if (logTime(i) > end) continue;
+    const message = LOG_LINES[((i % LOG_LINES.length) + LOG_LINES.length) % LOG_LINES.length];
+    if (q.search && !message.includes(q.search)) continue;
+    if (out.length === limit) {
+      truncated = true;
+      break;
+    }
+    out.push({ timestampNs: ns(logTime(i)), message, pod: pods[((i % pods.length) + pods.length) % pods.length], container: 'app' });
+  }
+  return ok({ entries: out.reverse(), isTruncated: truncated, start: iso(start), end: iso(end) } satisfies DeploymentLogsDto);
+}
+
+const STATUS_PATTERN = [200, 200, 200, 200, 200, 404, 200, 301, 200, 200, 500, 200, 304, 200, 200, 502];
+
+/** ALB 접근 로그. 성공한 배포가 서비스한 구간만 있고, 약 5분 늦게 올라와서 끝에서 5분은 비어 있다. */
+function networkLogs(d: MockDeployment, q: Query): MockResponse {
+  const dto = toDeploymentDto(d);
+  if (dto.status !== 'SUCCEEDED' || dto.triggerType === 'REMOVE') return ok({ entries: [], isTruncated: false } satisfies NetworkLogsDto);
+  const start = q.start ? Date.parse(q.start) : Date.parse(dto.updatedAt);
+  const end = q.end ? Date.parse(q.end) : Date.parse(replacedByOf(d)?.at ?? '') || Date.now();
+  const limit = Math.min(Math.max(Number(q.limit ?? 200), 1), SNAPSHOT_MAX);
+  const ingestedUntil = Math.min(end, Date.now() - 5 * MIN);
+  const all: NetworkLogEntryDto[] = [];
+  for (let at = Math.ceil(start / 90_000) * 90_000, i = Math.ceil(start / 90_000); at <= ingestedUntil && all.length < 20_000; at += 90_000, i++) {
+    const status = STATUS_PATTERN[i % STATUS_PATTERN.length];
+    const direct = status === 502; // ALB 가 직접 응답한 것은 서비스 응답과 응답 시간이 없다
+    all.push({
+      timestampNs: ns(at, (i * 7919) % 1_000_000),
+      status,
+      targetStatus: direct ? undefined : status,
+      receivedBytes: 40 + ((i * 7) % 80),
+      sentBytes: status === 200 ? 800 + ((i * 977) % 20_000) : 291,
+      responseTimeSeconds: direct ? undefined : 0.001 + ((i * 13) % 200) / 1000,
+    });
+  }
+  const matched = q.statusClass ? all.filter((e) => String(e.status).startsWith(q.statusClass[0])) : all;
+  return ok({ entries: matched.slice(-limit), isTruncated: matched.length > limit, start: iso(start), end: iso(end) } satisfies NetworkLogsDto);
 }
 
 const METRICS = [
@@ -669,7 +912,11 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
       if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
         return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
       }
-      const source = deployments.find((d) => d.id === Number(body?.sourceDeploymentId));
+      // RESTART 는 원본을 보내지 않고, 서버가 지금 떠 있는(가장 최근에 성공한) 배포로 정한다.
+      const source =
+        body?.triggerType === 'RESTART'
+          ? deploymentsOf(s.id).find((d) => statusOf(d) === 'SUCCEEDED')
+          : deployments.find((d) => d.id === Number(body?.sourceDeploymentId));
       const d: MockDeployment = {
         ...deployment(s.id, 0, 'QUEUED', (body?.triggerType as DeploymentTrigger) ?? 'MANUAL', source?.sourceCommitMessage ?? '수동 배포'),
         createdAt: iso(Date.now()),
@@ -684,6 +931,13 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   if (seg[2] === 'deployments' && seg.length === 4) {
     const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
     return d ? ok(toDetailDto(d)) : fail(404, 'DEPLOYMENT_REQUEST_NOT_FOUND', 'Deployment not found');
+  }
+  if (seg[2] === 'deployments' && seg.length === 5 && ['build-logs', 'deploy-logs', 'network-logs'].includes(seg[4])) {
+    const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
+    if (!d) return fail(404, 'DEPLOYMENT_REQUEST_NOT_FOUND', 'Deployment not found');
+    // 배포가 쓰지 않은 타깃을 고르면 422 다.
+    if (seg[4] !== 'build-logs' && q.targetId && !s.targetIds.includes(Number(q.targetId))) return fail(422, 'INVALID_INPUT', 'target is not used by this deployment');
+    return seg[4] === 'build-logs' ? buildLogs(d, q) : seg[4] === 'deploy-logs' ? deployLogs(d, q) : networkLogs(d, q);
   }
   if (seg[2] === 'deployments' && seg.length === 5 && (seg[4] === 'diagnose' || seg[4] === 'diagnosis')) {
     const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
