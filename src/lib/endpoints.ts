@@ -172,6 +172,92 @@ export const createDeployment = (serviceId: number | string, json: DeploymentCre
 export const getDeployment = (serviceId: number | string, deploymentId: number | string) =>
   request<DeploymentDetailDto>(`/services/${serviceId}/deployments/${deploymentId}`);
 
+/* diagnosis */
+export type DiagnosisStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+/** diagnosed 가 아니어도 정상 응답이다. 원인·해결책이 비어 있을 수 있다. */
+export type AnalysisStatus = 'diagnosed' | 'insufficient_evidence' | 'no_failure_evidence';
+/** direct 는 로그에 직접 나온 것, supported 는 근거로 추정한 것이다. 서버가 값을 늘려도 화면이 죽지 않아야 한다. */
+export type SupportLevel = 'direct' | 'supported';
+export type RemediationStatus = 'proposed' | 'needs_more_evidence' | 'not_needed';
+export type DiagnosisHypothesisDto = {
+  id: string;
+  category?: string;
+  supportLevel: SupportLevel;
+  statement: string;
+  evidenceIds?: string[];
+  /** 반대 근거. 화면에서는 아직 쓰지 않는다. */
+  counterEvidenceIds?: string[];
+  uncertainty?: string;
+};
+export type DiagnosisPlaceholderDto = { name: string; description: string };
+export type DiagnosisChangeDto = {
+  kind?: 'code' | 'configuration' | 'command';
+  target: string;
+  /** 수정 대상 문자열이 로그에 있었다는 뜻일 뿐 맞다는 보장이 아니다. */
+  targetKnown?: boolean;
+  instruction: string;
+  language?: string;
+  /** 항상 template. snippet 의 `{{NAME}}` 자리표시자를 채워 써야 하고 실제 코드를 열어 만든 패치가 아니다. */
+  snippetKind?: string;
+  snippet?: string;
+  placeholders?: DiagnosisPlaceholderDto[];
+};
+export type DiagnosisVerificationDto = { instruction: string; expectedResult: string };
+export type DiagnosisPlanDto = {
+  id: string;
+  title: string;
+  evidenceIds?: string[];
+  applyWhen?: string[];
+  changes?: DiagnosisChangeDto[];
+  verification?: DiagnosisVerificationDto[];
+  rollback?: string[];
+  risks?: string[];
+};
+export type DiagnosisNextCheckDto = { id: string; target: string; method: string; purpose: string };
+export type DiagnosisMissingInfoDto = { requestedData: string; reason: string };
+export type DiagnosisAnalysisDto = {
+  analysisStatus: AnalysisStatus;
+  summary: string;
+  hypotheses?: DiagnosisHypothesisDto[];
+  nextChecks?: DiagnosisNextCheckDto[];
+  missingInformation?: DiagnosisMissingInfoDto[];
+  limitations?: string[];
+  remediation: { status: RemediationStatus; reason?: string; plans?: DiagnosisPlanDto[] };
+};
+/** 진단이 근거로 쓴 로그 한 줄(서버가 비밀값 패턴을 이미 가렸다). */
+export type DiagnosisEvidenceDto = { id: string; stage: string; timestamp?: string; text: string };
+/**
+ * AI 진단 1회. 해결책은 제안일 뿐 서버가 실행하지 않고, 진단으로 배포 상태도 바뀌지 않는다.
+ * SUCCEEDED 면 analysis·evidence 가 있고, FAILED 면 errorCode 가 있다. 값이 없는 필드는 응답에서 빠진다.
+ */
+export type DiagnosisDto = {
+  id: number;
+  deploymentId: number;
+  status: DiagnosisStatus;
+  analysis?: DiagnosisAnalysisDto;
+  evidence?: DiagnosisEvidenceDto[];
+  /** 로그 누락·잘림·마스킹 같은 진단 입력의 한계. */
+  inputLimitations?: string[];
+  /** FAILED 일 때만 있다. 서버 코드(DIAGNOSIS_LOGS_UNAVAILABLE 등)나 에이전트 코드(MODEL_TIMEOUT 등)다. */
+  errorCode?: string;
+  createdAt: string;
+  finishedAt?: string;
+};
+/**
+ * 가장 최근 진단. 진단한 적이 없으면 404 DIAGNOSIS_NOT_FOUND 다(화면은 AI 진단 버튼을 보여 준다).
+ * RUNNING 이면 2~3초마다 다시 받아 SUCCEEDED·FAILED 가 될 때까지 본다.
+ */
+export const getDeploymentDiagnosis = (serviceId: number | string, deploymentId: number | string, signal?: AbortSignal) =>
+  request<DiagnosisDto>(`/services/${serviceId}/deployments/${deploymentId}/diagnosis`, { signal });
+/**
+ * 실패한 배포(FAILED·ROLLED_BACK·MANUAL_INTERVENTION)의 진단을 시작한다. 본문은 없다.
+ * 202 면 status=RUNNING 이고, 성공한 진단이 이미 있으면 모델을 다시 부르지 않고 200 으로 그 결과(SUCCEEDED)를 준다.
+ * refresh=true 는 성공한 진단이 있어도 새로 진단한다(모델 비용이 드니 사용자 확인을 받고 쓴다).
+ * 실패하지 않은 배포는 409 DEPLOYMENT_NOT_FAILED, 이미 진단 중이면 409 DIAGNOSIS_IN_PROGRESS, 에이전트 설정이 없으면 503 NOT_CONFIGURED 다.
+ */
+export const startDeploymentDiagnosis = (serviceId: number | string, deploymentId: number | string, refresh = false, signal?: AbortSignal) =>
+  request<DiagnosisDto>(`/services/${serviceId}/deployments/${deploymentId}/diagnose`, { method: 'POST', query: { refresh: refresh || undefined }, signal });
+
 /* scaling */
 /** Kubernetes 수량 문자열. cpu 는 `"1"`·`"0.5"`·`"250m"`, memory 는 `"536870912"`·`"512Mi"`·`"1Gi"` 같은 표기다. */
 export type ResourceQuantityDto = { cpu: string; memory: string };
