@@ -73,7 +73,7 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
         )}
       </div>
       {body}
-      {needsEnvironment && <ManualRepairActions serviceId={service.id} names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(to)} />}
+      {needsEnvironment && <ManualRepairActions serviceId={service.id} names={requiredNames ?? environmentNames} reason={analysis?.remediation.reason} variablesUrl={environmentVariablesUrl(to)} />}
       {repairError && <p role="alert">{repairError}</p>}
       {needsAccess && <a href={githubInstallUrl()} className="btn btn-outline">{t('repair.connect')}</a>}
       <div className="diag-brief-actions">

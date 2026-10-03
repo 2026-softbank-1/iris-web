@@ -98,7 +98,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
   return (
     <section id="repair" className="diag-summary repair-panel" aria-label={t('repair.title')}>
       <div className="diag-bar"><b><Sparkles size={16} /> {t('repair.title')}</b><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => setReload((v) => v + 1)}><RefreshCw size={14} />{t('repair.refresh')}</button></div>
-      {needsEnvironment ? <ManualRepairActions serviceId={serviceId} names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(window.location.pathname)} /> : <p className="diag-muted">{t('repair.note')}</p>}
+      {needsEnvironment ? <ManualRepairActions serviceId={serviceId} names={requiredNames ?? environmentNames} reason={diagnosis.analysis?.remediation.reason} variablesUrl={environmentVariablesUrl(window.location.pathname)} /> : <p className="diag-muted">{t('repair.note')}</p>}
       {!needsEnvironment && <p role="status">{t(`repair.state.${state}`)}</p>}
       {repair && <p className="diag-muted mono">#{repair.id} · {repair.sourceSha.slice(0, 7)}</p>}
       {!needsEnvironment && !repair && eligible.length === 0 && <p>{t('repair.noCode')}</p>}
