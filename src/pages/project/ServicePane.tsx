@@ -21,7 +21,7 @@ import {
   ChevronUp,
   Pencil,
 } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
@@ -294,6 +294,8 @@ function VariablesTab({ service }: { service: Service }) {
 
   const closeAdd = () => {
     setProblem(null);
+    setName('');
+    setValue('');
     setAdding(false);
   };
 
@@ -340,20 +342,27 @@ function VariablesTab({ service }: { service: Service }) {
   };
 
   // 캔버스가 Esc 로 패널을 닫으니, 이 탭의 입력창에서는 Esc 를 여기서 막아 쓰던 내용이 사라지지 않게 한다.
+  // 한글 같은 IME 로 글자를 확정하는 Enter 는 입력의 일부라서, 추가·저장으로 받지 않는다.
+  const composing = (e: KeyboardEvent) => e.nativeEvent.isComposing || e.keyCode === 229;
+
   const onAddKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') void add();
-    else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.stopPropagation();
-      closeAdd();
-    }
+      if (!composing(e)) closeAdd();
+    } else if (e.key === 'Enter' && !composing(e)) void add();
   };
 
   const onEditKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') void saveEdit();
-    else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       e.stopPropagation();
-      setEditing(null);
-    }
+      if (!composing(e)) setEditing(null);
+    } else if (e.key === 'Enter' && !composing(e)) void saveEdit();
+  };
+
+  // 이름은 영문·숫자·밑줄만 남긴다. 붙여 넣은 이름 앞뒤의 공백이 `_` 로 바뀌지 않게 먼저 잘라 내고, 직접 친 공백은 `_` 가 된다.
+  const onNameChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const pasted = (e.nativeEvent as InputEvent).inputType === 'insertFromPaste';
+    setName((pasted ? e.target.value.trim() : e.target.value).replace(/[^A-Za-z0-9_]/g, '_'));
   };
 
   // Raw 편집기는 붙여 넣은 긴 텍스트가 들어 있을 수 있어서 Esc 로 닫지 않고, 취소 버튼으로만 닫는다.
@@ -407,7 +416,7 @@ function VariablesTab({ service }: { service: Service }) {
 
         {adding && (
           <div className="vars-new">
-            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.replace(/[^A-Za-z0-9_]/g, '_'))} onKeyDown={onAddKey} />
+            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={onNameChange} onKeyDown={onAddKey} />
             <input className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
             <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
               {t('service.vars.add')}
