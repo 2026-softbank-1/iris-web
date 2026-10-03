@@ -20,12 +20,14 @@ import {
   Trash2,
   ChevronUp,
   Pencil,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
+import { canDiagnose, canDiagnoseApi } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
@@ -73,6 +75,7 @@ function SuccessSteps({ service, deployment }: { service: Service; deployment: D
 
 function DeploymentsTab({ project, service, deps }: { project: Project; service: Service; deps: DeploymentsApi }) {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const { busy, run } = useRunner();
   const active = deps.items.find((d) => d.status === 'ACTIVE');
   const building = deps.items.find((d) => d.isActive);
@@ -84,6 +87,9 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const [repoPre, repoPost] = t('service.deployRepo').split('{repo}');
   // 접속되는 주소가 없으면(처음 배포하기 전, 서비스를 내린 뒤) 주소는 있어도 앱이 응답하지 않아서 링크로 열지 않는다.
   const reachable = !!service.domains?.some((d) => d.isConnected);
+  const diagnosisTo = (id: string | number) => `${base}/deployment/${id}/diagnosis`;
+  // 실패 배너가 가리키는 것은 가장 최근 배포다. 진단할 수 있는 배포(REMOVE 가 아닌 실패)일 때만 바로 연다.
+  const latest = service.remote?.latestDeployment;
 
   return (
     <div className="deps">
@@ -161,6 +167,12 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
               {' '}
               <Link to={`${base}/settings`}>{t('service.openSettings')}</Link>
             </>
+          )}
+          {latest && canDiagnoseApi(latest) && (
+            <Link to={diagnosisTo(latest.id)} className="btn btn-sm btn-primary deps-warning-action">
+              <Sparkles size={14} />
+              {t('diag.action')}
+            </Link>
           )}
         </div>
       )}
@@ -240,6 +252,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     d={d}
                     to={`${base}/deployment/${d.id}`}
                     variant="history"
+                    onDiagnose={canDiagnose(d) ? () => navigate(diagnosisTo(d.id)) : undefined}
                     onRedeploy={canRedeploy(d) ? () => void run(() => deps.redeploy(d.id), t('service.redeployRequested')) : undefined}
                     onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), t('service.rollbackRequested')) : undefined}
                   />

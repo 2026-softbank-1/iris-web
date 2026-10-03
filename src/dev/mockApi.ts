@@ -7,6 +7,9 @@ import type {
   DeploymentHistoryDto,
   DeploymentStatus,
   DeploymentTrigger,
+  DiagnosisAnalysisDto,
+  DiagnosisDto,
+  DiagnosisEvidenceDto,
   FailureCode,
   InstallationDto,
   LogEntryDto,
@@ -42,8 +45,13 @@ const targets: TargetDto[] = [
 ];
 
 type MockProject = Omit<ProjectDto, 'serviceCount' | 'onlineServiceCount'>;
+/**
+ * AI 진단을 시작하면 어떤 결과가 나오는지. build·runtime 은 원인과 해결책이 있는 성공, insufficient·noFailure 는 근거 부족·실패 흔적
+ * 없음(정상 응답), error 는 FAILED 이고 시작할 때마다 오류 코드가 바뀐다.
+ */
+type DiagnosisScenario = 'build' | 'runtime' | 'insufficient' | 'noFailure' | 'error';
 /** auto 인 배포는 만든 뒤 시간이 지나면 QUEUED → BUILDING → DEPLOYING → SUCCEEDED 로 넘어간다. 시드 배포는 상태가 고정이다. */
-type MockDeployment = Omit<DeploymentDto, 'isActive'> & { auto?: boolean };
+type MockDeployment = Omit<DeploymentDto, 'isActive'> & { auto?: boolean; diagnosis?: DiagnosisScenario };
 type MockService = Omit<ServiceDto, 'latestDeployment'>;
 
 const t0 = Date.now();
@@ -85,9 +93,11 @@ const deployment = (
   triggerType: DeploymentTrigger,
   message: string,
   failureCode?: FailureCode,
+  diagnosis?: DiagnosisScenario,
 ): MockDeployment => {
   const at = t0 - ago;
   return {
+    diagnosis,
     id: nextDeploymentId++,
     serviceId,
     status,
@@ -104,16 +114,19 @@ const deployment = (
 // 서비스마다 다른 상태가 보이게 둔다: 성공 / 빌드 중 / 실패 / 배포 중 / 배포 이력 없음.
 const deployments: MockDeployment[] = [
   deployment(11, 3 * DAY, 'SUCCEEDED', 'PUSH', 'chore: 초기 설정'),
-  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED'),
-  deployment(11, 26 * HOUR, 'ROLLED_BACK', 'PUSH', 'fix: 차트 빌드 오류 수정'),
+  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED', 'build'), // ① 진단 없음 → 진행 중 → 성공
+  deployment(11, 26 * HOUR, 'ROLLED_BACK', 'PUSH', 'fix: 차트 빌드 오류 수정', undefined, 'runtime'), // ④ 이미 성공한 진단이 있다
   deployment(11, 25 * HOUR, 'SUCCEEDED', 'ROLLBACK', 'chore: 초기 설정'),
   deployment(11, 2 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 랜딩 페이지 추가'),
   deployment(12, 5 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 프로젝트 API'),
   deployment(12, 40_000, 'BUILDING', 'MANUAL', 'feat: 배포 로그 SSE'),
   deployment(13, DAY, 'SUCCEEDED', 'PUSH', 'feat: 배포 큐 워커'),
-  deployment(13, 20 * MIN, 'FAILED', 'PUSH', 'refactor: 재시도 정책', 'DEPLOY_FAILED'),
+  deployment(13, 20 * MIN, 'FAILED', 'PUSH', 'refactor: 재시도 정책', 'DEPLOY_FAILED', 'error'), // ③ 시작할 때마다 다른 오류로 실패
+  deployment(13, 3 * HOUR, 'FAILED', 'PUSH', 'chore: 의존성 정리', 'BUILD_FAILED', 'insufficient'), // ② 근거 부족
+  deployment(13, 5 * HOUR, 'FAILED', 'PUSH', 'fix: 헬스체크 경로 변경', 'DEPLOY_FAILED', 'noFailure'), // 로그에 실패 흔적 없음
   deployment(21, 6 * HOUR, 'SUCCEEDED', 'CLI', 'feat: 게이트웨이 라우팅'),
   deployment(21, MIN, 'DEPLOYING', 'REDEPLOY', 'feat: 게이트웨이 라우팅'),
+  deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
 ];
 
 const installations: InstallationDto[] = [
@@ -150,7 +163,7 @@ function statusOf(d: MockDeployment): DeploymentStatus {
 
 function toDeploymentDto(d: MockDeployment): DeploymentDto {
   const status = statusOf(d);
-  const { auto: _auto, ...rest } = d;
+  const { auto: _auto, diagnosis: _diagnosis, ...rest } = d;
   return { ...rest, status, isActive: IN_PROGRESS.includes(status), updatedAt: d.auto ? iso(Date.now()) : d.updatedAt };
 }
 
@@ -268,6 +281,258 @@ function metricsFor(s: MockService, q: Query): MetricSeriesDto[] {
     }),
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* AI 진단                                                              */
+/* ------------------------------------------------------------------ */
+
+const DIAGNOSIS_RUN_MS = 8_000; // 진짜는 20~60초지만 화면을 보려고 짧게 한다
+const DIAGNOSIS_STALE_MS = 4 * MIN;
+const DIAGNOSIS_FAIL_CODES = ['MODEL_TIMEOUT', 'DIAGNOSIS_LOGS_UNAVAILABLE', 'INTERNAL_ERROR', 'MODEL_RATE_LIMIT', 'BUSY', 'EXTERNAL_ERROR'];
+let failCursor = 0;
+let nextDiagnosisId = 1;
+
+/** stuck 은 서버가 죽어 RUNNING 으로 남은 진단, abandoned 는 그것을 다시 시작할 때 서버가 닫은 진단이다. */
+type MockDiagnosis = { id: number; deploymentId: number; startedAt: number; outcome: DiagnosisScenario | 'stuck' | 'abandoned'; errorCode?: string };
+const diagnoses: MockDiagnosis[] = [];
+const latestDiagnosis = (deploymentId: number) => diagnoses.filter((d) => d.deploymentId === deploymentId).at(-1);
+
+const ev = (n: number, stage: string, at: number, text: string): DiagnosisEvidenceDto => ({ id: `EV${String(n).padStart(6, '0')}`, stage, timestamp: iso(at), text });
+
+const BUILD_ANALYSIS: DiagnosisAnalysisDto = {
+  analysisStatus: 'diagnosed',
+  summary: '빌드가 recharts 를 찾지 못해 BUILD 단계가 실패했어요. package.json 에 의존성이 빠졌거나, 서비스의 루트 디렉터리가 package.json 위치와 맞지 않는 것으로 보여요.',
+  hypotheses: [
+    {
+      id: 'H1',
+      category: 'dependency',
+      supportLevel: 'direct',
+      statement: '소스가 recharts 를 import 하지만 package.json 의 dependencies 에 없어서, 빌드가 모듈을 해석하지 못했습니다.',
+      evidenceIds: ['EV000006', 'EV000008'],
+      uncertainty: '소스를 보지 못해서, package.json 은 맞는데 lockfile 만 갱신되지 않았을 가능성은 가려내지 못했습니다.',
+    },
+    {
+      id: 'H2',
+      category: 'configuration',
+      supportLevel: 'supported',
+      statement: '모노레포라면 루트 디렉터리가 package.json 이 있는 위치와 달라서 의존성이 다른 곳에 설치됐을 수 있습니다.',
+      evidenceIds: ['EV000002', 'EV000003'],
+      uncertainty: '로그에 작업 디렉터리가 나오지 않아 추정일 뿐입니다.',
+    },
+  ],
+  nextChecks: [
+    { id: 'C1', target: 'package.json 의 dependencies', method: 'recharts 가 dependencies 에 있는지, lockfile 에도 있는지 확인합니다.', purpose: '의존성 누락과 lockfile 불일치를 구분합니다.' },
+    { id: 'C2', target: '서비스 설정의 루트 디렉터리', method: 'package.json 이 있는 디렉터리와 같은지 비교합니다.', purpose: '서비스 설정 문제와 코드 문제를 구분합니다.' },
+  ],
+  missingInformation: [{ requestedData: 'package.json 과 package-lock.json', reason: '소스를 보지 못해 의존성 목록을 직접 확인할 수 없어요.' }],
+  limitations: ['소스를 보지 못했어요.', '빌드 로그의 마지막 부분만 분석했어요.'],
+  remediation: {
+    status: 'proposed',
+    reason: '첫 번째 원인이 로그에 직접 나와서 의존성 추가를 먼저 제안해요. 모노레포라면 두 번째 해결책을 보세요.',
+    plans: [
+      {
+        id: 'R1',
+        title: '의존성을 추가하고 lockfile 까지 커밋하기',
+        evidenceIds: ['EV000006'],
+        applyWhen: ['package.json 의 dependencies 에 해당 패키지가 없을 때', '로컬에서는 되는데 배포 빌드에서만 모듈을 못 찾을 때'],
+        changes: [
+          {
+            kind: 'command',
+            target: '로컬 저장소',
+            targetKnown: true,
+            instruction: '로컬에서 패키지를 설치해 package.json 과 lockfile 을 함께 갱신하고 커밋합니다.',
+            language: 'bash',
+            snippetKind: 'template',
+            snippet: 'npm install {{PACKAGE}}@{{VERSION}}\ngit add package.json package-lock.json\ngit commit -m "chore: add {{PACKAGE}}"',
+            placeholders: [
+              { name: 'PACKAGE', description: '로그에서 찾지 못한 모듈 이름 (예: recharts)' },
+              { name: 'VERSION', description: '쓸 버전. 정하지 않았다면 latest' },
+            ],
+          },
+          {
+            kind: 'configuration',
+            target: 'package.json',
+            targetKnown: false,
+            instruction: 'dependencies 에 항목이 들어갔는지 확인합니다.',
+            language: 'json',
+            snippetKind: 'template',
+            snippet: '"dependencies": {\n  "{{PACKAGE}}": "^{{VERSION}}"\n}',
+            placeholders: [
+              { name: 'PACKAGE', description: '추가한 패키지 이름' },
+              { name: 'VERSION', description: '설치된 버전' },
+            ],
+          },
+        ],
+        verification: [
+          { instruction: '로컬에서 빌드를 실행합니다.', expectedResult: 'Rollup 이 import 를 해석하지 못했다는 오류 없이 빌드가 끝나요.' },
+          { instruction: '커밋을 push 하거나 이 배포를 재배포합니다.', expectedResult: 'BUILD 단계가 성공으로 끝나요.' },
+        ],
+        rollback: ['커밋을 되돌립니다(git revert). 그러면 이전 빌드 오류가 다시 나요.'],
+        risks: ['메이저 버전이 맞지 않으면 다른 오류가 날 수 있어요.', '의존성이 늘면 이미지 크기와 빌드 시간이 늘어요.'],
+      },
+      {
+        id: 'R2',
+        title: '서비스의 루트 디렉터리 확인하기',
+        evidenceIds: ['EV000002'],
+        applyWhen: ['저장소가 모노레포이고, 서비스의 루트 디렉터리가 package.json 위치와 다를 때'],
+        changes: [
+          {
+            kind: 'configuration',
+            target: '서비스 설정 › 루트 디렉터리',
+            targetKnown: false,
+            instruction: 'package.json 이 있는 디렉터리를 루트 디렉터리로 지정합니다.',
+            language: 'text',
+            snippetKind: 'template',
+            snippet: '{{ROOT_DIRECTORY}}',
+            placeholders: [{ name: 'ROOT_DIRECTORY', description: 'package.json 이 들어 있는 디렉터리 (예: apps/web)' }],
+          },
+        ],
+        verification: [{ instruction: '설정을 저장하고 다시 배포합니다.', expectedResult: '빌드가 올바른 디렉터리에서 의존성을 설치해요.' }],
+        rollback: ['루트 디렉터리를 원래 값으로 되돌립니다.'],
+        risks: ['같은 저장소를 쓰는 다른 서비스가 있다면 영향이 없는지 확인해야 해요.'],
+      },
+    ],
+  },
+};
+
+const RUNTIME_ANALYSIS: DiagnosisAnalysisDto = {
+  analysisStatus: 'diagnosed',
+  summary: 'DATABASE_URL 이 없어서 앱이 시작하지 못했어요.',
+  hypotheses: [
+    {
+      id: 'H1',
+      category: 'configuration',
+      supportLevel: 'direct',
+      statement: 'DATABASE_URL 환경변수가 설정되지 않았습니다.',
+      evidenceIds: ['EV000001', 'EV000002'],
+      uncertainty: '다른 변수도 빠졌을 수 있습니다.',
+    },
+  ],
+  nextChecks: [{ id: 'C1', target: '서비스 변수', method: 'DATABASE_URL 이 등록됐는지 봅니다.', purpose: '누락을 확인합니다.' }],
+  missingInformation: [],
+  limitations: ['소스를 보지 못했어요.'],
+  remediation: {
+    status: 'proposed',
+    reason: '원인이 로그에 직접 나와요.',
+    plans: [
+      {
+        id: 'R1',
+        title: 'DATABASE_URL 변수 추가하기',
+        evidenceIds: ['EV000001'],
+        applyWhen: ['DATABASE_URL 이 서비스 변수에 없을 때'],
+        changes: [
+          {
+            kind: 'configuration',
+            target: '서비스 변수',
+            targetKnown: true,
+            instruction: 'Variables 탭에서 DATABASE_URL 을 추가합니다.',
+            language: 'dotenv',
+            snippetKind: 'template',
+            snippet: 'DATABASE_URL={{DATABASE_URL}}',
+            placeholders: [{ name: 'DATABASE_URL', description: 'DB 접속 문자열' }],
+          },
+        ],
+        verification: [{ instruction: '변수를 저장한 뒤 다시 배포합니다.', expectedResult: '앱이 시작하고 헬스체크가 통과해요.' }],
+        rollback: ['추가한 변수를 삭제합니다.'],
+        risks: ['값이 틀리면 DB 연결에 실패해요.'],
+      },
+    ],
+  },
+};
+
+const INSUFFICIENT_ANALYSIS: DiagnosisAnalysisDto = {
+  analysisStatus: 'insufficient_evidence',
+  summary: '로그가 짧아서 실패 원인을 정하기 어려워요. 빌드가 시작된 직후 끝난 것으로만 보여요.',
+  nextChecks: [
+    { id: 'C1', target: '빌드 단계의 앞쪽 로그', method: '의존성 설치 단계에서 오류가 났는지 봅니다.', purpose: '실패가 시작된 단계를 좁힙니다.' },
+    { id: 'C2', target: '서비스 설정의 빌더·빌드 명령', method: '빌드 명령이 저장소와 맞는지 확인합니다.', purpose: '설정 문제를 가려냅니다.' },
+  ],
+  missingInformation: [{ requestedData: '빌드 단계 전체 로그', reason: '남은 로그가 마지막 두 줄뿐이에요.' }],
+  limitations: ['로그가 마지막 몇 줄만 남아 있어요.'],
+  remediation: { status: 'needs_more_evidence', reason: '원인 후보를 좁히려면 빌드 중간 로그와 설정 정보가 더 필요해요.' },
+};
+
+const NO_FAILURE_ANALYSIS: DiagnosisAnalysisDto = {
+  analysisStatus: 'no_failure_evidence',
+  summary: '진단에 쓴 로그에서 오류나 실패한 흔적을 찾지 못했어요.',
+  hypotheses: [],
+  nextChecks: [],
+  missingInformation: [],
+  limitations: ['이미지 pull 이나 스케줄링처럼 앱 로그가 생기기 전에 실패했을 수 있어요.'],
+  remediation: { status: 'not_needed', reason: '로그에 실패 흔적이 없어서 고칠 대상을 정하지 못했어요.', plans: [] },
+};
+
+const evidenceFor = (outcome: DiagnosisScenario, at: number): DiagnosisEvidenceDto[] => {
+  switch (outcome) {
+    case 'build':
+      return [
+        ev(1, 'build', at, '#9 [builder 4/6] RUN npm ci'),
+        ev(2, 'build', at + 12_000, '#9 12.4 added 412 packages in 11s'),
+        ev(3, 'build', at + 12_000, '#10 [builder 5/6] RUN npm run build'),
+        ev(4, 'build', at + 15_000, '#10 3.1 > vite build'),
+        ev(5, 'build', at + 18_000, '#10 5.8 error during build:'),
+        ev(6, 'build', at + 18_000, '#10 5.8 Error: Rollup failed to resolve import "recharts" from "/app/src/components/Chart.tsx".'),
+        ev(7, 'build', at + 18_000, '#10 5.8 This is most likely unintended because it can break your application at runtime.'),
+        ev(8, 'build', at + 19_000, '#10 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1'),
+        ev(9, 'build', at + 19_000, '[Container] Phase complete: BUILD State: FAILED'),
+      ];
+    case 'runtime':
+      return [
+        ev(1, 'runtime', at, 'ERROR Missing required configuration: DATABASE_URL'),
+        ev(2, 'runtime', at + 1_000, 'Error: process exited with code 1'),
+        ev(3, 'runtime', at + 31_000, 'Back-off restarting failed container app in pod api-7c9d8f6b5-x2k4q'),
+      ];
+    case 'insufficient':
+      return [ev(1, 'build', at, '#7 [builder 2/6] WORKDIR /app'), ev(2, 'build', at, '[Container] Phase complete: BUILD State: FAILED')];
+    case 'noFailure':
+      return [ev(1, 'runtime', at, 'INFO  server listening on :3000'), ev(2, 'runtime', at + 5_000, 'GET /healthz 200 1ms'), ev(3, 'runtime', at + 10_000, 'GET /healthz 200 1ms')];
+    default:
+      return [];
+  }
+};
+
+function toDiagnosisDto(m: MockDiagnosis): DiagnosisDto {
+  const base = { id: m.id, deploymentId: m.deploymentId, createdAt: iso(m.startedAt) };
+  if (m.outcome === 'stuck' || (m.outcome !== 'abandoned' && Date.now() - m.startedAt < DIAGNOSIS_RUN_MS)) return { ...base, status: 'RUNNING' };
+  const finishedAt = iso(m.outcome === 'abandoned' ? m.startedAt + DIAGNOSIS_STALE_MS : m.startedAt + DIAGNOSIS_RUN_MS);
+  if (m.outcome === 'abandoned') return { ...base, status: 'FAILED', errorCode: 'DIAGNOSIS_ABANDONED', finishedAt };
+  if (m.outcome === 'error') return { ...base, status: 'FAILED', errorCode: m.errorCode, finishedAt };
+  const analysis = { build: BUILD_ANALYSIS, runtime: RUNTIME_ANALYSIS, insufficient: INSUFFICIENT_ANALYSIS, noFailure: NO_FAILURE_ANALYSIS }[m.outcome];
+  return {
+    ...base,
+    status: 'SUCCEEDED',
+    analysis,
+    evidence: evidenceFor(m.outcome, m.startedAt - 40_000),
+    inputLimitations: m.outcome === 'build' ? ['로그가 길어서 가장 최근 줄만 보냈어요.'] : undefined,
+    finishedAt,
+  };
+}
+
+/** 진단을 시작한다. 성공한 진단이 있으면 모델을 다시 부르지 않고 200 으로 돌려주고, refresh 면 새로 한다. */
+function startDiagnosis(d: MockDeployment, refresh: boolean): MockResponse {
+  const dto = toDeploymentDto(d);
+  if (dto.triggerType === 'REMOVE' || !['FAILED', 'ROLLED_BACK', 'MANUAL_INTERVENTION'].includes(dto.status)) {
+    return fail(409, 'DEPLOYMENT_NOT_FAILED', 'Deployment is not failed');
+  }
+  const latest = latestDiagnosis(d.id);
+  const current = latest && toDiagnosisDto(latest);
+  if (latest && current?.status === 'RUNNING') {
+    // 4분을 넘긴 RUNNING 은 서버가 죽은 것이라 먼저 닫고 새로 시작한다.
+    if (Date.now() - latest.startedAt <= DIAGNOSIS_STALE_MS) return fail(409, 'DIAGNOSIS_IN_PROGRESS', 'Diagnosis in progress');
+    latest.outcome = 'abandoned';
+  }
+  if (current?.status === 'SUCCEEDED' && !refresh) return ok(current);
+  const scenario = d.diagnosis ?? 'build';
+  const m: MockDiagnosis = { id: nextDiagnosisId++, deploymentId: d.id, startedAt: Date.now(), outcome: scenario };
+  if (scenario === 'error') m.errorCode = DIAGNOSIS_FAIL_CODES[failCursor++ % DIAGNOSIS_FAIL_CODES.length];
+  diagnoses.push(m);
+  return ok(toDiagnosisDto(m), 202);
+}
+
+// 시드: 이미 성공한 진단(④)과 서버가 죽어 멈춘 진단.
+const seeded = (message: string) => deployments.find((d) => d.sourceCommitMessage === message)!;
+diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('fix: 차트 빌드 오류 수정').id, startedAt: t0 - 3 * HOUR, outcome: 'runtime' });
+diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('docs: 배포 파이프라인 정리').id, startedAt: t0 - 6 * MIN, outcome: 'stuck' });
 
 /* ------------------------------------------------------------------ */
 /* 라우터                                                               */
@@ -390,6 +655,13 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   if (seg[2] === 'deployments' && seg.length === 4) {
     const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
     return d ? ok(toDetailDto(d)) : fail(404, 'DEPLOYMENT_REQUEST_NOT_FOUND', 'Deployment not found');
+  }
+  if (seg[2] === 'deployments' && seg.length === 5 && (seg[4] === 'diagnose' || seg[4] === 'diagnosis')) {
+    const d = deployments.find((x) => x.id === id(3) && x.serviceId === s.id);
+    if (!d) return fail(404, 'DEPLOYMENT_REQUEST_NOT_FOUND', 'Deployment not found');
+    if (seg[4] === 'diagnose' && method === 'POST') return startDiagnosis(d, q.refresh === 'true');
+    const latest = latestDiagnosis(d.id);
+    if (seg[4] === 'diagnosis' && method === 'GET') return latest ? ok(toDiagnosisDto(latest)) : fail(404, 'DIAGNOSIS_NOT_FOUND', 'Diagnosis not found');
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} ${path}`);
 }

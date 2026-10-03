@@ -1,4 +1,4 @@
-import { Ellipsis, EllipsisVertical, Copy, RefreshCw, RotateCcw, Undo2 } from 'lucide-react';
+import { Ellipsis, EllipsisVertical, Copy, RefreshCw, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
 import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
@@ -22,6 +22,7 @@ export function DeploymentActions({
   className = 'dep-menu-btn',
   horizontal = false,
   deployment,
+  onDiagnose,
   onRedeploy,
   onRestart,
   onRollback,
@@ -30,6 +31,8 @@ export function DeploymentActions({
   className?: string;
   horizontal?: boolean;
   deployment: Deployment;
+  /** 실패한 배포의 AI 진단 화면을 연다. 진단할 수 있는 배포(canDiagnose)에서만 준다. */
+  onDiagnose?: () => void;
   onRedeploy?: () => void;
   /** 지금 떠 있는 배포를 빌드 없이 다시 시작한다. Active 배포에서만 준다. */
   onRestart?: () => void;
@@ -57,6 +60,19 @@ export function DeploymentActions({
         </div>
       </button>
       <Popover anchor={pop.anchor} onClose={pop.close} align="end" width={200}>
+        {onDiagnose && (
+          <button
+            type="button"
+            className="menu-item"
+            onClick={(e) => {
+              e.stopPropagation();
+              pop.close();
+              onDiagnose();
+            }}
+          >
+            <Sparkles size={16} className="menu-icon" /> {t('diag.action')}
+          </button>
+        )}
         {onRedeploy && (
           <button
             type="button"
@@ -113,7 +129,7 @@ export function DeploymentActions({
   );
 }
 
-export function DeploymentRow({ d, to, variant, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
+export function DeploymentRow({ d, to, variant, onDiagnose, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
   const { t, lang } = useI18n();
   const status = d.status.toLowerCase();
   return (
@@ -135,7 +151,7 @@ export function DeploymentRow({ d, to, variant, onRedeploy, onRestart, onRollbac
             </div>
           </div>
           <div className="dep-actions">
-            <DeploymentActions deployment={d} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} />
+            <DeploymentActions deployment={d} onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
                 <span>{t('service.row.viewDetails')}</span>
