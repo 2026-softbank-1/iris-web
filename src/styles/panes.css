@@ -253,7 +253,7 @@
 
 .deps-warning {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
   min-height: 50px;
   padding: 12px;
@@ -262,6 +262,13 @@
   color: var(--yellow);
   background: var(--yellow-bg);
   border-radius: 6px;
+}
+
+.deps-warning-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
 }
 
 .deps-warning-icon {

@@ -699,3 +699,111 @@ button.diag-chip:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Failure banner: the latest failed deployment's diagnosis, under the banner text */
+.diag-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--fg);
+  border-top: 1px solid color-mix(in srgb, var(--yellow-bar) 40%, transparent);
+}
+
+.diag-brief:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.diag-brief-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.diag-brief-time {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.diag-brief-muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg-muted);
+}
+
+.diag-brief-running {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diag-spinner.sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.diag-brief-summary {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--fg-2);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.diag-brief-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.diag-brief-row {
+  display: flex;
+  gap: 12px;
+}
+
+.diag-brief-row dt {
+  flex: 0 0 52px;
+  font-size: 12px;
+  line-height: 24px;
+  color: var(--fg-subtle);
+}
+
+.diag-brief-row dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.diag-brief-row dd .diag-badge {
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.diag-brief-line {
+  overflow-wrap: anywhere;
+}
+
+.diag-brief-more {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.diag-brief-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diag-brief-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

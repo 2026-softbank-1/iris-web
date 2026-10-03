@@ -83,6 +83,7 @@ const services: MockService[] = [
   service(13, 1, 'worker', 'likelion/worker', { port: undefined }),
   service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1, 2] }),
   service(22, 2, 'docs', 'softbank/iris-docs', { isAutoDeploy: false }),
+  service(31, 3, 'sandbox', 'kylo-dev/playground'),
 ];
 
 let nextDeploymentId = 1000;
@@ -127,6 +128,7 @@ const deployments: MockDeployment[] = [
   deployment(21, 6 * HOUR, 'SUCCEEDED', 'CLI', 'feat: 게이트웨이 라우팅'),
   deployment(21, MIN, 'DEPLOYING', 'REDEPLOY', 'feat: 게이트웨이 라우팅'),
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
+  deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
 
 const installations: InstallationDto[] = [
@@ -559,6 +561,7 @@ function startDiagnosis(d: MockDeployment, refresh: boolean): MockResponse {
 const seeded = (message: string) => deployments.find((d) => d.sourceCommitMessage === message)!;
 diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('fix: 차트 빌드 오류 수정').id, startedAt: t0 - 3 * HOUR, outcome: 'runtime' });
 diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('docs: 배포 파이프라인 정리').id, startedAt: t0 - 6 * MIN, outcome: 'stuck' });
+diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('feat: 샌드박스 초기 설정').id, startedAt: t0 - 3 * MIN, outcome: 'build' });
 
 /* ------------------------------------------------------------------ */
 /* 라우터                                                               */
