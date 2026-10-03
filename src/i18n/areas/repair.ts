@@ -1,4 +1,8 @@
 export const ko = {
+  "repair.state.redeployRequested": "설정을 복구하고 재배포를 요청했어요. 새 배포의 진행 상태를 확인하세요.",
+  "repair.viewDeployment": "새 배포 보기",
+  "repair.fixRedeploy": "AI 수정·재배포",
+  "repair.state.diagnosing": "AI가 실패 원인을 진단하고 있어요. 수정과 재배포까지 자동으로 이어집니다.",
   "repair.title": "AI 수정",
   "repair.refresh": "상태 확인",
   "repair.state.running": "AI가 수정 후보를 생성하고 있어요. 화면을 닫아도 계속됩니다.",
@@ -36,6 +40,10 @@ export const ko = {
 };
 
 export const en = {
+  "repair.state.redeployRequested": "Configuration restored and redeployment requested. Check the new deployment.",
+  "repair.viewDeployment": "View new deployment",
+  "repair.fixRedeploy": "AI fix & redeploy",
+  "repair.state.diagnosing": "AI is diagnosing the failure, then continues with repair and redeployment.",
   "repair.title": "AI repair",
   "repair.refresh": "Refresh status",
   "repair.state.running": "AI is generating a candidate. You can leave and return.",
@@ -73,6 +81,10 @@ export const en = {
 };
 
 export const ja = {
+  "repair.state.redeployRequested": "設定を復旧し再デプロイを要求しました。新しいデプロイを確認してください。",
+  "repair.viewDeployment": "新しいデプロイを見る",
+  "repair.fixRedeploy": "AI修正・再デプロイ",
+  "repair.state.diagnosing": "AIが失敗を診断中です。修正と再デプロイまで自動実行します。",
   "repair.title": "AI修正",
   "repair.refresh": "状態を確認",
   "repair.state.running": "AIが修正候補を生成中です。画面を閉じても続行します。",

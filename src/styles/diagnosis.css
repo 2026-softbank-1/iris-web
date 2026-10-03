@@ -816,3 +816,6 @@ button.diag-chip:hover {
 .repair-access p { width: 100%; }
 .repair-patch { max-height: 420px; overflow: auto; white-space: pre; }
 .repair-panel summary { cursor: pointer; padding: 12px 0; }
+
+.failed-repair-action { display: inline-flex; flex-direction: column; gap: 4px; }
+.failed-repair-error { max-width: 300px; font-size: 12px; color: var(--red, #b42318); }

@@ -5,6 +5,8 @@ import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
 import { deploymentLabel } from '../../data/deploymentModel';
 import { fmtKstFull, type Deployment } from '../../data/mock';
 import { formatAgo, useI18n } from '../../i18n';
+import { canDiagnose } from '../../data/diagnosisModel';
+import { FailedRepairButton } from './FailedRepairButton';
 
 export function AuthorAvatar({ d }: { d: Deployment }) {
   return (
@@ -129,7 +131,7 @@ export function DeploymentActions({
   );
 }
 
-export function DeploymentRow({ d, to, variant, onDiagnose, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
+export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; serviceId?: string; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
   const { t, lang } = useI18n();
   const status = d.status.toLowerCase();
   return (
@@ -151,6 +153,7 @@ export function DeploymentRow({ d, to, variant, onDiagnose, onRedeploy, onRestar
             </div>
           </div>
           <div className="dep-actions">
+            {serviceId && canDiagnose(d) && <FailedRepairButton serviceId={serviceId} deploymentId={d.id} to={`${to}/diagnosis`} />}
             <DeploymentActions deployment={d} onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
