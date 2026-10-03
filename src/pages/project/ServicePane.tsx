@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
@@ -613,6 +614,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
                     <span title={service.name}>{service.name}</span>
                   </button>
                 </h1>
+                <AnalysisGateBadge gate={service.remote?.analysisGate} />
               </div>
             </div>
             <div className="pane-title-right">

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon } from '../../components/brand';
 
 import { ConfirmDialog, useUI } from '../../components/ui';
@@ -414,6 +415,23 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </div>
                 )}
               </Item>
+              {remote?.analysisGate && (
+                <Item
+                  title={t('svcSettings.gate.title')}
+                  desc={remote.analysisGate.decision === 'skip' ? t('svcSettings.gate.skippedDesc') : t('svcSettings.gate.analyzedDesc', { unit: remote.analysisGate.unitId ?? remote.name })}
+                  id="analysis-gate"
+                >
+                  <div className="st-gate">
+                    <AnalysisGateBadge gate={remote.analysisGate} />
+                    {remote.analysisGate.complexity && (
+                      <span className="st-muted">
+                        {t('svcSettings.gate.complexity')} <span className="mono">{remote.analysisGate.complexity}</span>
+                      </span>
+                    )}
+                    <span className="st-muted mono">#{remote.analysisGate.analysisId}</span>
+                  </div>
+                </Item>
+              )}
               <Item title={t('svcSettings.upstream')} id="upstream">
                 <div className="st-repo">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link">

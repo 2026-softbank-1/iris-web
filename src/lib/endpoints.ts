@@ -134,6 +134,8 @@ export type ServiceDto = {
   deploymentStrategy?: DeploymentStrategy;
   /** 가장 최근 배포 요청. 배포한 적이 없으면 없다. */
   latestDeployment?: LatestDeploymentDto;
+  /** 레포 구성 확인(분석 게이트)을 거쳐 만든 서비스면 그 결과. 거치지 않았거나 모르는 서버(구버전)면 null·없음. */
+  analysisGate?: AnalysisGateDto | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -171,6 +173,8 @@ export type ServiceCreate = {
   rootDirectory?: string;
   isAutoDeploy?: boolean;
   targetIds?: number[];
+  /** 레포 구성 확인이 skip 으로 끝났을 때 그 분석 id. 서버가 결과를 서비스에 남기고 빌더 기본값으로 쓴다. */
+  analysisId?: number;
 };
 export type ServiceUpdate = {
   name?: string;
@@ -218,6 +222,102 @@ export const getService = (id: number | string) => request<ServiceDto>(`/service
 export const updateService = (id: number | string, json: ServiceUpdate) => request<ServiceDto>(`/services/${id}`, { method: 'PATCH', json });
 export const deleteService = (id: number | string) => request<void>(`/services/${id}`, { method: 'DELETE' });
 export const listServiceDomains = (serviceId: number | string) => request<ServiceDomainDto[]>(`/services/${serviceId}/domains`);
+
+/* repository analyses (레포 구성 확인 · 분석 게이트) */
+export type AnalysisRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'APPLIED';
+export type AnalysisDecision = 'skip' | 'analyze';
+export type AnalysisComplexity = 'simple' | 'complex' | 'unsupported';
+export type AnalysisMode = 'auto' | 'force';
+export type AnalysisRole = 'web' | 'api' | 'worker' | 'app';
+export type AnalysisEvidenceDto = { path: string; line?: number | null };
+export type AnalysisReasonDto = { code: string; message: string; paths?: string[] };
+export type AnalysisEnvDto = { key: string; stage: 'runtime' | 'build'; required: boolean };
+export type AnalysisUnitDto = {
+  id: string;
+  name: string;
+  /** 레포 루트 기준. */
+  rootDirectory: string;
+  builder: Builder;
+  /** 이 unit 의 rootDirectory 기준. */
+  dockerfilePath?: string | null;
+  port?: number | null;
+  startCommand?: string | null;
+  buildCommand?: string | null;
+  role: AnalysisRole;
+  public: boolean;
+  env: AnalysisEnvDto[];
+  dependsOn: string[];
+  evidence?: AnalysisEvidenceDto[];
+};
+export type AnalysisDependencyDto = { id: string; engine: 'postgres' | 'redis' | 'mysql' | 'mongodb' | 'other'; image?: string | null; evidence?: AnalysisEvidenceDto[] };
+export type AnalysisQuestionDto = { code: string; unitId?: string | null; message: string };
+/** 분석기 gate CLI 응답 원문(`iris.analysis-gate.v1`). */
+export type AnalysisGateResultDto = {
+  schemaVersion: string;
+  sourceSha?: string | null;
+  rootDirectory: string;
+  decision: AnalysisDecision;
+  complexity: AnalysisComplexity;
+  reasons: AnalysisReasonDto[];
+  signals?: Record<string, unknown>;
+  simpleBuild?: { builder: Builder; dockerfilePath?: string | null } | null;
+  units: AnalysisUnitDto[];
+  dependencies: AnalysisDependencyDto[];
+  questions: AnalysisQuestionDto[];
+  analysis?: { engine: string; durationMs?: number; modelCalls?: number };
+};
+export type RepositoryAnalysisDto = {
+  id: number;
+  projectId: number;
+  status: AnalysisRunStatus;
+  decision?: AnalysisDecision | null;
+  complexity?: AnalysisComplexity | null;
+  sourceRepositoryUrl: string;
+  sourceBranch: string;
+  sourceSha?: string | null;
+  rootDirectory?: string | null;
+  mode: AnalysisMode;
+  /** SUCCEEDED·APPLIED 일 때 분석기 응답 원문. */
+  result?: AnalysisGateResultDto | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  appliedServiceIds?: number[] | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type RepositoryAnalysisCreate = {
+  sourceRepositoryUrl: string;
+  githubInstallationId?: number;
+  sourceBranch: string;
+  rootDirectory?: string;
+  mode: AnalysisMode;
+};
+export type AnalysisUnitApply = {
+  unitId: string;
+  name: string;
+  rootDirectory?: string;
+  builder?: Builder;
+  dockerfilePath?: string;
+  port?: number;
+  startCommand?: string;
+  buildCommand?: string;
+};
+export type RepositoryAnalysisApply = {
+  units: AnalysisUnitApply[];
+  deploy: boolean;
+  /** 배포 타깃 id. 정확히 1개다. 생략하면 서버가 `aws` 타깃을 쓴다. */
+  targetIds?: number[];
+};
+export type RepositoryAnalysisApplyDto = { analysisId: number; services: ServiceDto[] };
+/** 서비스에 남은 분석 게이트 결과. */
+export type AnalysisGateDto = { analysisId: number; decision: AnalysisDecision; complexity?: AnalysisComplexity | null; unitId?: string | null };
+
+export const startRepositoryAnalysis = (projectId: number | string, json: RepositoryAnalysisCreate) =>
+  request<RepositoryAnalysisDto>(`/projects/${projectId}/repository-analyses`, { method: 'POST', json });
+export const getRepositoryAnalysis = (projectId: number | string, analysisId: number | string, signal?: AbortSignal) =>
+  request<RepositoryAnalysisDto>(`/projects/${projectId}/repository-analyses/${analysisId}`, { signal });
+export const applyRepositoryAnalysis = (projectId: number | string, analysisId: number | string, json: RepositoryAnalysisApply) =>
+  request<RepositoryAnalysisApplyDto>(`/projects/${projectId}/repository-analyses/${analysisId}/apply`, { method: 'POST', json });
 
 /* deployments */
 export const isDeploymentInProgress = (status: DeploymentStatus) => status === 'QUEUED' || status === 'BUILDING' || status === 'DEPLOYING';
