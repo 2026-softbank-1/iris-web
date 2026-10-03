@@ -226,6 +226,40 @@ export function Dialog({
   );
 }
 
+/** 되돌리기 어렵거나 비용이 드는 동작 전에 한 번 묻는 Dialog. 확인 버튼에 포커스가 가서 Enter 로 진행한다. */
+export function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  children,
+  confirmLabel,
+  cancelLabel,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  children: ReactNode;
+  confirmLabel: string;
+  cancelLabel: string;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} className="dialog confirm-dialog" label={title}>
+      <h2 className="confirm-title">{title}</h2>
+      <div className="confirm-body">{children}</div>
+      <div className="confirm-actions">
+        <button type="button" className="btn btn-outline" onClick={onClose}>
+          {cancelLabel}
+        </button>
+        <button type="button" className="btn btn-primary" autoFocus onClick={onConfirm}>
+          {confirmLabel}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Global UI state (command palette, toasts)                          */
 /* ------------------------------------------------------------------ */
