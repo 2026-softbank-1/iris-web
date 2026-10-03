@@ -29,7 +29,7 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => { onUnau
 const EXPECTS_UNAUTHORIZED = new Set(['/me', '/auth/logout']);
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   query?: Record<string, string | number | boolean | undefined>;
   json?: unknown;
   headers?: Record<string, string>;
@@ -65,6 +65,7 @@ export function describeError(error: unknown): string {
     case 'SERVICE_NAME_CONFLICT': return 'A service with this name already exists in this project.';
     case 'REPOSITORY_NOT_ACCESSIBLE': return 'This repository is not accessible. Install the GitHub App and grant it access.';
     case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
+    case 'NO_SUCCEEDED_DEPLOYMENT': return 'This service has no running deployment. Deploy it successfully before changing its scale.';
     case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';

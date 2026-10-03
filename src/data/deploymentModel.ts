@@ -1,10 +1,12 @@
 // was 의 배포 요청을 화면 모델(Deployment)로 바꾸는 순수 함수들. 훅은 useDeployments.ts 에 있다.
-import type { DeploymentDto, DeploymentStatus as ApiStatus, DeploymentTrigger, FailureCode, SessionUser } from '../lib/endpoints';
+import type { DeploymentDto, DeploymentStatus as ApiStatus, DeploymentTrigger, FailureCode, LatestDeploymentDto, SessionUser } from '../lib/endpoints';
 import type { Deployment, DeploymentStatus, Service } from './mock';
 
 const LABELS: Record<DeploymentStatus, string> = {
   ACTIVE: 'Active',
   REMOVED: 'Removed',
+  TAKEN_DOWN: 'Taken down',
+  REMOVING: 'Removing',
   CRASHED: 'Crashed',
   FAILED: 'Failed',
   SKIPPED: 'Skipped',
@@ -50,9 +52,11 @@ export function failureText(code?: FailureCode): string | undefined {
 /**
  * 서비스 응답의 latestDeployment 로 서비스 상태를 정한다.
  * 성공·롤백됨은 online(롤백됨은 이전 버전이 계속 서비스한다), 진행 중은 deploying, 실패·수동 개입은 crashed.
+ * 서비스를 내리는 요청(REMOVE)은 removeStatusOf 가 따로 정한다.
  */
-export function serviceStatusOf(latest: { status: ApiStatus; sourceSha: string; failureCode?: FailureCode } | undefined): Pick<Service, 'state' | 'deploying' | 'crashedBanner'> {
+export function serviceStatusOf(latest: Pick<LatestDeploymentDto, 'status' | 'triggerType' | 'sourceSha' | 'failureCode'> | undefined): Pick<Service, 'state' | 'deploying' | 'crashedBanner' | 'removed' | 'offlineLabel'> {
   if (!latest) return { state: 'offline' };
+  if (latest.triggerType === 'REMOVE') return removeStatusOf(latest.status);
   const sha = latest.sourceSha.slice(0, 7);
   switch (latest.status) {
     case 'SUCCEEDED': return { state: 'online' };
@@ -62,6 +66,23 @@ export function serviceStatusOf(latest: { status: ApiStatus; sourceSha: string; 
     case 'DEPLOYING': return { state: 'offline', deploying: true };
     case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: `Deployment ${sha} needs manual intervention.` };
     case 'FAILED': return { state: 'crashed', crashedBanner: `Deployment ${sha} failed. ${failureText(latest.failureCode) ?? ''}`.trim() };
+  }
+}
+
+/**
+ * 서비스를 클러스터에서 내리는 요청(REMOVE)이 가장 최근일 때의 서비스 상태. 앱이 내려간 것은 요청이 성공했을 때뿐이다.
+ * 진행 중이면 앱이 아직 떠 있고, FAILED 는 서비스를 건드리기 전에 끝난 것이라 그대로이며, MANUAL_INTERVENTION 은 GitOps 만
+ * 바뀌고 서비스 상태를 알 수 없는 것이다(was ADR 0016).
+ */
+function removeStatusOf(status: ApiStatus): ReturnType<typeof serviceStatusOf> {
+  switch (status) {
+    case 'SUCCEEDED': return { state: 'offline', removed: true, offlineLabel: 'Service is removed' };
+    case 'QUEUED':
+    case 'BUILDING':
+    case 'DEPLOYING': return { state: 'offline', deploying: true, offlineLabel: 'Removing' };
+    case 'FAILED':
+    case 'ROLLED_BACK': return { state: 'online', crashedBanner: 'Removing the service failed. The service was not changed.' };
+    case 'MANUAL_INTERVENTION': return { state: 'crashed', crashedBanner: 'Removing the service needs manual intervention. The app may still be running.', offlineLabel: 'Remove needs attention' };
   }
 }
 
@@ -75,9 +96,24 @@ const UI_STATUS: Record<ApiStatus, DeploymentStatus> = {
   MANUAL_INTERVENTION: 'MANUAL_INTERVENTION',
 };
 
-/** was 의 배포 요청 목록(최신순)을 화면 모델로 바꾼다. 가장 최근에 성공한 배포가 현재 서비스 중인 배포(ACTIVE)다. */
+/**
+ * 가장 최근에 성공한 요청이 서비스의 지금 모습을 정한다. 그것이 REMOVE 면 서비스가 클러스터에서 내려간 것이라
+ * 서비스 중인 배포(Active)가 없다. 이전에 성공한 배포는 모두 대체된 이력이다.
+ */
+export const isRemoved = (dtos: DeploymentDto[]) => dtos.find((d) => d.status === 'SUCCEEDED')?.triggerType === 'REMOVE';
+
+/** 화면에 보여줄 상태. REMOVE 요청은 서비스 중인 배포도, 대체된 배포도 아니라서 성공해도 늘 "내려감" 이벤트로 보인다. */
+function uiStatusOf(dto: DeploymentDto, live: boolean): DeploymentStatus {
+  if (dto.triggerType === 'REMOVE') {
+    if (dto.status === 'SUCCEEDED') return 'TAKEN_DOWN';
+    if (dto.isActive) return 'REMOVING';
+  }
+  return live ? 'ACTIVE' : UI_STATUS[dto.status];
+}
+
+/** was 의 배포 요청 목록(최신순)을 화면 모델로 바꾼다. 가장 최근에 성공한 배포가 현재 서비스 중인 배포(ACTIVE)다. 서비스가 내려갔으면 없다. */
 export function toDeployments(dtos: DeploymentDto[], service: Service, me?: SessionUser | null): Deployment[] {
-  const liveId = dtos.find((d) => d.status === 'SUCCEEDED')?.id;
+  const liveId = isRemoved(dtos) ? undefined : dtos.find((d) => d.status === 'SUCCEEDED')?.id;
   return dtos.map((dto) => {
     const mine = dto.requestedBy !== undefined && dto.requestedBy === me?.id;
     // was 가 새 트리거를 먼저 내보내도 패널이 비지 않게, 모르는 값은 그대로 보여준다.
@@ -85,7 +121,7 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
     return {
       id: String(dto.id),
       shortId: String(dto.id),
-      status: dto.id === liveId ? 'ACTIVE' : UI_STATUS[dto.status],
+      status: uiStatusOf(dto, dto.id === liveId),
       message: dto.sourceCommitMessage?.split('\n')[0] || `Commit ${dto.sourceSha.slice(0, 7)}`,
       createdAt: dto.createdAt,
       author: mine && me ? me.login : via,
@@ -113,6 +149,18 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
       isActive: dto.isActive,
     };
   });
+}
+
+/**
+ * Redeploy 를 줄 수 있는 요청인가. REMOVE 요청은 서비스를 내린 것이지 다시 올릴 배포가 아니다(내려간 배포는 그 앞 행에 있다).
+ * Rollback 은 성공했다가 대체된 배포(REMOVED)에서만 주니 REMOVE 요청에는 따로 막을 것이 없다.
+ */
+export const canRedeploy = (d: Pick<Deployment, 'trigger'>) => d.trigger !== 'REMOVE';
+
+/** Activity 목록의 한 줄에 쓰는 말("서비스 deployment succeeded"). REMOVE 는 배포가 아니라 서비스를 내리는 요청이라 말을 바꾼다. */
+export function activityOf(dto: Pick<DeploymentDto, 'status' | 'triggerType' | 'isActive'>): { noun: string; state: string } {
+  if (dto.triggerType !== 'REMOVE') return { noun: 'deployment', state: apiStatusLabel(dto.status).toLowerCase() };
+  return { noun: 'removal', state: dto.isActive ? 'in progress' : apiStatusLabel(dto.status).toLowerCase() };
 }
 
 /** 초를 `m:ss` 로. */

@@ -1676,31 +1676,91 @@ button.st-box {
   line-height: 20px;
 }
 
-.st-slider {
-  position: relative;
-  height: 4px;
-  margin-top: 12px;
-  border-radius: 9999px;
-  background: var(--bg-4);
+.st-range {
+  --ratio: 1;
+  --thumb: 16px;
+  width: 100%;
+  height: var(--thumb);
+  margin: 4px 0 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.st-slider div {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--primary);
+.st-range:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.st-slider span {
-  position: absolute;
-  right: -8px;
-  top: -6px;
-  width: 16px;
-  height: 16px;
+/* 채워진 부분은 thumb 의 중심까지다. thumb 이 양 끝에서 반 칸씩 안쪽에 멈추므로 그만큼 보정한다. */
+.st-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--primary) calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--ratio)), var(--bg-4) 0);
+}
+
+.st-range::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--primary) calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--ratio)), var(--bg-4) 0);
+}
+
+.st-range::-webkit-slider-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: -6px;
+  border: 0;
   border-radius: 9999px;
   background: #fff;
-  opacity: 0.5;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.st-range::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.st-range:focus-visible {
+  outline: none;
+}
+
+.st-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--primary-border), 0 0 0 4px var(--primary-strong);
+}
+
+.st-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--primary-border), 0 0 0 4px var(--primary-strong);
+}
+
+.st-hint {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--fg-subtle);
+}
+
+.st-hint.error {
+  color: var(--red);
+}
+
+.st-replicas input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.st-apply {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.st-apply .st-hint {
+  flex: 1;
+  margin-right: 4px;
 }
 
 .st-builder {

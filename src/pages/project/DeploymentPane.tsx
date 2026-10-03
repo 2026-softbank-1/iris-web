@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import { apiStatusLabel, deploymentLabel, failureText } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, deploymentLabel, failureText } from '../../data/deploymentModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
@@ -33,9 +33,11 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   switch (d.status) {
     case 'ACTIVE': return t('service.deploySuccess');
     case 'REMOVED': return t('service.dp.replaced');
-    case 'FAILED': return failureText(d.failureCode) ?? t('service.dp.failed');
+    case 'TAKEN_DOWN': return t('service.dp.takenDown');
+    case 'REMOVING': return t('service.dp.removing');
+    case 'FAILED': return d.trigger === 'REMOVE' ? t('service.dp.removeFailed') : (failureText(d.failureCode) ?? t('service.dp.failed'));
     case 'ROLLED_BACK': return t('service.dp.rolledBack');
-    case 'MANUAL_INTERVENTION': return t('service.dp.manual');
+    case 'MANUAL_INTERVENTION': return t(d.trigger === 'REMOVE' ? 'service.dp.removeManual' : 'service.dp.manual');
     default: return `${deploymentLabel(d.status)}…`;
   }
 }
@@ -84,7 +86,7 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
       </div>
 
       <div className="details-source">
-        <p className="details-h">{t('service.dp.via', { via: d.via ?? 'GitHub' })}</p>
+        <p className="details-h">{d.trigger === 'REMOVE' ? t('service.dp.removedDeployment') : t('service.dp.via', { via: d.via ?? 'GitHub' })}</p>
         <div className="details-box">
           <a href={d.commitUrl} target="_blank" rel="noreferrer" className="details-commit">
             <AuthorAvatar d={d} />
@@ -218,7 +220,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   horizontal
                   className="btn btn-icon-only dp-action"
                   deployment={deployment}
-                  onRedeploy={() => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested'))}
+                  onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
                 />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">

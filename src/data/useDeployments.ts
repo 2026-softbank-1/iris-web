@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useUI } from '../components/ui';
 import { describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { toDeployments } from './deploymentModel';
+import { isRemoved, toDeployments } from './deploymentModel';
 import type { Deployment, Service } from './mock';
 import { useProjects } from './ProjectsContext';
 
@@ -55,6 +55,8 @@ export function useDeployments(service?: Service) {
   }, [inProgress, !!current]);
 
   const items = useMemo<Deployment[]>(() => (service && current ? toDeployments(current.dtos, service, user) : []), [service, current, user]);
+  // 가장 최근에 성공한 요청이 REMOVE 면 서비스가 내려간 것이다. 목록을 받기 전에는 알 수 없으니 false 다.
+  const removed = !!current && isRemoved(current.dtos);
 
   const request = useCallback(async (body: api.DeploymentCreate) => {
     if (!serviceId) throw new Error('No service selected');
@@ -67,6 +69,7 @@ export function useDeployments(service?: Service) {
 
   return {
     items,
+    removed,
     loading: !current,
     error: current?.error ?? null,
     reload: load,
