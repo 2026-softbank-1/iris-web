@@ -1,4 +1,4 @@
-import { Ellipsis, EllipsisVertical, Copy, RotateCcw, Undo2 } from 'lucide-react';
+import { Ellipsis, EllipsisVertical, Copy, RefreshCw, RotateCcw, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
 import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
@@ -22,6 +22,7 @@ export function DeploymentActions({
   horizontal = false,
   deployment,
   onRedeploy,
+  onRestart,
   onRollback,
 }: {
   size?: number;
@@ -29,6 +30,8 @@ export function DeploymentActions({
   horizontal?: boolean;
   deployment: Deployment;
   onRedeploy?: () => void;
+  /** 지금 떠 있는 배포를 빌드 없이 다시 시작한다. Active 배포에서만 준다. */
+  onRestart?: () => void;
   /** 이전에 성공한 배포로 되돌린다. 성공했던 배포(이미 대체된 것)에서만 준다. */
   onRollback?: () => void;
 }) {
@@ -65,6 +68,19 @@ export function DeploymentActions({
             <RotateCcw size={16} className="menu-icon" /> Redeploy
           </button>
         )}
+        {onRestart && (
+          <button
+            type="button"
+            className="menu-item"
+            onClick={(e) => {
+              e.stopPropagation();
+              pop.close();
+              onRestart();
+            }}
+          >
+            <RefreshCw size={16} className="menu-icon" /> Restart
+          </button>
+        )}
         {onRollback && (
           <button
             type="button"
@@ -95,7 +111,7 @@ export function DeploymentActions({
   );
 }
 
-export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onRedeploy?: () => void; onRollback?: () => void }) {
+export function DeploymentRow({ d, to, variant, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
   const status = d.status.toLowerCase();
   return (
     <Link to={to} className={`dep-row-link ${variant}`}>
@@ -116,7 +132,7 @@ export function DeploymentRow({ d, to, variant, onRedeploy, onRollback }: { d: D
             </div>
           </div>
           <div className="dep-actions">
-            <DeploymentActions deployment={d} onRedeploy={onRedeploy} onRollback={onRollback} />
+            <DeploymentActions deployment={d} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
                 <span>View details</span>
