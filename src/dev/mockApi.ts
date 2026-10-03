@@ -47,7 +47,7 @@ let loggedIn = true;
 
 const targets: TargetDto[] = [
   { id: 1, name: 'aws-seoul', kind: 'AWS', region: 'ap-northeast-2', domainSuffix: 'likelion.uk' },
-  { id: 2, name: 'local', kind: 'LOCAL' },
+  { id: 2, name: 'onprem', kind: 'ONPREM', domainSuffix: 'internal.likelion.uk' },
 ];
 
 type MockProject = Omit<ProjectDto, 'serviceCount' | 'onlineServiceCount'>;
@@ -87,10 +87,12 @@ const services: MockService[] = [
   service(11, 1, 'web', 'likelion/web', { rootDirectory: 'apps/web', buildCommand: 'npm run build', startCommand: 'npm start' }),
   service(12, 1, 'api', 'likelion/api', { port: 8000, builder: 'dockerfile', dockerfilePath: 'Dockerfile' }),
   service(13, 1, 'worker', 'likelion/worker', { port: undefined }),
-  service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1, 2] }),
+  service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1] }),
   service(22, 2, 'docs', 'softbank/iris-docs', { isAutoDeploy: false }),
   service(31, 3, 'sandbox', 'kylo-dev/playground'),
 ];
+
+const isSingleTarget = (v: unknown): v is number[] => Array.isArray(v) && v.length === 1 && targets.some((x) => x.id === v[0]);
 
 let nextDeploymentId = 1000;
 const deployment = (
@@ -871,6 +873,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   }
   if (seg[0] === 'projects' && seg[2] === 'services') {
     if (method === 'POST') {
+      if (body?.targetIds !== undefined && !isSingleTarget(body.targetIds)) return fail(422, 'INVALID_INPUT', 'a service needs exactly one target');
       const url = String(body?.repositoryUrl ?? '').replace(/\.git$/, '');
       const repo = url.split('/').slice(-2).join('/');
       const s = service(Math.max(0, ...services.map((x) => x.id)) + 1, id(1), String(body?.name || repo.split('/')[1] || 'service'), repo, {
@@ -891,7 +894,13 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   if (!s) return fail(404, 'NOT_FOUND', 'Service not found');
 
   if (seg.length === 2) {
-    if (method === 'PATCH') Object.assign(s, body, { updatedAt: iso(Date.now()) });
+    if (method === 'PATCH') {
+      if (body?.targetIds !== undefined) {
+        if (!isSingleTarget(body.targetIds)) return fail(422, 'INVALID_INPUT', 'a service needs exactly one target');
+        if (body.targetIds[0] !== s.targetIds[0] && deploymentsOf(s.id).length > 0) return fail(409, 'CONFLICT', 'target cannot change after deployment');
+      }
+      Object.assign(s, body, { updatedAt: iso(Date.now()) });
+    }
     if (method === 'DELETE') {
       if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
         return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');

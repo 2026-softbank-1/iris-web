@@ -129,7 +129,7 @@ export type ServiceDto = {
 
 /**
  * 서비스가 한 타깃에서 열리는 공개 주소. 서비스가 연결한 타깃마다 한 건이다.
- * 도메인 규칙이 없는 타깃(local)은 host·url 이 없다.
+ * 도메인 규칙이 없는 타깃은 host·url 이 없다.
  */
 export type ServiceDomainDto = {
   targetId: number;
@@ -143,9 +143,9 @@ export type ServiceDomainDto = {
   isConnected: boolean;
 };
 
-export type TargetDto = { id: number; name: string; kind: string; region?: string; domainSuffix?: string };
-/** was 에 로컬 타깃(LOCAL)으로 배포하는 구현이 아직 없다. 화면에는 보여주되 고를 수 없게 한다. */
-export const isTargetSupported = (target: TargetDto) => target.kind !== 'LOCAL';
+export type TargetDto = { id: number; name: string; kind: 'AWS' | 'ONPREM'; region?: string; domainSuffix?: string };
+/** on-prem(ONPREM) 은 인프라 활성화 전까지 화면에는 보여주되 고를 수 없게 한다. */
+export const isTargetSupported = (target: TargetDto) => target.kind !== 'ONPREM';
 export type InstallationDto = { installationId: number; accountLogin: string; accountType: string };
 export type RepositoryDto = { fullName: string; url: string; defaultBranch: string; isPrivate: boolean; installationId: number };
 export type BranchDto = { name: string; isDefault: boolean };
