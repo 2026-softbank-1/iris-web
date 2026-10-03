@@ -93,12 +93,15 @@ const services: MockService[] = [
   // 블루그린으로 저장한 뒤 레플리카를 1개로 줄여 다음 배포부터 롤링으로 대체되는 서비스.
   service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1], deploymentStrategy: 'BLUE_GREEN' }),
   service(22, 2, 'docs', 'softbank/iris-docs', { isAutoDeploy: false }),
+  // 온프레미스 타깃이라 레플리카가 2개여도 롤링만 쓴다.
+  service(23, 2, 'edge', 'softbank/iris-edge', { targetIds: [2] }),
   service(31, 3, 'sandbox', 'kylo-dev/playground'),
 ];
 
 /** 저장된 Pod 수·자원. 설정한 적 없는 서비스는 서버 기본값(레플리카 1)이다. */
 const scalings = new Map<number, Omit<ScalingDto, 'serviceId' | 'deploymentRequestId'>>([
   [11, { replicas: 2, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }],
+  [23, { replicas: 2, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }],
   [21, { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }],
 ]);
 const scalingOf = (s: MockService): ScalingDto => ({
@@ -106,10 +109,11 @@ const scalingOf = (s: MockService): ScalingDto => ({
   ...(scalings.get(s.id) ?? { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }),
 });
 const STRATEGIES: DeploymentStrategy[] = ['ROLLING', 'CANARY', 'BLUE_GREEN'];
-/** was 와 같다: 요청 시점의 방식을 남기고, 레플리카가 2개 미만이면 실제로는 롤링으로 배포한다. */
+const isOnPrem = (s: MockService) => targets.find((x) => x.id === s.targetIds[0])?.kind === 'ONPREM';
+/** was 와 같다: 요청 시점의 방식을 남기고, 온프레미스 타깃이거나 레플리카가 2개 미만이면 실제로는 롤링으로 배포한다. */
 const strategySnapshot = (s: MockService) => {
   const requested = s.deploymentStrategy ?? 'ROLLING';
-  return { requestedDeploymentStrategy: requested, deploymentStrategy: scalingOf(s).replicas < 2 ? 'ROLLING' : requested } satisfies Pick<DeploymentDto, 'requestedDeploymentStrategy' | 'deploymentStrategy'>;
+  return { requestedDeploymentStrategy: requested, deploymentStrategy: isOnPrem(s) || scalingOf(s).replicas < 2 ? 'ROLLING' : requested } satisfies Pick<DeploymentDto, 'requestedDeploymentStrategy' | 'deploymentStrategy'>;
 };
 
 const isSingleTarget = (v: unknown): v is number[] => Array.isArray(v) && v.length === 1 && targets.some((x) => x.id === v[0]);
@@ -155,6 +159,7 @@ const deployments: MockDeployment[] = [
   deployment(13, 5 * HOUR, 'FAILED', 'PUSH', 'fix: 헬스체크 경로 변경', 'DEPLOY_FAILED', 'noFailure'), // 로그에 실패 흔적 없음
   deployment(21, 6 * HOUR, 'SUCCEEDED', 'CLI', 'feat: 게이트웨이 라우팅'),
   deployment(21, MIN, 'DEPLOYING', 'REDEPLOY', 'feat: 게이트웨이 라우팅'),
+  deployment(23, 4 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 엣지 캐시 설정'),
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
   deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
@@ -162,6 +167,7 @@ const deployments: MockDeployment[] = [
 // 배포 방식 도입 뒤의 요청만 방식을 남긴다. web 의 최근 배포는 카나리로 배포했고, gateway 는 레플리카가 1개라 블루그린 대신 롤링으로 배포 중이다.
 for (const d of deployments) {
   if (d.serviceId === 11 && d.sourceCommitMessage === 'feat: 랜딩 페이지 추가') Object.assign(d, { requestedDeploymentStrategy: 'CANARY', deploymentStrategy: 'CANARY' });
+  if (d.serviceId === 23) Object.assign(d, { requestedDeploymentStrategy: 'ROLLING', deploymentStrategy: 'ROLLING' });
   if (d.serviceId === 21 && d.status === 'DEPLOYING') Object.assign(d, { requestedDeploymentStrategy: 'BLUE_GREEN', deploymentStrategy: 'ROLLING' });
 }
 
@@ -928,6 +934,9 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
       if (body?.deploymentStrategy !== undefined) {
         const strategy = body.deploymentStrategy as DeploymentStrategy;
         if (!STRATEGIES.includes(strategy)) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'deploymentStrategy', reason: 'unknown deployment strategy' }]);
+        if (strategy !== 'ROLLING' && isOnPrem(s)) {
+          return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'deploymentStrategy', reason: 'on-prem targets support ROLLING only' }]);
+        }
         if (strategy !== 'ROLLING' && scalingOf(s).replicas < 2) {
           return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'deploymentStrategy', reason: 'requires at least 2 replicas' }]);
         }

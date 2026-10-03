@@ -29,12 +29,15 @@ export const strategyDescKey = (strategy: DeploymentStrategy): MessageKey => DES
 /** 서비스에 저장된 방식. 배포 방식을 모르는 서버(구버전)는 값을 보내지 않으니 롤링으로 본다. */
 export const strategyOf = (service: { deploymentStrategy?: DeploymentStrategy } | undefined): DeploymentStrategy => service?.deploymentStrategy ?? 'ROLLING';
 
+/** 온프레미스 타깃은 롤링만 지원한다. 서버도 카나리·블루그린 저장을 422 로 거절한다. */
+export const isRollingOnlyTarget = (target: { kind: string } | undefined) => target?.kind === 'ONPREM';
+
 /** 레플리카가 2개 이상이어야 하는 방식인가. */
 export const needsReplicas = (strategy: DeploymentStrategy) => strategy !== 'ROLLING';
 
 /** 이 레플리카 수로 배포하면 저장된 방식 대신 롤링으로 대체되는가. */
 export const fallsBackToRolling = (strategy: DeploymentStrategy, replicas: number) => needsReplicas(strategy) && replicas < MIN_REPLICAS_FOR_PROGRESSIVE;
 
-/** 서버가 배포 방식 저장을 거절한 오류인가(레플리카 부족이거나 서버가 아직 기능을 켜지 않았다). */
+/** 서버가 배포 방식 저장을 거절한 오류인가(온프레미스 타깃·레플리카 부족이거나 서버가 아직 기능을 켜지 않았다). */
 export const isStrategyRejected = (error: unknown) =>
   error instanceof ApiError && error.code === 'INVALID_INPUT' && error.details.some((d) => d.field === 'deploymentStrategy' || d.field.endsWith('.deploymentStrategy'));
