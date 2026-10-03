@@ -52,7 +52,7 @@ export const en = {
   "repair.state.published": "Hotfix PR opened. Review its changes and checks on GitHub.",
   "repair.state.merged": "Merged into main. Check the service’s new deployment.",
   "repair.select": "Repair plans",
-  "repair.noCode": "AI repair requires code-only plans. Follow the diagnosis for configuration or command changes.",
+  "repair.noCode": "An applicable code or configuration plan is required. Set required external credentials in Variables first.",
   "repair.review": "Review patch and files",
   "repair.loading": "Working…",
   "repair.patchError": "Could not load the patch. Refresh to retry.",
