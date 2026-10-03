@@ -2,27 +2,34 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MessageKey, Vars } from '../i18n';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { INVALID_INPUT_KEYS, withVariable, withoutVariable } from './variablesModel';
+import { INVALID_INPUT_KEYS, validationKey, withVariable, withoutVariable } from './variablesModel';
 
 type Loaded = { serviceId: string; data?: api.ServiceVariablesDto; failure?: { error: unknown } };
 
 /**
  * 변수 화면에 보여줄 오류 문장. 서버가 준 코드(와 INVALID_INPUT 의 메시지)만 풀고, 값(평문)은 어디에도 싣지 않는다.
- * 모르는 오류는 describeError 가 서버 메시지를 그대로 보여준다.
+ * 모르는 오류는 describeError 가 서버 메시지를 그대로 보여준다(영어).
  */
 export function describeVariablesError(error: unknown, t: (key: MessageKey, vars?: Vars) => string): string {
-  if (error instanceof ApiError) {
-    switch (error.code) {
-      case 'VARIABLE_CONFLICT': return t('service.vars.err.conflict');
-      case 'VARIABLE_NOT_FOUND': return t('service.vars.err.notFound');
-      case 'SERVICE_NOT_FOUND': return t('service.vars.err.serviceGone');
-      case 'NOT_CONFIGURED': return t('service.vars.err.notConfigured');
-      case 'INVALID_INPUT': {
-        const key = INVALID_INPUT_KEYS[error.message];
-        if (key) return t(key);
-      }
+  // 응답을 받지 못했다(연결 끊김 등).
+  if (!(error instanceof ApiError)) return t('service.vars.err.network');
+  switch (error.code) {
+    case 'VARIABLE_CONFLICT': return t('service.vars.err.conflict');
+    case 'VARIABLE_NOT_FOUND': return t('service.vars.err.notFound');
+    case 'SERVICE_NOT_FOUND': return t('service.vars.err.serviceGone');
+    case 'NOT_CONFIGURED': return t('service.vars.err.notConfigured');
+    case 'INVALID_INPUT': {
+      const key = INVALID_INPUT_KEYS[error.message];
+      if (key) return t(key);
+      break;
+    }
+    case 'VALIDATION_ERROR': {
+      const key = validationKey(error.details);
+      if (key) return t(key);
+      break;
     }
   }
+  if (error.status >= 500) return t('service.vars.err.server');
   return describeError(error);
 }
 
