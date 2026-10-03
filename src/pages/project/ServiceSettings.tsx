@@ -393,7 +393,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                             <span>
                               {service.port !== undefined && ' · '}
                               {d.targetName}
-                              {!d.isConnected && ' · Reachable after the first successful deployment'}
+                              {!d.isConnected && ' · Reachable once a deployment succeeds'}
                             </span>
                           </p>
                         </div>
@@ -566,7 +566,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </div>
                 <div className="st-apply">
                   <p className={`st-hint${scale.error ? ' error' : ''}`}>
-                    {scale.error ?? (scale.loading ? 'Loading the current scale…' : service.deploying ? 'Wait for the current deployment to finish before applying.' : 'Applying restarts the service with its current image. No rebuild.')}
+                    {scale.error ?? (scale.loading ? 'Loading the current scale…' : service.removed ? 'This service is removed from the cluster. Deploy it again to apply a scale change.' : service.deploying ? 'Wait for the current deployment to finish before applying.' : 'Applying restarts the service with its current image. No rebuild.')}
                   </p>
                   {scale.error ? (
                     <button type="button" className="btn btn-outline" onClick={scale.retry}>
@@ -577,7 +577,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       <button type="button" className="btn btn-outline" disabled={!scale.edited || scale.busy} onClick={scale.reset}>
                         Reset
                       </button>
-                      <button type="button" className="btn btn-purple-outline" disabled={!scale.dirty || scale.busy || !!service.deploying} onClick={() => void applyScale()}>
+                      <button type="button" className="btn btn-purple-outline" disabled={!scale.dirty || scale.busy || !!service.deploying || !!service.removed} onClick={() => void applyScale()}>
                         {scale.busy ? 'Applying…' : 'Apply'}
                       </button>
                     </>

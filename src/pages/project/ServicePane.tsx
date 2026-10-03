@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import { apiStatusLabel, deploymentLabel, formatDuration } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { isDeploymentInProgress } from '../../lib/endpoints';
@@ -73,6 +73,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const base = `/project/${project.id}/service/${service.id}`;
+  // 접속되는 주소가 없으면(처음 배포하기 전, 서비스를 내린 뒤) 주소는 있어도 앱이 응답하지 않아서 링크로 열지 않는다.
+  const reachable = !!service.domains?.some((d) => d.isConnected);
 
   return (
     <div className="deps">
@@ -80,12 +82,18 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         <div className="deps-info-left">
           {service.domain ? (
             <>
-              <div className="side-icon deps-globe">
+              <div className={`side-icon${reachable ? ' deps-globe' : ' dim'}`}>
                 <Globe size={16} />
               </div>
-              <a href={`https://${service.domain}`} target="_blank" rel="noreferrer" className="deps-domain">
-                {service.domain}
-              </a>
+              {reachable ? (
+                <a href={`https://${service.domain}`} target="_blank" rel="noreferrer" className="deps-domain">
+                  {service.domain}
+                </a>
+              ) : (
+                <span className="deps-unexposed" title="Reachable once a deployment succeeds">
+                  {service.domain}
+                </span>
+              )}
             </>
           ) : service.domains && (
             <>
@@ -181,7 +189,13 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         </div>
       ) : !building ? (
         <div className="deps-empty">
-          <p>{deps.loading ? 'Loading deployments…' : (deps.error ?? 'There is no active deployment for this service.')}</p>
+          <p>
+            {deps.loading
+              ? 'Loading deployments…'
+              : (deps.error ?? (deps.removed
+                ? 'This service was removed from the cluster. Deploy it again, or redeploy or roll back to an earlier deployment in History.'
+                : 'There is no active deployment for this service.'))}
+          </p>
           <div className="deps-empty-actions">
             <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, 'Deployment requested')}>
               <span>
@@ -215,7 +229,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     d={d}
                     to={`${base}/deployment/${d.id}`}
                     variant="history"
-                    onRedeploy={() => void run(() => deps.redeploy(d.id), 'Redeploy requested')}
+                    onRedeploy={canRedeploy(d) ? () => void run(() => deps.redeploy(d.id), 'Redeploy requested') : undefined}
                     onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), 'Rollback requested') : undefined}
                   />
                 ))}

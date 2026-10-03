@@ -550,6 +550,7 @@ kbd {
 }
 
 .status-pill.removed,
+.status-pill.taken_down,
 .status-pill.rolled_back {
   color: var(--fg-subtle);
   background: var(--border);
@@ -564,6 +565,7 @@ kbd {
 
 .status-pill.queued,
 .status-pill.building,
+.status-pill.removing,
 .status-pill.deploying {
   color: var(--purple-text);
   background: var(--purple-bg);

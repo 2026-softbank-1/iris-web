@@ -23,7 +23,11 @@ export interface LogLine {
   marker?: 'start' | 'end';
 }
 
-export type DeploymentStatus = 'ACTIVE' | 'REMOVED' | 'CRASHED' | 'FAILED' | 'SKIPPED' | 'BUILDING' | 'QUEUED' | 'DEPLOYING' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
+/**
+ * REMOVED 는 성공했지만 다른 배포로 대체된 것이다. TAKEN_DOWN·REMOVING 은 서비스를 클러스터에서 내리는 요청(REMOVE)이
+ * 끝났거나 진행 중인 것으로, 대체된 배포와 다른 이벤트다.
+ */
+export type DeploymentStatus = 'ACTIVE' | 'REMOVED' | 'TAKEN_DOWN' | 'REMOVING' | 'CRASHED' | 'FAILED' | 'SKIPPED' | 'BUILDING' | 'QUEUED' | 'DEPLOYING' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
 
 export interface Deployment {
   id: string;
@@ -88,6 +92,10 @@ export interface Service {
   deployments: Deployment[];
   /** 최근 배포가 진행 중인지(QUEUED·BUILDING·DEPLOYING). */
   deploying?: boolean;
+  /** 서비스가 클러스터에서 내려갔다(가장 최근 요청이 성공한 REMOVE). 서비스 정의는 남아 있어 다시 배포할 수 있다. */
+  removed?: boolean;
+  /** 서비스가 online 이 아닐 때 캔버스에 보여줄 문구. 없으면 상태로 정한다. */
+  offlineLabel?: string;
   /** was 에서 온 서비스의 원본 값. 설정 화면이 이 값을 읽고 고친다. */
   remote?: ServiceDto;
 }
