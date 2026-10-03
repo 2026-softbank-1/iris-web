@@ -1,0 +1,21 @@
+/* ── Toss Design System · Webfonts ─────────────────────────────────
+   The real Toss product faces are proprietary:
+     • "Toss Product Sans" / "Toss Display Sans" — Toss's brand typeface
+     • "SF Pro" — Apple's system font used for iOS rendering in the source file
+   Neither ships a webfont we can redistribute. We substitute Pretendard,
+   the de-facto Korean+Latin UI face whose metrics, weights and hangul
+   shaping closely track Apple SD Gothic Neo / SF Pro — the standard
+   choice for Korean fintech product UIs. Swap in the licensed faces for
+   production by replacing the @font-face / family vars below.
+   ------------------------------------------------------------------ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+:root {
+  /* Brand / product face — substitute. Pretendard covers KR + Latin. */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Numeric / tabular use (balances, amounts) reuses the sans face. */
+  --font-numeric: var(--font-sans);
+  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

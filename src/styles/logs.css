@@ -43,7 +43,7 @@
 }
 
 .logs-filter:focus-within {
-  border-color: var(--purple-strong);
+  border-color: var(--primary-strong);
 }
 
 .logs-filter-icon {
@@ -119,7 +119,7 @@
 }
 
 .logs-tool-btn:hover {
-  border-color: #4a4957;
+  border-color: var(--border-strong);
 }
 
 .logs-tool-btn:hover .tool-icon {
@@ -213,7 +213,7 @@
 }
 
 .logs-layout-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash), 0.06);
 }
 
 .logs-scroll {
@@ -233,7 +233,7 @@
 }
 
 .logs-body .logs-row:hover .logs-td {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
 }
 
 .logs-td {
@@ -259,11 +259,11 @@
 }
 
 .logs-body .logs-row.level-error:hover .logs-td {
-  background: #2c1515;
+  background: var(--red-bg);
 }
 
 .logs-body .logs-row.level-warn:hover .logs-td {
-  background: #261f10;
+  background: var(--yellow-bg);
 }
 
 .logs-time {
@@ -347,7 +347,7 @@
 }
 
 .log-attr:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash), 0.05);
 }
 
 .log-attr-key {
@@ -406,7 +406,7 @@
   color: var(--fg-muted);
   white-space: pre;
   overflow-x: auto;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(var(--wash), 0.02);
   border-left: 2px solid var(--border);
   border-radius: 4px;
 }
@@ -538,7 +538,7 @@
   display: flex;
   align-items: center;
   height: 18px;
-  color: #367859;
+  color: var(--green-text);
 }
 
 .bl-step {

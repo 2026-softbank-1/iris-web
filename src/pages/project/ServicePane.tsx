@@ -99,7 +99,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-purple-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, 'Deployment requested')}>
+          <button type="button" className="btn btn-primary-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, 'Deployment requested')}>
             Deploy
           </button>
           {service.runtime && (
@@ -302,7 +302,7 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="btn-label-muted">Raw Editor</span>
               </span>
             </button>
-            <button type="button" className="btn btn-purple-outline" onClick={() => setAdding(true)}>
+            <button type="button" className="btn btn-primary-outline" onClick={() => setAdding(true)}>
               <div className="btn-icon">
                 <Plus size={16} />
               </div>

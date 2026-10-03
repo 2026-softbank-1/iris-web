@@ -285,7 +285,7 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                   </div>
                 </div>
                 <div className="st-check">
-                  <button type="button" className="st-mini-btn purple" onClick={() => toast("You're on the latest version of this repo")}>
+                  <button type="button" className="st-mini-btn primary" onClick={() => toast("You're on the latest version of this repo")}>
                     <RefreshCw size={14} />
                     <span>Check for updates</span>
                   </button>
@@ -373,15 +373,15 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                   <p className="st-muted st-gap16">This service is not exposed to the internet yet.</p>
                 )}
                 <div className="st-btn-row">
-                  <button type="button" className="btn btn-purple-outline st-plus-btn" onClick={() => toast('Domain generation is mocked')}>
+                  <button type="button" className="btn btn-primary-outline st-plus-btn" onClick={() => toast('Domain generation is mocked')}>
                     <Zap size={16} className="btn-icon" />
                     <span>Generate Domain</span>
                   </button>
-                  <button type="button" className="btn btn-purple-outline st-plus-btn">
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
                     <Plus size={16} className="btn-icon" />
                     <span>Custom Domain</span>
                   </button>
-                  <button type="button" className="btn btn-purple-outline st-plus-btn">
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
                     <Plus size={16} className="btn-icon" />
                     <span>TCP Proxy</span>
                   </button>
@@ -412,7 +412,7 @@ export function ServiceSettings({ project, service }: { project: Project; servic
                         </div>
                       </div>
                       <p className="st-private-sub">
-                        Ready for private traffic · <span className="st-purple">Short name</span> <code className="st-code-chip">{service.name}</code>
+                        Ready for private traffic · <span className="st-primary">Short name</span> <code className="st-code-chip">{service.name}</code>
                       </p>
                     </div>
                   </div>

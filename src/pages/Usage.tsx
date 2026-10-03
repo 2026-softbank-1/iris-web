@@ -25,8 +25,8 @@ function UsageChart({ title, total, unit }: { title: string; total: number; unit
   return <div className="usage-chart"><h3>{title}</h3><p className="usage-chart-caption">Minutely accumulated {unit === '$' ? 'cost' : 'usage'}</p>
     <svg viewBox="0 0 560 180" role="img" aria-label={title + ' accumulated chart'}>
       {[30, 87, 145].map(y => <line key={y} x1="30" x2="530" y1={y} y2={y} className="usage-chart-grid" />)}
-      <polyline points={values.map((v, i) => `${30 + i * 500 / 7},${145 - (total ? v / total : 0) * 115}`).join(' ')} fill="none" stroke="#a777e8" strokeWidth="2" />
-      {values.map((v, i) => <circle key={i} cx={30 + i * 500 / 7} cy={145 - (total ? v / total : 0) * 115} r={hover === i ? 5 : 3} fill="#a777e8" />)}
+      <polyline points={values.map((v, i) => `${30 + i * 500 / 7},${145 - (total ? v / total : 0) * 115}`).join(' ')} fill="none" stroke="#ffa41b" strokeWidth="2" />
+      {values.map((v, i) => <circle key={i} cx={30 + i * 500 / 7} cy={145 - (total ? v / total : 0) * 115} r={hover === i ? 5 : 3} fill="#ffa41b" />)}
       <text x="30" y="173">Sep 30</text><text x="260" y="173">Oct 01</text><text x="487" y="173">Oct 02</text>
     </svg>
     <div className="usage-chart-targets">{values.map((v, i) => <button key={i} type="button" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} onClick={() => setHover(i)} aria-label={TIMES[i] + ': ' + format(v)} />)}</div>
@@ -135,7 +135,7 @@ export function Usage() {
                       <p>Subtotal</p>
                       <p>$0.01</p>
                     </div>
-                    <div className="usage-bd-sumrow purple">
+                    <div className="usage-bd-sumrow primary">
                       <p>Credits Available</p>
                       <p>-{workspace.creditsGranted}</p>
                     </div>

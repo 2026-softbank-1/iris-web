@@ -77,18 +77,18 @@
 }
 
 .side-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
   color: var(--fg);
 }
 
 .side-item.active {
   font-weight: 500;
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash), 0.06);
 }
 
 .side-item.active .side-icon {
-  color: var(--purple-strong);
+  color: var(--primary-strong);
 }
 
 .side-item.external {
@@ -113,7 +113,7 @@
 }
 
 .side-btn.open {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--wash), 0.03);
 }
 
 .side-btn-label {
@@ -145,7 +145,7 @@
 }
 
 .side-item.sub.active {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash), 0.06);
 }
 
 .side-fill {
@@ -177,7 +177,7 @@
 
 .account-btn:hover .account-inner,
 .account-btn[data-state='open'] .account-inner {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--wash), 0.04);
 }
 
 .account-inner p {
@@ -215,7 +215,7 @@
   width: 2px;
   height: 32px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(var(--wash), 0.2);
 }
 
 /* right column ---------------------------------------------------- */
@@ -342,6 +342,6 @@
   background: var(--bg-3);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
   animation: pop-in 0.15s ease;
 }

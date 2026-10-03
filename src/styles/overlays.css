@@ -14,7 +14,7 @@
   flex-direction: column;
   background: var(--bg-2);
   border-radius: 8px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   animation: fade-in 0.1s ease;
 }
@@ -82,7 +82,7 @@
 
 .cmdk-item[aria-selected='true'] {
   color: var(--fg);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--wash), 0.04);
 }
 
 .cmdk-group:first-child .cmdk-item {
@@ -90,7 +90,7 @@
 }
 
 .cmdk-group:first-child .cmdk-item-icon {
-  color: var(--purple-strong);
+  color: var(--primary-strong);
 }
 
 .cmdk-item-icon {

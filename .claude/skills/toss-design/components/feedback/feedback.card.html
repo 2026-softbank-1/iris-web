@@ -1,0 +1,61 @@
+<!-- @dsCard group="Components" viewport="700x460" name="Feedback — Loader · Progress · Toast · Tooltip · Dialog · Sheet" subtitle="Status & overlay primitives" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-sans); background: var(--bg-page); color: var(--text-primary); }
+  #root { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+  .lbl { font-size: 11px; font-weight: 600; color: var(--text-quaternary); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; }
+  .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Loader, ProgressBar, Toast, Tooltip, Dialog, BottomSheet, Button, Icon } = window.TossDesignSystemTDS_d2de50;
+  function Demo() {
+    const [prog, setProg] = React.useState(64);
+    const [dlg, setDlg] = React.useState(false);
+    const [sheet, setSheet] = React.useState(false);
+    return (
+      <div>
+        <div className="row">
+          <div><p className="lbl">Loader</p><Loader /></div>
+          <div style={{flex:1, minWidth: 220}}><p className="lbl">Progress {prog}%</p><ProgressBar value={prog} /></div>
+        </div>
+        <div><p className="lbl">Toast</p>
+          <div className="row">
+            <Toast icon={<Icon name="check" size={20} color="var(--blue-300)" />}>송금이 완료됐어요</Toast>
+            <Toast action="실행 취소">대화방을 나갔어요</Toast>
+          </div>
+        </div>
+        <div><p className="lbl">Tooltip</p><div style={{paddingTop:8}}><Tooltip>여기를 눌러 송금을 시작해요</Tooltip></div></div>
+        <div><p className="lbl">Overlays</p>
+          <div className="row">
+            <Button variant="weak" size="medium" onClick={()=>setDlg(true)}>다이얼로그 열기</Button>
+            <Button variant="weak" size="medium" color="neutral" onClick={()=>setSheet(true)}>바텀시트 열기</Button>
+          </div>
+        </div>
+        <Dialog open={dlg} title="송금하시겠어요?" secondaryLabel="취소" primaryLabel="송금" onPrimary={()=>setDlg(false)} onSecondary={()=>setDlg(false)} onClose={()=>setDlg(false)}>
+          김토스님에게 50,000원을 보낼게요.
+        </Dialog>
+        <BottomSheet open={sheet} title="계좌 선택" onClose={()=>setSheet(false)}>
+          <div style={{display:'flex', flexDirection:'column', gap:4, marginBottom:16}}>
+            <div style={{padding:'14px 0', fontWeight:600}}>토스뱅크 · 1,250,000원</div>
+            <div style={{padding:'14px 0', fontWeight:600}}>국민은행 · 430,000원</div>
+          </div>
+          <Button fullWidth onClick={()=>setSheet(false)}>선택 완료</Button>
+        </BottomSheet>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

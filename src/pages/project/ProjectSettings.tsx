@@ -122,7 +122,7 @@ export function ProjectSettings() {
                     <p className="ps-p">
                       This project is <b>PRIVATE</b>. Only project members can see it.
                     </p>
-                    <button type="button" className="btn btn-purple-outline ps-btn" onClick={() => toast('Visibility change is mocked')}>
+                    <button type="button" className="btn btn-primary-outline ps-btn" onClick={() => toast('Visibility change is mocked')}>
                       Change visibility
                     </button>
                   </section>

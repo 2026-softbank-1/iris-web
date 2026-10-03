@@ -7,6 +7,7 @@ import {
   LogOut,
   Moon,
   Settings,
+  Sun,
   User,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -15,6 +16,7 @@ import { LogoMark } from '../components/brand';
 import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
+import { getTheme, toggleTheme } from '../lib/theme';
 
 const SETTINGS_LINKS = [
   { to: '/workspace/domains', label: 'Domains' },
@@ -60,10 +62,10 @@ function AccountButton() {
           <User size={16} className="menu-icon" />
           Account Settings
         </button>
-        <button type="button" className="menu-item" onClick={pop.close}>
-          <Moon size={16} className="menu-icon" />
+        <button type="button" className="menu-item" onClick={() => { pop.close(); toggleTheme(); }}>
+          {getTheme() === 'dark' ? <Moon size={16} className="menu-icon" /> : <Sun size={16} className="menu-icon" />}
           Theme
-          <span className="menu-right">Dark</span>
+          <span className="menu-right">{getTheme() === 'dark' ? 'Dark' : 'Light'}</span>
         </button>
         <div className="menu-sep" />
         <button type="button" className="menu-item" onClick={async () => { pop.close(); await auth.logout(); navigate('/login'); }}>

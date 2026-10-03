@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
+import { toggleTheme } from '../lib/theme';
 import { CreateDialog } from './CreateDialog';
 import { Dialog, useUI } from './ui';
 
@@ -74,7 +75,7 @@ export function CommandPalette() {
       { id: 'search-projects', label: 'Search Projects...', icon: FolderKanban, group: 'General', run: () => setQ('project ') },
       { id: 'search-services', label: 'Search Services...', icon: Box, group: 'General', run: () => setQ('service ') },
       { id: 'account', label: 'Account', icon: User, group: 'General', run: () => (close(), toast('Account settings are not available yet')) },
-      { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toast('Only the dark theme is available')) },
+      { id: 'theme', label: 'Change theme', icon: Palette, group: 'General', run: () => (close(), toggleTheme()) },
       { id: 'utils', label: 'Utilities', icon: Wrench, group: 'General', run: () => (close(), toast('Utilities are not available yet')) },
       { id: 'region', label: 'Update Preferred Region', icon: Globe, group: 'General', run: () => (close(), toast('Preferred region: US West')) },
       { id: 'time', label: 'Time', icon: Clock, group: 'Internationalization', run: () => (close(), toast('Times are shown in GMT+9')) },

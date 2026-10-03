@@ -12,10 +12,10 @@ export function AuthPage() {
   const callbackError = params.get('error');
   const notice = callbackError ? (callbackError === 'access_denied' ? 'GitHub sign-in was cancelled.' : 'GitHub sign-in failed. Please try again.') : auth.error;
   return <div className="auth-shell">
-    <header className="auth-header"><Link to="/login" aria-label="LikeLion home"><LogoMark size={30} /></Link><span>LikeLion</span></header>
-    <main className="auth-main"><div className="auth-card"><LogoMark size={44}/><h1>Start building on LikeLion</h1><p>Deploy your first project in minutes.</p>
+    <header className="auth-header"><Link to="/" aria-label="LikeLion home"><LogoMark size={30} /></Link><span>LikeLion</span></header>
+    <main className="auth-main"><div className="auth-card"><LogoMark size={44}/><h1>LikeLion에서 시작해 보세요</h1><p>첫 프로젝트를 몇 분 만에 배포할 수 있어요.</p>
       {notice && <p className="auth-error" role="alert">{notice}</p>}
-      <button className="auth-provider" onClick={auth.login} disabled={auth.status === 'loading'}><RepoIcon size={20}/> Start with GitHub <ArrowRight size={16}/></button>
+      <button className="auth-provider" onClick={auth.login} disabled={auth.status === 'loading'}><RepoIcon size={20}/> GitHub로 시작하기 <ArrowRight size={16}/></button>
     </div></main>
   </div>;
 }

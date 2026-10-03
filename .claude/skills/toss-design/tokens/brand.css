@@ -1,0 +1,116 @@
+/* ── Toss Design System · Brand & semantic tokens ──────────────────
+   Clean, px-unit aliases over the full materialized Figma variable set
+   (tokens-fig/fig-tokens.css). Hand-authored components reference THESE
+   names. Values mirror the Figma "Color" + "Tokens" collections.
+   ------------------------------------------------------------------ */
+:root {
+  /* ─ Brand: Toss Blue (primary) ─ */
+  --blue-50:  #E8F3FF;
+  --blue-100: #C9E2FF;
+  --blue-200: #90C2FF;
+  --blue-300: #64A8FF;
+  --blue-400: #4593FC;
+  --blue-500: #3182F6;   /* ← primary brand color */
+  --blue-600: #2272EB;
+  --blue-700: #1B64DA;
+  --blue-800: #1957C2;
+  --blue-900: #194AA6;
+
+  /* ─ Grey scale (the workhorse of every Toss screen) ─ */
+  --grey-50:  #F9FAFB;
+  --grey-100: #F2F4F6;
+  --grey-200: #E5E8EB;
+  --grey-300: #D1D6DB;
+  --grey-400: #B0B8C1;
+  --grey-500: #8B95A1;
+  --grey-600: #6B7684;
+  --grey-700: #4E5968;
+  --grey-800: #333D4B;
+  --grey-900: #191F28;
+
+  /* ─ Status ─ */
+  --green-500: #03B26C;   /* success / gains */
+  --red-500:   #F04452;   /* danger / losses */
+  --red-600:   #E42939;
+  --yellow-500:#FFB331;   /* warning */
+  --teal-600:  #2BC4C4;
+
+  /* ─ Toss heritage yellow (logo, illustrations, legacy splash) ─ */
+  --toss-yellow: #FFC84D;
+  --toss-yellow-strong: #FFCC00;
+
+  --white: #FFFFFF;
+  --black: #000000;
+
+  /* ── Semantic text ── */
+  --text-strong:      var(--grey-900);
+  --text-primary:     var(--grey-800);
+  --text-secondary:   var(--grey-700);
+  --text-tertiary:    var(--grey-600);
+  --text-quaternary:  var(--grey-500);
+  --text-disabled:    var(--grey-400);
+  --text-brand:       var(--blue-600);
+  --text-danger:      var(--red-600);
+  --text-success:     #029359;
+  --text-on-fill:     #FFFFFF;
+
+  /* ── Semantic surface / background ── */
+  --bg-default:  #FFFFFF;   /* cards, sheets */
+  --bg-page:     var(--grey-100);  /* app canvas behind cards */
+  --bg-lower:    var(--grey-100);
+  --bg-elevated: #FFFFFF;
+  --bg-dim:      rgba(0,0,0,0.2);  /* scrim behind modals */
+
+  /* ── Semantic fill (buttons, chips, controls) ── */
+  --fill-brand:        var(--blue-500);
+  --fill-brand-weak:   rgba(49,130,246,0.16);
+  --fill-neutral:      var(--grey-700);
+  --fill-neutral-weak: rgba(7,25,76,0.05);
+  --fill-danger:       var(--red-500);
+  --fill-danger-weak:  rgba(240,68,82,0.16);
+  --fill-success:      var(--green-500);
+  --fill-pressed:      rgba(2,32,71,0.05);
+
+  /* ── Semantic icon ── */
+  --icon-default:    var(--grey-600);
+  --icon-secondary:  var(--grey-500);
+  --icon-tertiary:   var(--grey-400);
+  --icon-brand:      var(--blue-500);
+
+  /* ── Border ── */
+  --border-default: var(--grey-200);
+  --border-strong:  var(--grey-300);
+
+  /* ── Radius (px) ── */
+  --radius-xxs: 14px;
+  --radius-xs:  16px;
+  --radius-s:   18px;
+  --radius-m:   20px;
+  --radius-l:   24px;
+  --radius-full: 999px;
+
+  /* ── Spacing (4px base grid; side padding 24 on mobile) ── */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;   /* default screen side padding (M) */
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-side: 24px;
+
+  /* ── Elevation (Toss favours soft, low-spread shadows) ── */
+  --shadow-card:  0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+  --shadow-float: 0 4px 16px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.10);
+  --shadow-sheet: 0 -2px 16px rgba(0,0,0,0.08);
+
+  /* ── Motion (Toss = quick, soft spring-ish ease, subtle press-shrink) ── */
+  --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1); /* @kind other */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* @kind other */
+  --duration-fast: 150ms; /* @kind other */
+  --duration-base: 220ms; /* @kind other */
+  --press-scale: 0.96; /* @kind other */
+}

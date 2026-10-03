@@ -1,0 +1,35 @@
+/* ── Toss Design System · Typography scale (TDS) ───────────────────
+   Reconstructed from the Toss Figma text styles. Toss uses a tight,
+   number-friendly scale built on the system/Pretendard face. Weights:
+   400 Regular · 500 Medium · 600 Semibold · 700 Bold. Line-heights are
+   generous (≈1.5) for hangul legibility; display sizes pull tighter.
+   Each token is a full `font:` shorthand-friendly set of vars.
+   ------------------------------------------------------------------ */
+:root {
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Display — hero numbers, onboarding headlines */
+  --type-display1-size: 36px;   --type-display1-line: 46px;   --type-display1-weight: 700;
+  --type-display2-size: 28px;   --type-display2-line: 38px;   --type-display2-weight: 700;
+
+  /* Title — screen & section headers */
+  --type-title1-size: 24px;     --type-title1-line: 33px;     --type-title1-weight: 700;
+  --type-title2-size: 21px;     --type-title2-line: 30px;     --type-title2-weight: 700;
+  --type-title3-size: 18px;     --type-title3-line: 26px;     --type-title3-weight: 600;
+
+  /* Body — primary reading text. 17 is the iOS-default body size. */
+  --type-body1-size: 17px;      --type-body1-line: 26px;      --type-body1-weight: 400;
+  --type-body2-size: 15px;      --type-body2-line: 24px;      --type-body2-weight: 400;
+
+  /* Label — list rows, buttons, dense UI */
+  --type-label1-size: 15px;     --type-label1-line: 22px;     --type-label1-weight: 600;
+  --type-label2-size: 13px;     --type-label2-line: 20px;     --type-label2-weight: 500;
+
+  /* Caption — captions, badges, helper text */
+  --type-caption1-size: 13px;   --type-caption1-line: 18px;   --type-caption1-weight: 400;
+  --type-caption2-size: 12px;   --type-caption2-line: 16px;   --type-caption2-weight: 500;
+  --type-caption3-size: 11px;   --type-caption3-line: 14px;   --type-caption3-weight: 500;
+}

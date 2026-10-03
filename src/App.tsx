@@ -16,6 +16,7 @@ import { Sandboxes } from './pages/project/Sandboxes';
 
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPages';
+import { Landing } from './pages/Landing';
 import { ProjectsProvider } from './data/ProjectsContext';
 
 function RequireAuth() {
@@ -39,7 +40,7 @@ export function App() {
     <AuthProvider><UIProvider><ProjectsProvider>
       <TitleSync />
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<AuthPage />} />
         <Route element={<RequireAuth />}>
         <Route element={<WorkspaceLayout />}>

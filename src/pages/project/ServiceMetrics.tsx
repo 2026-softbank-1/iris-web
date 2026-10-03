@@ -83,14 +83,14 @@ function LineChart({ lines, kind, span, label, height = CHART_HEIGHT }: { lines:
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="chart" role="img" aria-label={label} style={{ overflow: 'hidden' }}>
         {axis.ticks.map((t, i) => (
           <g key={t.label}>
-            {i > 0 && <line x1={left} x2={right} y1={geo.toY(t.value)} y2={geo.toY(t.value)} stroke="rgba(255,255,255,0.06)" />}
+            {i > 0 && <line x1={left} x2={right} y1={geo.toY(t.value)} y2={geo.toY(t.value)} stroke="rgba(var(--wash), 0.06)" />}
             <text x={4} y={geo.toY(t.value) - 4} className="chart-tick">
               {t.label}
             </text>
           </g>
         ))}
-        <line x1={left + 0.5} x2={left + 0.5} y1={PAD_TOP} y2={bottom} stroke="rgba(255,255,255,0.22)" />
-        <line x1={left} x2={right} y1={bottom + 0.5} y2={bottom + 0.5} stroke="rgba(255,255,255,0.08)" />
+        <line x1={left + 0.5} x2={left + 0.5} y1={PAD_TOP} y2={bottom} stroke="rgba(var(--wash), 0.22)" />
+        <line x1={left} x2={right} y1={bottom + 0.5} y2={bottom + 0.5} stroke="rgba(var(--wash), 0.08)" />
         {xTicks.map((t) => {
           const x = geo.toX(t.t);
           return (
@@ -124,7 +124,7 @@ function LegendToggle({ label, color, on, title, onClick }: { label: string; col
   return (
     <button type="button" className="metric-legend-item" aria-pressed={on} title={title} style={{ opacity: on ? 1 : 0.5 }} onClick={onClick}>
       <div>
-        <span className="metric-swatch" style={on ? { background: color, borderColor: color } : { borderColor: '#fff' }} />
+        <span className="metric-swatch" style={on ? { background: color, borderColor: color } : { borderColor: 'var(--fg)' }} />
         <span className="metric-legend-label">{label}</span>
       </div>
     </button>
@@ -213,7 +213,7 @@ function ResourceCard({
         <p className="metric-title">{title}</p>
         <div className="metric-legend">
           <LegendToggle label="Sum" color={color} on={sumOn} onClick={onToggleSum} />
-          <LegendToggle label="Replicas" color="#fff" on={replicasOn && !unsupported} title={replicasOn && unsupported ? REPLICAS_UNAVAILABLE : undefined} onClick={onToggleReplicas} />
+          <LegendToggle label="Replicas" color="var(--fg)" on={replicasOn && !unsupported} title={replicasOn && unsupported ? REPLICAS_UNAVAILABLE : undefined} onClick={onToggleReplicas} />
         </div>
       </div>
       {replicasShown && replicas.length > 0 && (
@@ -347,7 +347,7 @@ export function ServiceMetrics({ service }: { service: Service }) {
           what="memory"
           metric="memory"
           kind="bytes"
-          color="var(--purple)"
+          color="var(--primary)"
           view={view}
           sumOn={sum.memory}
           replicasOn={replicas.memory}
