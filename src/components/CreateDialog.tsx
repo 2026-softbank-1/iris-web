@@ -177,6 +177,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{t(option)}</button>
         : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div></>}
     {step === 'repos' && <>
+      <p className="diag-muted">{t('repair.authorizationNote')}</p>
       <div className="create-search"><Search size={17} /><input autoFocus aria-label={t('create.searchRepos')} placeholder={t('create.searchRepos')} value={query} onChange={e => setQuery(e.target.value)} /></div>
       <div className="create-repo-actions">
         <button onClick={goInstall}>{t('create.configureApp')}</button>

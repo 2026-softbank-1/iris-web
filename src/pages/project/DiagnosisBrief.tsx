@@ -1,10 +1,13 @@
 import { ChevronRight, Sparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { triggerAutomaticRepair } from '../../lib/automaticRepair';
+import { ApiError, describeError } from '../../lib/api';
 import { describeFailure, isAutoDiagnosisPending, supportKey } from '../../data/diagnosisModel';
 import { fmtKstFull, type Service } from '../../data/mock';
 import { useDiagnosis } from '../../data/useDiagnosis';
 import { formatAgo, useI18n } from '../../i18n';
-import type { DiagnosisAnalysisDto } from '../../lib/endpoints';
+import { githubInstallUrl, type DiagnosisAnalysisDto } from '../../lib/endpoints';
 
 /**
  * 서비스 실패 배너 아래에 보여 주는, 가장 최근 실패한 배포의 AI 진단 요약. 결과를 짧게 보여 주고 상세 페이지로 가는 버튼과,
@@ -12,6 +15,11 @@ import type { DiagnosisAnalysisDto } from '../../lib/endpoints';
  */
 export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { service: Service; deploymentId: string; updatedAt: string; to: string }) {
   const { t, lang } = useI18n();
+  const navigate = useNavigate();
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairError, setRepairError] = useState('');
+  const [needsAccess, setNeedsAccess] = useState(false);
+  const running = useRef(false);
   const { view } = useDiagnosis(service.id, deploymentId);
 
   const diagnosis = view.kind === 'ready' ? view.diagnosis : undefined;
@@ -20,6 +28,14 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
   // AI 수정은 제안된 해결책을 적용하는 버튼이라, 해결책이 있을 때만 쓸 수 있다.
   const canFix = plans.some((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code'));
   const doneAt = diagnosis && diagnosis.status !== 'RUNNING' ? (diagnosis.finishedAt ?? diagnosis.createdAt) : undefined;
+
+  async function fix() {
+    if (!diagnosis || running.current) return;
+    running.current = true; setRepairBusy(true); setRepairError('');
+    try { await triggerAutomaticRepair(service.id, deploymentId, diagnosis.id); navigate(`${to}#repair`); }
+    catch (e) { setRepairError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e)); setNeedsAccess(e instanceof ApiError && e.status === 403); }
+    finally { running.current = false; setRepairBusy(false); }
+  }
 
   let body;
   if (view.kind === 'loading') {
@@ -55,15 +71,17 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
         )}
       </div>
       {body}
+      {repairError && <p role="alert">{repairError}</p>}
+      {needsAccess && <a href={githubInstallUrl()} className="btn btn-outline">{t('repair.connect')}</a>}
       <div className="diag-brief-actions">
         <Link to={to} className="btn btn-outline">
           {t('diag.brief.detail')}
           <ChevronRight size={16} />
         </Link>
-        <Link to={`${to}#repair`} className="btn btn-primary" title={canFix ? undefined : t('diag.brief.fixNeedsDiagnosis')}>
+        <button type="button" onClick={() => void fix()} disabled={!canFix || repairBusy} className="btn btn-primary" title={canFix ? undefined : t('diag.brief.fixNeedsDiagnosis')}>
           <Sparkles size={16} />
-          {t('diag.brief.fix')}
-        </Link>
+          {t(repairBusy ? 'repair.loading' : 'diag.brief.fix')}
+        </button>
       </div>
     </section>
   );

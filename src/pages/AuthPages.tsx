@@ -18,6 +18,7 @@ export function AuthPage() {
   return <div className="auth-shell">
     <header className="auth-header"><Link to="/" aria-label="LikeLion home"><LogoMark size={30} /></Link><span>LikeLion</span><span className="auth-lang"><LanguageButton /></span></header>
     <main className="auth-main"><div className="auth-card"><LogoMark size={44}/><h1>{t('auth.title')}</h1><p>{t('auth.subtitle')}</p>
+      <p>{t('repair.authorizationNote')}</p>
       {notice && <p className="auth-error" role="alert">{notice}</p>}
       <button className="auth-provider" onClick={auth.login} disabled={auth.status === 'loading'}><RepoIcon size={20}/> {t('landing.start')} <ArrowRight size={16}/></button>
     </div></main>
