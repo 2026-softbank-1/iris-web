@@ -1,6 +1,9 @@
 // 개발용 가짜 was. `VITE_MOCK_API=1` 일 때 vite dev 서버(vite.config.ts)가 /api/v1 요청을 여기로 보낸다.
 // 앱 번들에는 들어가지 않는다. 화면 디자인용이라 상태를 메모리에만 들고, dev 서버를 다시 띄우면 처음으로 돌아간다.
 import type {
+  AnalysisGateResultDto,
+  AnalysisMode,
+  AnalysisUnitApply,
   BranchDto,
   BuildLogsDto,
   BuildStatus,
@@ -22,6 +25,7 @@ import type {
   NetworkLogEntryDto,
   NetworkLogsDto,
   ProjectDto,
+  RepositoryAnalysisDto,
   RepositoryDto,
   ScalingDto,
   ServiceDomainDto,
@@ -186,6 +190,10 @@ const repositories: RepositoryDto[] = [
   { fullName: 'likelion/api', url: 'https://github.com/likelion/api', defaultBranch: 'main', isPrivate: true, installationId: 1 },
   { fullName: 'likelion/worker', url: 'https://github.com/likelion/worker', defaultBranch: 'main', isPrivate: true, installationId: 1 },
   { fullName: 'kylo-dev/playground', url: 'https://github.com/kylo-dev/playground', defaultBranch: 'main', isPrivate: false, installationId: 2 },
+  // 레포 구성 확인(분석 게이트) 시나리오: single-app 은 skip, multi-image-shop 은 analyze(3 units + postgres/redis), broken-repo 는 FAILED.
+  { fullName: 'kylo-dev/single-app', url: 'https://github.com/kylo-dev/single-app', defaultBranch: 'main', isPrivate: false, installationId: 2 },
+  { fullName: 'kylo-dev/multi-image-shop', url: 'https://github.com/kylo-dev/multi-image-shop', defaultBranch: 'main', isPrivate: false, installationId: 2 },
+  { fullName: 'kylo-dev/broken-repo', url: 'https://github.com/kylo-dev/broken-repo', defaultBranch: 'main', isPrivate: true, installationId: 2 },
 ];
 const branches: BranchDto[] = [
   { name: 'main', isDefault: true },
@@ -841,6 +849,148 @@ diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('docs: 배포 파�
 diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('feat: 샌드박스 초기 설정').id, startedAt: t0 - 3 * MIN, outcome: 'build' });
 
 /* ------------------------------------------------------------------ */
+/* 레포 구성 확인(분석 게이트) — was 계약 2 의 repository-analyses                */
+/* ------------------------------------------------------------------ */
+
+const SHA = '3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345';
+const gateBase = (root: string): Omit<AnalysisGateResultDto, 'decision' | 'complexity' | 'reasons' | 'units' | 'dependencies' | 'questions'> => ({
+  schemaVersion: 'iris.analysis-gate.v1',
+  sourceSha: SHA,
+  rootDirectory: root,
+  simpleBuild: null,
+  analysis: { engine: 'static', durationMs: 84, modelCalls: 0 },
+});
+
+/** 단일 Dockerfile 레포. auto 면 skip, force 면 unit 하나로 분석한다. */
+function singleAppResult(root: string, mode: AnalysisMode): AnalysisGateResultDto {
+  const reasons = [{ code: 'single_dockerfile', message: 'Dockerfile 1개', paths: ['Dockerfile'] }];
+  if (mode === 'auto') {
+    return {
+      ...gateBase(root), decision: 'skip', complexity: 'simple', reasons,
+      signals: { dockerfiles: ['Dockerfile'], composeFiles: [], composeBuildServices: [], composeImageServices: [], workspaceManifests: [], runtimeManifests: [{ path: 'package.json', runtime: 'node' }] },
+      simpleBuild: { builder: 'dockerfile', dockerfilePath: 'Dockerfile' }, units: [], dependencies: [], questions: [],
+    };
+  }
+  return {
+    ...gateBase(root), decision: 'analyze', complexity: 'simple', reasons: [...reasons, { code: 'forced', message: '사용자가 분석을 요청함' }],
+    units: [{ id: 'app', name: 'single-app', rootDirectory: '.', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 8080, startCommand: null, buildCommand: null, role: 'app', public: true, env: [], dependsOn: [], evidence: [{ path: 'Dockerfile', line: 12 }] }],
+    dependencies: [], questions: [],
+  };
+}
+
+/** web/api/worker 3개 이미지 + postgres/redis compose 레포. */
+function multiImageShopResult(root: string, mode: AnalysisMode): AnalysisGateResultDto {
+  return {
+    ...gateBase(root),
+    decision: 'analyze',
+    complexity: 'complex',
+    reasons: [
+      { code: 'multiple_dockerfiles', message: '서로 다른 디렉터리에 Dockerfile 3개', paths: ['web/Dockerfile', 'api/Dockerfile', 'worker/Dockerfile'] },
+      { code: 'compose_multi_build', message: 'compose 빌드 서비스 3개', paths: ['compose.yaml'] },
+      ...(mode === 'force' ? [{ code: 'forced', message: '사용자가 분석을 요청함' }] : []),
+    ],
+    signals: { dockerfiles: ['api/Dockerfile', 'web/Dockerfile', 'worker/Dockerfile'], composeFiles: ['compose.yaml'], composeBuildServices: ['api', 'web', 'worker'], composeImageServices: ['postgres', 'redis'], workspaceManifests: [], runtimeManifests: [] },
+    units: [
+      { id: 'web', name: 'web', rootDirectory: 'web', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 3000, startCommand: null, buildCommand: null, role: 'web', public: true, env: [{ key: 'API_BASE_URL', stage: 'build', required: true }], dependsOn: ['api'], evidence: [{ path: 'compose.yaml', line: 4 }] },
+      { id: 'api', name: 'api', rootDirectory: 'api', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 8000, startCommand: null, buildCommand: null, role: 'api', public: true, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true }, { key: 'REDIS_URL', stage: 'runtime', required: true }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 12 }] },
+      { id: 'worker', name: 'worker', rootDirectory: 'worker', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: null, startCommand: null, buildCommand: null, role: 'worker', public: false, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true }, { key: 'REDIS_URL', stage: 'runtime', required: true }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 22 }] },
+    ],
+    dependencies: [
+      { id: 'postgres', engine: 'postgres', image: 'postgres:16-alpine', evidence: [{ path: 'compose.yaml', line: 30 }] },
+      { id: 'redis', engine: 'redis', image: 'redis:7-alpine', evidence: [{ path: 'compose.yaml', line: 38 }] },
+    ],
+    questions: [{ code: 'port_unknown', unitId: 'worker', message: 'worker 의 포트를 찾지 못했어요. 외부 요청을 받지 않는 워커면 비워 두세요.' }],
+  };
+}
+
+type MockAnalysis = Omit<RepositoryAnalysisDto, 'status' | 'decision' | 'complexity' | 'result'> & { startedAt: number; applied: boolean };
+const analyses: MockAnalysis[] = [];
+/** 접수 → 1.2초 QUEUED → 3초까지 RUNNING → 결과. broken-repo 는 FAILED 로 끝난다. */
+function toAnalysisDto(mock: MockAnalysis): RepositoryAnalysisDto {
+  const { startedAt, applied, ...a } = mock;
+  const elapsed = Date.now() - startedAt;
+  const repo = a.sourceRepositoryUrl.split('/').slice(-1)[0];
+  const root = a.rootDirectory ?? '.';
+  if (elapsed < 1200) return { ...a, status: 'QUEUED' };
+  if (elapsed < 3000) return { ...a, status: 'RUNNING' };
+  if (repo === 'broken-repo') {
+    return { ...a, status: 'FAILED', errorCode: 'ANALYZER_FAILED', errorMessage: 'analysis gate exited with status 2' };
+  }
+  const result = repo === 'multi-image-shop' ? multiImageShopResult(root, a.mode) : singleAppResult(root, a.mode);
+  return { ...a, sourceSha: SHA, status: applied ? 'APPLIED' : 'SUCCEEDED', decision: result.decision, complexity: result.complexity, result };
+}
+
+function gateFieldsFor(analysisId: unknown): Partial<MockService> {
+  const a = analyses.find((x) => x.id === Number(analysisId));
+  if (!a) return {};
+  const dto = toAnalysisDto(a);
+  if (!dto.result || dto.decision !== 'skip') return {};
+  return {
+    builder: dto.result.simpleBuild?.builder,
+    dockerfilePath: dto.result.simpleBuild?.dockerfilePath ?? undefined,
+    analysisGate: { analysisId: a.id, decision: 'skip', complexity: dto.complexity, unitId: null },
+  };
+}
+
+function handleAnalyses(method: string, seg: string[], body: Record<string, unknown> | undefined): MockResponse {
+  const projectId = Number(seg[1]);
+  if (!projects.some((p) => p.id === projectId)) return fail(404, 'NOT_FOUND', 'Project not found');
+  if (seg.length === 3 && method === 'POST') {
+    const url = String(body?.sourceRepositoryUrl ?? '').replace(/\.git$/, '');
+    if (!repositories.some((r) => r.url === url)) return fail(403, 'REPOSITORY_NOT_ACCESSIBLE', 'Repository not accessible');
+    const mode = body?.mode === 'force' ? 'force' : 'auto';
+    const now = Date.now();
+    const a: MockAnalysis = {
+      id: analyses.length + 1, projectId, sourceRepositoryUrl: url, sourceBranch: String(body?.sourceBranch ?? 'main'), sourceSha: null,
+      rootDirectory: (body?.rootDirectory as string | undefined) ?? '.', mode, errorCode: null, errorMessage: null, appliedServiceIds: [],
+      createdAt: iso(now), updatedAt: iso(now), startedAt: now, applied: false,
+    };
+    analyses.push(a);
+    return ok(toAnalysisDto(a), 202);
+  }
+  const a = analyses.find((x) => x.id === Number(seg[3]) && x.projectId === projectId);
+  if (!a) return fail(404, 'REPOSITORY_ANALYSIS_NOT_FOUND', 'Repository analysis not found');
+  if (seg.length === 4) return ok(toAnalysisDto(a));
+  if (seg[4] === 'apply' && method === 'POST') {
+    const dto = toAnalysisDto(a);
+    if (a.applied) return ok({ analysisId: a.id, services: services.filter((s) => a.appliedServiceIds?.includes(s.id)).map(toServiceDto) }, 201);
+    if (dto.status !== 'SUCCEEDED' || dto.decision !== 'analyze' || !dto.result) return fail(409, 'ANALYSIS_NOT_APPLICABLE', 'Analysis is not ready to apply');
+    const picks = (body?.units as AnalysisUnitApply[] | undefined) ?? [];
+    if (picks.length === 0) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'units', reason: 'select at least one unit' }]);
+    for (const pick of picks) {
+      if (!dto.result.units.some((u) => u.id === pick.unitId)) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'units', reason: `unknown unit ${pick.unitId}` }]);
+      if (services.some((s) => s.projectId === projectId && s.name === pick.name)) return fail(409, 'SERVICE_NAME_CONFLICT', 'Service name conflict');
+    }
+    const targetIds = isSingleTarget(body?.targetIds) ? body.targetIds : [1];
+    const repo = a.sourceRepositoryUrl.split('/').slice(-2).join('/');
+    const created = picks.map((pick) => {
+      const unit = dto.result!.units.find((u) => u.id === pick.unitId)!;
+      const s = service(Math.max(0, ...services.map((x) => x.id)) + 1, projectId, pick.name, repo, {
+        sourceBranch: a.sourceBranch,
+        rootDirectory: pick.rootDirectory ?? unit.rootDirectory,
+        builder: pick.builder ?? unit.builder,
+        dockerfilePath: pick.dockerfilePath ?? unit.dockerfilePath ?? undefined,
+        port: pick.port ?? unit.port ?? undefined,
+        targetIds,
+        analysisGate: { analysisId: a.id, decision: 'analyze', complexity: dto.complexity, unitId: unit.id },
+        createdAt: iso(Date.now()),
+        updatedAt: iso(Date.now()),
+      });
+      services.push(s);
+      if (body?.deploy !== false) {
+        deployments.push({ ...deployment(s.id, 0, 'QUEUED', 'MANUAL', '레포 구성 확인으로 생성'), ...strategySnapshot(s), createdAt: iso(Date.now()), auto: true });
+      }
+      return s;
+    });
+    a.applied = true;
+    a.appliedServiceIds = created.map((s) => s.id);
+    a.updatedAt = iso(Date.now());
+    return ok({ analysisId: a.id, services: created.map(toServiceDto) }, 201);
+  }
+  return fail(404, 'NOT_FOUND', `No mock for ${method} /${seg.join('/')}`);
+}
+
+/* ------------------------------------------------------------------ */
 /* 라우터                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -903,6 +1053,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     }
     return ok(toProjectDto(p));
   }
+  if (seg[0] === 'projects' && seg[2] === 'repository-analyses') return handleAnalyses(method, seg, body);
   if (seg[0] === 'projects' && seg[2] === 'services') {
     if (method === 'POST') {
       if (body?.targetIds !== undefined && !isSingleTarget(body.targetIds)) return fail(422, 'INVALID_INPUT', 'a service needs exactly one target');
@@ -911,6 +1062,8 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
       const s = service(Math.max(0, ...services.map((x) => x.id)) + 1, id(1), String(body?.name || repo.split('/')[1] || 'service'), repo, {
         sourceBranch: (body?.branch as string) || 'main',
         targetIds: (body?.targetIds as number[]) ?? [1],
+        // was 와 같다: skip 으로 끝난 분석 id 를 받으면 결과를 서비스에 남기고 simpleBuild 를 빌더 기본값으로 쓴다.
+        ...gateFieldsFor(body?.analysisId),
         createdAt: iso(Date.now()),
         updatedAt: iso(Date.now()),
       });
