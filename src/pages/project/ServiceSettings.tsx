@@ -32,7 +32,7 @@ import type { Project, Service } from '../../data/mock';
 import { useProjects } from '../../data/ProjectsContext';
 import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
 import { useServiceScaling } from '../../data/useServiceScaling';
-import { describeError } from '../../lib/api';
+import { ApiError, describeError } from '../../lib/api';
 import { isTargetSupported, listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
 
@@ -200,7 +200,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
       toast(t('svcSettings.deleted'));
       navigate(`/project/${project.id}`, { replace: true });
     } catch (e) {
-      toast(describeError(e));
+      toast(e instanceof ApiError && e.code === 'DEPLOYMENT_IN_PROGRESS' ? t('svcSettings.delete.inProgress') : describeError(e));
       setDeleting(false);
     }
   };

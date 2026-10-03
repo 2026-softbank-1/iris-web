@@ -136,10 +136,11 @@ export const ko = {
   'svcSettings.skipped.desc': '소스 코드가 바뀌지 않았으면 이전 빌드를 다시 써요. GitHub에서만 쓸 수 있어요.',
 
   'svcSettings.delete.title': '서비스 삭제',
-  'svcSettings.delete.desc': '프로젝트에서 이 서비스를 삭제해요.',
+  'svcSettings.delete.desc': '실행 중인 앱을 내리고 프로젝트에서 이 서비스를 삭제해요. 앱이 내려가는 데 몇 분 걸릴 수 있어요.',
   'svcSettings.delete.confirmBefore': '확인을 위해 ',
   'svcSettings.delete.confirmAfter': '을(를) 입력해 주세요',
   'svcSettings.delete.button': '서비스 삭제',
+  'svcSettings.delete.inProgress': '배포가 진행 중이에요. 끝난 뒤에 서비스를 삭제해 주세요.',
 };
 
 export const ja: Record<keyof typeof ko, string> = {
@@ -279,10 +280,11 @@ export const ja: Record<keyof typeof ko, string> = {
   'svcSettings.skipped.desc': 'ソースコードに変更がない場合は以前のビルドを再利用します。GitHubのみ対応しています。',
 
   'svcSettings.delete.title': 'サービスを削除',
-  'svcSettings.delete.desc': 'プロジェクトからこのサービスを削除します。',
+  'svcSettings.delete.desc': '実行中のアプリを停止し、プロジェクトからこのサービスを削除します。完了まで数分かかることがあります。',
   'svcSettings.delete.confirmBefore': '確認のため ',
   'svcSettings.delete.confirmAfter': ' と入力してください',
   'svcSettings.delete.button': 'サービスを削除',
+  'svcSettings.delete.inProgress': 'デプロイが進行中です。完了してからサービスを削除してください。',
 };
 
 export const en: Record<keyof typeof ko, string> = {
@@ -422,8 +424,9 @@ export const en: Record<keyof typeof ko, string> = {
   'svcSettings.skipped.desc': 'Reuse an earlier build when the source code has not changed. GitHub only.',
 
   'svcSettings.delete.title': 'Delete Service',
-  'svcSettings.delete.desc': 'Removes this service from the project.',
+  'svcSettings.delete.desc': 'Stops the running app and removes this service from the project. This can take a few minutes.',
   'svcSettings.delete.confirmBefore': 'Type ',
   'svcSettings.delete.confirmAfter': ' to confirm',
   'svcSettings.delete.button': 'Delete service',
+  'svcSettings.delete.inProgress': 'A deployment is in progress. Wait for it to finish, then delete the service.',
 };

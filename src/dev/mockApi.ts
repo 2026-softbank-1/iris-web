@@ -323,6 +323,10 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     if (!p) return fail(404, 'NOT_FOUND', 'Project not found');
     if (method === 'PATCH') Object.assign(p, body, { updatedAt: iso(Date.now()) });
     if (method === 'DELETE') {
+      // was 와 같다: 소속 서비스 중 하나라도 배포가 진행 중이면 아무것도 지우지 않는다.
+      if (services.some((x) => x.projectId === p.id && deploymentsOf(x.id).some((d) => IN_PROGRESS.includes(statusOf(d))))) {
+        return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
+      }
       projects.splice(projects.indexOf(p), 1);
       return { status: 204 };
     }
@@ -352,6 +356,9 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   if (seg.length === 2) {
     if (method === 'PATCH') Object.assign(s, body, { updatedAt: iso(Date.now()) });
     if (method === 'DELETE') {
+      if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
+        return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
+      }
       services.splice(services.indexOf(s), 1);
       return { status: 204 };
     }
