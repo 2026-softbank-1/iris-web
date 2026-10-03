@@ -1,3 +1,4 @@
+import { FailedRepairButton } from './FailedRepairButton';
 import { ChevronRight, CircleCheck, Clock, Code2, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -237,6 +238,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                 </div>
               </div>
               <div className="dp-head-right">
+                {diagnosable && <FailedRepairButton serviceId={service.id} deploymentId={deployment.id} to={`${base}/diagnosis`} />}
                 <DeploymentActions
                   size={16}
                   horizontal

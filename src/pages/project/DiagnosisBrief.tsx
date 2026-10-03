@@ -24,15 +24,12 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
 
   const diagnosis = view.kind === 'ready' ? view.diagnosis : undefined;
   const analysis = diagnosis?.status === 'SUCCEEDED' ? diagnosis.analysis : undefined;
-  const plans = analysis?.remediation.plans ?? [];
-  // AI 수정은 제안된 해결책을 적용하는 버튼이라, 해결책이 있을 때만 쓸 수 있다.
-  const canFix = plans.some((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code'));
   const doneAt = diagnosis && diagnosis.status !== 'RUNNING' ? (diagnosis.finishedAt ?? diagnosis.createdAt) : undefined;
 
   async function fix() {
-    if (!diagnosis || running.current) return;
+    if (running.current) return;
     running.current = true; setRepairBusy(true); setRepairError('');
-    try { await triggerAutomaticRepair(service.id, deploymentId, diagnosis.id); navigate(`${to}#repair`); }
+    try { await triggerAutomaticRepair(service.id, deploymentId, diagnosis?.id); navigate(`${to}#repair`); }
     catch (e) { setRepairError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e)); setNeedsAccess(e instanceof ApiError && e.status === 403); }
     finally { running.current = false; setRepairBusy(false); }
   }
@@ -78,7 +75,7 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
           {t('diag.brief.detail')}
           <ChevronRight size={16} />
         </Link>
-        <button type="button" onClick={() => void fix()} disabled={!canFix || repairBusy} className="btn btn-primary" title={canFix ? undefined : t('diag.brief.fixNeedsDiagnosis')}>
+        <button type="button" onClick={() => void fix()} disabled={repairBusy} className="btn btn-primary">
           <Sparkles size={16} />
           {t(repairBusy ? 'repair.loading' : 'diag.brief.fix')}
         </button>

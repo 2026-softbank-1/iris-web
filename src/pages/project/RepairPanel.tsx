@@ -7,7 +7,7 @@ import { getLatestRepair, getRepair, getRepairAccess, githubInstallUrl, repairAr
 
 export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId: string; deploymentId: string; diagnosis: DiagnosisDto }) {
   const { t } = useI18n();
-  const eligible = (diagnosis.analysis?.remediation.plans ?? []).filter((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code'));
+  const eligible = (diagnosis.analysis?.remediation.plans ?? []).filter((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code' || c.kind === 'configuration'));
   const [repair, setRepair] = useState<RepairDto | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [access, setAccess] = useState<RepairAccessDto | null>(null);
@@ -88,7 +88,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
     } finally { submitting.current = false; if (mounted.current) setBusy(false); }
   }
 
-  const state = publication?.status === 'MERGED' ? 'merged' : publication?.status === 'ERROR' ? 'failed' : publication?.status === 'WAITING_CHECKS' ? 'waitingChecks' : publication?.pullUrl && generating ? 'merging' : candidate && generating ? 'publishing' : repair?.status === 'UNKNOWN_OUTCOME' ? 'unknown' : repair?.status === 'RUNNING' ? 'running' : candidate ? 'candidate' : repair?.status === 'FAILED' ? 'failed' : repair?.status === 'SUCCEEDED' ? 'noChange' : 'ready';
+  const state = publication?.status === 'REDEPLOY_REQUESTED' ? 'redeployRequested' : publication?.status === 'DIAGNOSING' ? 'diagnosing' : publication?.status === 'MERGED' ? 'merged' : publication?.status === 'ERROR' ? 'failed' : publication?.status === 'WAITING_CHECKS' ? 'waitingChecks' : publication?.pullUrl && generating ? 'merging' : candidate && generating ? 'publishing' : repair?.status === 'UNKNOWN_OUTCOME' ? 'unknown' : repair?.status === 'RUNNING' ? 'running' : candidate ? 'candidate' : repair?.status === 'FAILED' ? 'failed' : repair?.status === 'SUCCEEDED' ? 'noChange' : 'ready';
   return (
     <section id="repair" className="diag-summary repair-panel" aria-label={t('repair.title')}>
       <div className="diag-bar"><b><Sparkles size={16} /> {t('repair.title')}</b><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => setReload((v) => v + 1)}><RefreshCw size={14} />{t('repair.refresh')}</button></div>
@@ -107,7 +107,8 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
         <button type="button" className="btn btn-outline" disabled={checking || busy} onClick={() => void checkAccess()}>{t(checking ? 'repair.loading' : 'repair.check')}</button>
       </div>}
       <div className="diag-brief-actions">
-        {publication?.status !== 'MERGED' && <button type="button" className="btn btn-primary" disabled={!loaded || busy || !!generating || eligible.length === 0 || access?.canWrite === false} onClick={() => void execute()}><Sparkles size={16} />{t(busy || generating ? 'repair.loading' : 'repair.title')}</button>}
+        {publication?.status !== 'MERGED' && publication?.status !== 'REDEPLOY_REQUESTED' && <button type="button" className="btn btn-primary" disabled={!loaded || busy || !!generating || eligible.length === 0 || access?.canWrite === false} onClick={() => void execute()}><Sparkles size={16} />{t(busy || generating ? 'repair.loading' : 'repair.title')}</button>}
+        {publication?.redeploymentId && <a className="btn btn-outline" href={window.location.pathname.replace(/deployment\/[^/]+.*$/, `deployment/${publication.redeploymentId}`)}>{t('repair.viewDeployment')}</a>}
         {publication?.pullUrl && <a className="btn btn-outline" href={publication.pullUrl} target="_blank" rel="noreferrer">{t('repair.viewPr')}<ExternalLink size={14} /></a>}
       </div>
     </section>
