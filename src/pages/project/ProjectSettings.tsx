@@ -1,14 +1,10 @@
 import {
   ChartNoAxesColumn,
   Copy,
-  Flag,
-  Globe,
-  Package,
   Server,
   Settings,
   TriangleAlert,
   Webhook,
-  Coins,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -23,11 +19,7 @@ const NAV: { id: string; label: MessageKey; icon: LucideIcon }[] = [
   { id: '', label: 'project.settings.general', icon: Settings },
   { id: 'usage', label: 'project.settings.usage', icon: ChartNoAxesColumn },
   { id: 'environments', label: 'project.environments', icon: Server },
-  { id: 'variables', label: 'project.settings.variables', icon: Globe },
   { id: 'webhooks', label: 'project.settings.webhooks', icon: Webhook },
-  { id: 'feature-flags', label: 'project.settings.featureFlags', icon: Flag },
-  { id: 'tokens', label: 'project.settings.tokens', icon: Coins },
-  { id: 'integrations', label: 'project.settings.integrations', icon: Package },
   { id: 'danger', label: 'project.settings.danger', icon: TriangleAlert },
 ];
 

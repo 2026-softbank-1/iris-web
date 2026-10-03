@@ -24,9 +24,6 @@ const SETTINGS_LINKS: { to: string; label: MessageKey }[] = [
   { to: '/workspace/domains', label: 'nav.domains' },
   { to: '/workspace/audit-logs', label: 'nav.auditLogs' },
   { to: '/workspace/developer', label: 'nav.developer' },
-  { to: '/workspace/ssh-keys', label: 'nav.sshKeys' },
-  { to: '/workspace/earnings', label: 'nav.earnings' },
-  { to: '/workspace/referrals', label: 'nav.referrals' },
 ];
 
 function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label: string; end?: boolean }) {

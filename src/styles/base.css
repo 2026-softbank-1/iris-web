@@ -86,7 +86,7 @@
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.12);
 
-  --fg: var(--bg);
+  --fg: #ffffff;
   --fg-2: #f8f7f5;
   --fg-muted: #a8a29a;
   --fg-subtle: #8c867d;
@@ -597,20 +597,27 @@ kbd {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: 26px;
-  padding: 4px 8px;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 18px;
-  text-transform: uppercase;
-  border-radius: 6px;
+  border-radius: 9999px;
   white-space: nowrap;
+}
+
+.status-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
 }
 
 .status-pill.active {
   color: var(--green-text);
-  background: var(--green-line);
+  background: var(--green-bg);
 }
 
 .status-pill.removed,

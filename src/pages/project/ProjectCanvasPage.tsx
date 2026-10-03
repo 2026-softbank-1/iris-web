@@ -34,7 +34,8 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CreateDialog } from '../../components/CreateDialog';
-import { OnlineDot, RepoIcon } from '../../components/brand';
+import { RepoIcon } from '../../components/brand';
+import { ServiceStatusPill } from '../../components/ServiceStatusPill';
 import { Popover, Tooltip, usePopover, useUI } from '../../components/ui';
 import type { Project, Service } from '../../data/mock';
 import { useProject, useProjects } from '../../data/ProjectsContext';
@@ -64,7 +65,7 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
           onClick={(e) => e.preventDefault()}
           draggable={false}
         >
-          <div className={`svc-node-top${online ? '' : ' center'}`}>
+          <div className="svc-node-top">
             <div className="svc-node-icon">
               <RepoIcon size={24} />
             </div>
@@ -73,16 +74,10 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
               {online && service.domain && <p className="svc-node-domain truncate">{service.domain}</p>}
             </div>
           </div>
-          {online ? (
-            <div className="svc-node-bottom">
-              <div className="svc-node-status">
-                <OnlineDot size={16} />
-                <p>Online</p>
-              </div>
-            </div>
-          ) : (
-            <p className="svc-node-offline">{service.deploying ? 'Deploying' : service.state === 'crashed' ? t('project.canvas.deployFailed') : t('project.canvas.offline')}</p>
-          )}
+          <div className="svc-node-bottom">
+            <ServiceStatusPill service={service} />
+            {service.state === 'crashed' && !service.deploying && <p className="svc-node-failed truncate">{t('project.canvas.deployFailed')}</p>}
+          </div>
         </a>
       </span>
       <Handle type="source" position={Position.Bottom} className="svc-handle" />

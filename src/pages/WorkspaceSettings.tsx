@@ -1,5 +1,5 @@
-import { Copy, KeyRound, Plus } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { KeyRound, Plus } from 'lucide-react';
+import { Navigate, useParams } from 'react-router-dom';
 import { useUI } from '../components/ui';
 import { useI18n, type MessageKey } from '../i18n';
 
@@ -7,9 +7,6 @@ const TITLES: Record<string, MessageKey> = {
   domains: 'nav.domains',
   'audit-logs': 'nav.auditLogs',
   developer: 'nav.developer',
-  'ssh-keys': 'nav.sshKeys',
-  earnings: 'nav.earnings',
-  referrals: 'nav.referrals',
 };
 
 function Empty({ title, desc, action }: { title: MessageKey; desc: MessageKey; action?: MessageKey }) {
@@ -34,7 +31,8 @@ export function WorkspaceSettings() {
   const { section = '' } = useParams();
   const { toast } = useUI();
   const { t } = useI18n();
-  const title = t(TITLES[section] ?? 'nav.settings');
+  if (!TITLES[section]) return <Navigate to="/dashboard" replace />;
+  const title = t(TITLES[section]);
 
   return (
     <div className="page">
@@ -53,21 +51,6 @@ export function WorkspaceSettings() {
                 <input className="input" placeholder={t('create.tokenName')} />
                 <button type="button" className="btn btn-primary" onClick={() => toast(t('create.tokenCreated'))}>
                   <KeyRound size={16} /> {t('create.createToken')}
-                </button>
-              </div>
-            </div>
-          )}
-          {section === 'ssh-keys' && <Empty title="create.noSshTitle" desc="create.noSshBody" action="create.addSshKey" />}
-          {section === 'earnings' && <Empty title="create.noEarningsTitle" desc="create.noEarningsBody" />}
-          {section === 'referrals' && (
-            <div className="ws-set-card">
-              <p className="ws-set-label">{t('create.referralLink')}</p>
-              <div className="ws-set-row">
-                <code className="set-code mono" style={{ flex: 1 }}>
-                  https://likelion.uk?referralCode=dause
-                </code>
-                <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('create.copy')} onClick={() => toast(t('create.referralCopied'))}>
-                  <Copy size={16} />
                 </button>
               </div>
             </div>

@@ -312,15 +312,14 @@
 .deps-active {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--green-line);
-  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
 }
 
 .deps-success-wrap {
-  border-radius: 6px;
-  overflow: hidden;
+  border-top: 1px solid var(--border);
 }
 
 .deps-success {
@@ -329,35 +328,40 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  height: 36px;
-  padding: 8px 12px 8px 96px;
-  background: var(--green-bg);
-  border-radius: 6px;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--bg-2);
+  transition: background-color 0.12s ease;
 }
 
-.deps-success.open {
-  border-radius: 6px 6px 0 0;
+.deps-success:hover {
+  background: var(--bg-3);
 }
 
 .deps-success-left {
   display: flex;
   align-items: center;
-  gap: 24px;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 20px;
-  color: var(--green);
+  color: var(--green-text);
+}
+
+.deps-success.progress .deps-success-left {
+  color: var(--primary-text);
 }
 
 .deps-success-chev {
-  color: var(--fg);
+  color: var(--fg-subtle);
 }
 
 .dep-steps {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px 12px 96px;
-  background: var(--green-bg);
+  padding: 4px 16px 14px 40px;
+  background: var(--bg-2);
 }
 
 .dep-step {
@@ -377,39 +381,33 @@
 /* deployment row */
 .dep-row-link {
   display: block;
-  border-radius: 6px;
 }
 
 .dep-row-link.history {
-  padding: 4px;
+  overflow: hidden;
   border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
 .dep-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 76px;
-  padding: 16px 12px;
-  border-radius: 6px;
-}
-
-.dep-row.active {
-  background: var(--green-bg);
+  min-height: 72px;
+  padding: 14px 16px;
 }
 
 .dep-row.history {
-  background: var(--bg-4);
   transition: background-color 0.12s ease;
 }
 
-.dep-row-link.history:hover .dep-row {
-  background: var(--bg-5);
+.dep-row-link:hover .dep-row {
+  background: var(--bg-2);
 }
 
 .dep-grid {
   display: grid;
-  grid-template-columns: 80px 36px minmax(0, 1fr) 130px;
+  grid-template-columns: 96px 32px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px 16px;
   width: 100%;
@@ -421,22 +419,24 @@
 
 .dep-avatar {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
 }
 
+/* GitHub mark: small black badge on the avatar's corner */
 .dep-avatar-badge {
   position: absolute;
-  left: 12px;
-  top: 12px;
+  right: -3px;
+  bottom: -3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: #000;
-  border: 1px solid var(--bg-2);
+  width: 16px;
+  height: 16px;
+  background: #191f28;
+  border: 2px solid var(--bg);
   border-radius: 9999px;
+  box-sizing: content-box;
 }
 
 .dep-text-col {
@@ -447,13 +447,14 @@
 }
 
 .dep-msg {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
 }
 
 .dep-meta {
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13px;
+  line-height: 18px;
   color: var(--fg-subtle);
 }
 
@@ -498,22 +499,25 @@
 .dep-viewlogs {
   display: inline-flex;
   align-items: center;
-  height: 34px;
-  padding: 6px 12px;
-  font-size: 14px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 20px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  color: var(--fg-muted);
+  background: var(--bg-3);
+  border-radius: 8px;
   white-space: nowrap;
+  transition: background-color 0.12s ease, transform 0.12s ease;
 }
 
-.dep-viewlogs.active {
-  color: var(--green-text);
-  border-color: var(--green-line);
+.dep-viewlogs:hover {
+  color: var(--fg);
+  background: var(--bg-4);
 }
 
-.dep-viewlogs.active:hover {
-  background: rgba(66, 148, 110, 0.12);
+.dep-viewlogs:active {
+  transform: scale(0.96);
 }
 
 /* history */

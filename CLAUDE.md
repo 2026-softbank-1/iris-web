@@ -2,6 +2,8 @@
 
 React 19 + TypeScript + Vite 대시보드. `npm run typecheck`, `npm run build`로 검증한다.
 
+백엔드 없이 화면을 보려면 `.env.local`에 `VITE_MOCK_API=1`을 넣고 dev 서버를 다시 띄운다. `/api/v1`을 `src/dev/mockApi.ts`가 답한다(상태는 메모리, 재시작하면 초기화).
+
 ## 디자인 작업
 
 UI·스타일을 바꿀 때는 먼저 `toss-design` 스킬(`.claude/skills/toss-design/`)을 불러와 Toss Design System(TDS) 규칙을 따른다.

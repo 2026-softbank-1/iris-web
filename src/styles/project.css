@@ -435,9 +435,6 @@
   min-width: 0;
 }
 
-.svc-node-top.center {
-  align-items: center;
-}
 
 .svc-node-icon {
   display: flex;
@@ -469,32 +466,21 @@
 
 .svc-node-bottom {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.svc-node-status {
-  display: grid;
-  grid-template-columns: 24px auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.svc-node-status svg {
-  margin: 0 auto;
+.svc-node-failed {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--red-text);
 }
 
-.svc-node-status p {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--green-soft);
-}
 
-.svc-node-offline {
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--fg-muted);
-}
+
+
 
 /* toolbars */
 .rw-flow .react-flow__panel {

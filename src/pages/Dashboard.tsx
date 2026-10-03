@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
+import { ServiceStatusPill } from '../components/ServiceStatusPill';
 import { Popover, usePopover } from '../components/ui';
 import { type Project } from '../data/mock';
 import { useProjects } from '../data/ProjectsContext';
@@ -15,33 +16,33 @@ function projectSummary(p: Project) {
   const total = p.serviceCount ?? p.services.length;
   const crashed = p.services.filter((s) => s.state === 'crashed').length;
   const online = p.services.filter((s) => s.state === 'online').length;
-  return { total, crashed, online };
+  const deploying = p.services.filter((s) => s.deploying).length;
+  return { total, crashed, online, deploying };
 }
 
+/** 프로젝트가 괜찮은지 한 줄로. 실패 > 배포 중 > 모두 실행 중 > 그 외(회색) 순으로 하나만 보여준다. */
 function StatusLine({ p }: { p: Project }) {
   const { t } = useI18n();
-  const { total, crashed, online } = projectSummary(p);
+  const { total, crashed, online, deploying } = projectSummary(p);
+  if (total === 0) return null; // 서비스 목록 쪽에서 '서비스가 없어요'를 보여준다
   if (crashed > 0) {
     return (
-      <div className="pc-status">
-        <div className="pc-status-icon crashed">
-          <CircleAlert size={16} />
-        </div>
-        <span className="crashed">{t('dash.crashedOf', { n: crashed, total })}</span>
+      <div className="pc-status failed">
+        <CircleAlert size={14} />
+        <span>{t('dash.crashedOf', { n: crashed, total })}</span>
       </div>
     );
   }
+  const tone = deploying > 0 ? 'deploying' : total > 0 && online === total ? 'ok' : 'idle';
   return (
-    <div className="pc-status">
-      <div className="pc-status-row">
-        <div className="pc-dot" />
-        <span>{p.environment}</span>
-        <span>·</span>
-        <span>{t('dash.onlineOf', { n: online, total })}</span>
-      </div>
+    <div className={`pc-status ${tone}`}>
+      <span className="pc-dot" />
+      <span>{deploying > 0 ? t('dash.deployingOf', { n: deploying }) : t('dash.onlineOf', { n: online, total })}</span>
     </div>
   );
 }
+
+const MAX_ROWS = 4;
 
 function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () => void }) {
   const { t } = useI18n();
@@ -71,19 +72,17 @@ function ProjectCard({ p, fav, onFav }: { p: Project; fav: boolean; onFav: () =>
             </div>
           </div>
         </div>
-        <div className="pc-preview-wrap">
-          <div className="pc-preview">
-            <div className="pc-tiles">
-              {p.services.map((s) => (
-                <Link key={s.id} to={`/project/${p.id}/service/${s.id}`} className="pc-tile-link" title={s.name}>
-                  <div className="pc-tile">
-                    <RepoIcon size={20} />
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <StatusLine p={p} />
-          </div>
+        <StatusLine p={p} />
+        <div className="pc-services">
+          {p.services.length === 0 && <p className="pc-services-empty">{t('dash.noServices')}</p>}
+          {p.services.slice(0, MAX_ROWS).map((s) => (
+            <Link key={s.id} to={`/project/${p.id}/service/${s.id}`} className="pc-svc">
+              <RepoIcon size={16} />
+              <span className="pc-svc-name truncate">{s.name}</span>
+              <ServiceStatusPill service={s} />
+            </Link>
+          ))}
+          {p.services.length > MAX_ROWS && <p className="pc-services-more">{t('dash.moreServices', { n: p.services.length - MAX_ROWS })}</p>}
         </div>
       </div>
     </div>

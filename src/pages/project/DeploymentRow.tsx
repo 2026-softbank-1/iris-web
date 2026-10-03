@@ -9,9 +9,9 @@ import { formatAgo, useI18n } from '../../i18n';
 export function AuthorAvatar({ d }: { d: Deployment }) {
   return (
     <div className="dep-avatar">
-      <Avatar src={d.authorAvatar} size={24} title={d.author} />
+      <Avatar src={d.authorAvatar} size={32} title={d.author} />
       <div className="dep-avatar-badge">
-        <SourceBadge size={22} />
+        <SourceBadge size={14} />
       </div>
     </div>
   );

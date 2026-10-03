@@ -103,7 +103,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-primary-outline" disabled={busy || !!building} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
+          <button type="button" className="btn btn-primary" disabled={busy || !!building} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
             {t('service.deploy')}
           </button>
           {service.runtime && (
@@ -157,7 +157,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           <div className="deps-active">
             <DeploymentRow d={building} to={`${base}/deployment/${building.id}`} variant="active" />
             <div className="deps-success-wrap">
-              <Link className="deps-success" to={`${base}/deployment/${building.id}`}>
+              <Link className="deps-success progress" to={`${base}/deployment/${building.id}`}>
                 <div className="deps-success-left"><Clock size={16} /><p>{t('service.inProgress', { status: deploymentLabel(building.status) })}</p></div>
                 <ChevronRight size={16} />
               </Link>
