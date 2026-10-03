@@ -47,6 +47,6 @@ export function FailedRepairButton({ serviceId, deploymentId, to }: { serviceId:
     } catch (e) { if (e instanceof ApiError && e.code === 'CONFIGURATION_VALUES_REQUIRED') { if (mounted.current) setRequiredNames(e.details.map(d => d.field)); return; } if (mounted.current) setError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e)); }
     finally { submitting.current = false; if (mounted.current) setBusy(false); }
   }
-  if (requiredNames !== null || requiresManualRepair(diagnosis)) return <ManualRepairActions serviceId={serviceId} compact names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(to)} />;
+  if (requiredNames !== null || requiresManualRepair(diagnosis)) return <ManualRepairActions serviceId={serviceId} compact names={requiredNames ?? environmentNames} reason={diagnosis?.analysis?.remediation.reason} variablesUrl={environmentVariablesUrl(to)} />;
   return <span className="failed-repair-action"><button type="button" className="btn btn-primary btn-sm" disabled={busy || !!isAutomaticRepairPending(repair)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void start(); }}><Sparkles size={14} />{t(busy || isAutomaticRepairPending(repair) ? 'repair.loading' : 'repair.fixRedeploy')}</button>{error && <span role="alert" className="failed-repair-error">{error}</span>}</span>;
 }

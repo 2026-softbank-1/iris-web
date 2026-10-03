@@ -6,7 +6,7 @@ import { ApiError, describeError } from '../../lib/api';
 import { createDeployment } from '../../lib/endpoints';
 
 /** Human remediation creates a fresh deployment with current settings and the latest branch head. */
-export function ManualRepairActions({ serviceId, names, variablesUrl, compact = false }: { serviceId: string; names: string[]; variablesUrl: string; compact?: boolean }) {
+export function ManualRepairActions({ serviceId, names, variablesUrl, reason, compact = false }: { serviceId: string; names: string[]; variablesUrl: string; reason?: string; compact?: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -14,6 +14,7 @@ export function ManualRepairActions({ serviceId, names, variablesUrl, compact = 
   const submitting = useRef(false);
   const requestKey = useRef<string | null>(null);
   const mounted = useRef(true);
+  const interventionReason = reason?.trim() || t('repair.manual.reason');
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function redeploy() {
     if (submitting.current) return;
@@ -27,9 +28,9 @@ export function ManualRepairActions({ serviceId, names, variablesUrl, compact = 
     } finally { submitting.current = false; if (mounted.current) setBusy(false); }
   }
   const actions = <>
-    <button type="button" className="btn btn-outline btn-sm" disabled title={t('repair.manual.reason')}><Sparkles size={14} />{t('repair.title')}</button>
+    <button type="button" className="btn btn-outline btn-sm" disabled title={interventionReason}><Sparkles size={14} />{t('repair.title')}</button>
     <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={e => { e.preventDefault(); e.stopPropagation(); void redeploy(); }}><RefreshCw size={14} />{t(busy ? 'repair.loading' : 'repair.manual.redeploy')}</button>
   </>;
   if (compact) return <span className="failed-repair-action" onClick={e => e.stopPropagation()}>{actions}{error && <span className="failed-repair-error" role="alert">{error}</span>}</span>;
-  return <div className="repair-access" role="status"><b>{t('repair.manual.title')}</b>{names.length > 0 && <p className="mono">{names.join(', ')}</p>}<p>{t('repair.manual.note')}</p><div className="diag-brief-actions">{actions}{names.length > 0 && <Link className="btn btn-outline btn-sm" to={variablesUrl}>{t('repair.manual.variables')}</Link>}</div>{error && <p role="alert">{error}</p>}</div>;
+  return <div className="repair-access" role="status"><b>{t('repair.manual.title')}</b><p>{interventionReason}</p>{names.length > 0 && <p className="mono">{names.join(', ')}</p>}<p className="diag-muted">{t('repair.manual.note')}</p><div className="diag-brief-actions">{actions}{names.length > 0 && <Link className="btn btn-outline btn-sm" to={variablesUrl}>{t('repair.manual.variables')}</Link>}</div>{error && <p role="alert">{error}</p>}</div>;
 }

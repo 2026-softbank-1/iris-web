@@ -1,7 +1,7 @@
 export const ko = {
   "repair.manual.title": "사람의 조치가 필요해요",
   "repair.manual.reason": "이 진단은 사람이 조치해야 하므로 AI 자동 수정을 사용할 수 없어요.",
-  "repair.manual.note": "환경변수·설정·코드를 개선한 뒤 강제 재배포를 눌러 주세요. 최신 커밋과 현재 저장된 설정으로 새 배포를 시작해요.",
+  "repair.manual.note": "필요한 조치를 완료한 뒤 강제 재배포를 눌러 주세요. 최신 커밋과 현재 저장된 설정으로 새 배포를 시작해요.",
   "repair.manual.redeploy": "개선 후 강제 재배포",
   "repair.manual.variables": "환경변수 설정",
   "repair.manual.inProgress": "이미 배포가 진행 중이에요. 완료된 뒤 다시 눌러 주세요.",
@@ -55,7 +55,7 @@ export const ko = {
 export const en = {
   "repair.manual.title": "Human remediation required",
   "repair.manual.reason": "AI repair is disabled because this diagnosis requires human remediation.",
-  "repair.manual.note": "After updating variables, settings or code, redeploy with the latest commit and current saved configuration.",
+  "repair.manual.note": "After completing the required action, redeploy with the latest commit and current saved configuration.",
   "repair.manual.redeploy": "Force redeploy after fixing",
   "repair.manual.variables": "Configure variables",
   "repair.manual.inProgress": "A deployment is already running. Try again when it finishes.",
@@ -109,7 +109,7 @@ export const en = {
 export const ja = {
   "repair.manual.title": "人による対応が必要です",
   "repair.manual.reason": "人による対応が必要なためAI自動修正は無効です。",
-  "repair.manual.note": "環境変数・設定・コードを改善した後、最新コミットと現在の設定で再デプロイしてください。",
+  "repair.manual.note": "必要な対応を完了した後、最新コミットと現在の設定で再デプロイしてください。",
   "repair.manual.redeploy": "改善後に強制再デプロイ",
   "repair.manual.variables": "環境変数を設定",
   "repair.manual.inProgress": "デプロイが進行中です。完了後に再試行してください。",
