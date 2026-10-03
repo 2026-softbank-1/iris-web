@@ -1,21 +1,26 @@
 import { ChevronRight, CircleCheck, Clock, Code2, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { apiStatusLabel, canRedeploy, deploymentLabel, failureText } from '../../data/deploymentModel';
+import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
+import { DiagnosisPanel } from './DiagnosisPanel';
 import { LogTable } from './LogTable';
 
-const DTABS: { id: string; label: MessageKey; logs?: boolean }[] = [
+type DTab = { id: string; label: MessageKey; logs?: boolean; ai?: boolean };
+const DTABS: DTab[] = [
   { id: 'details', label: 'service.dtab.details' },
   { id: 'build', label: 'service.dtab.build', logs: true },
   { id: 'deploy', label: 'service.dtab.deploy', logs: true },
   { id: 'http', label: 'service.dtab.network', logs: true },
 ];
+/** 실패한 배포(canDiagnose)에만 붙는 탭. */
+const DIAGNOSIS_TAB: DTab = { id: 'diagnosis', label: 'diag.action', ai: true };
 
 function KV({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -42,7 +47,7 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   }
 }
 
-function Details({ d, service }: { d: Deployment; service: Service }) {
+function Details({ d, service, diagnosisTo }: { d: Deployment; service: Service; diagnosisTo: string }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
   const [statusOpen, setStatusOpen] = useState(false);
@@ -83,6 +88,15 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
             </div>
           )}
         </div>
+        {canDiagnose(d) && (
+          <div className="details-ai">
+            <span>{t('diag.callout')}</span>
+            <Link to={diagnosisTo} className="btn btn-sm btn-primary">
+              <Sparkles size={14} />
+              {t('diag.action')}
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="details-source">
@@ -179,8 +193,12 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
   const { t } = useI18n();
   const { toast } = useUI();
   const { run } = useRunner();
-  // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다.
-  const current = DTABS.some((x) => x.id === tab) ? tab! : 'details';
+  const navigate = useNavigate();
+  const diagnosable = canDiagnose(deployment);
+  const tabs = diagnosable ? [...DTABS, DIAGNOSIS_TAB] : DTABS;
+  // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다. 진단할 수 없는 배포의 /diagnosis 주소도 상세로 간다.
+  const current = tabs.some((x) => x.id === tab) ? tab! : 'details';
+  const currentTab = tabs.find((x) => x.id === current)!;
   const serviceBase = `/project/${project.id}/service/${service.id}`;
   const base = `${serviceBase}/deployment/${deployment.id}`;
   const status = deploymentLabel(deployment.status);
@@ -220,6 +238,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   horizontal
                   className="btn btn-icon-only dp-action"
                   deployment={deployment}
+                  onDiagnose={diagnosable ? () => navigate(`${base}/diagnosis`) : undefined}
                   onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
                 />
@@ -236,7 +255,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
             <div className="dp-sub" />
           </div>
           <div role="tablist" className="dp-tabs">
-            {DTABS.map((x) => (
+            {tabs.map((x) => (
               <Link
                 key={x.id}
                 to={`${base}/${x.id}`}
@@ -245,15 +264,23 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                 data-state={current === x.id ? 'active' : 'inactive'}
                 className={`dp-tab${current === x.id ? ' active' : ''}`}
               >
-                {t(x.label)}
+                {x.ai ? (
+                  <span className="dp-tab-ai">
+                    <Sparkles size={14} />
+                    {t(x.label)}
+                  </span>
+                ) : (
+                  t(x.label)
+                )}
                 {x.logs && <span> {t('service.dtab.logs')}</span>}
                 {current === x.id && <div className="pane-tab-line" />}
               </Link>
             ))}
           </div>
-          <div role="tabpanel" aria-label={`${t(DTABS.find((x) => x.id === current)!.label)} ${t('service.dtab.logs')}`} className="dp-panel" data-state="active">
-            {current === 'details' && <Details d={deployment} service={service} />}
-            {current !== 'details' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel={t('service.dp.noLogs')} />}
+          <div role="tabpanel" aria-label={currentTab.ai ? t(currentTab.label) : `${t(currentTab.label)} ${t('service.dtab.logs')}`} className="dp-panel" data-state="active">
+            {current === 'details' && <Details d={deployment} service={service} diagnosisTo={`${base}/diagnosis`} />}
+            {current === 'diagnosis' && <DiagnosisPanel key={deployment.id} service={service} deployment={deployment} base={base} />}
+            {current !== 'details' && current !== 'diagnosis' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel={t('service.dp.noLogs')} />}
           </div>
         </div>
       </div>
