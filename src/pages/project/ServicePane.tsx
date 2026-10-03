@@ -1,4 +1,5 @@
 import {
+  Check,
   Clock,
   ChevronDown,
   ChevronRight,
@@ -18,8 +19,9 @@ import {
   EyeOff,
   Trash2,
   ChevronUp,
+  Pencil,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
@@ -27,6 +29,9 @@ import { useI18n, type MessageKey } from '../../i18n';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
+import { describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
+import { toRaw } from '../../data/variablesModel';
+import { ApiError } from '../../lib/api';
 import { isDeploymentInProgress } from '../../lib/endpoints';
 import { DeploymentRow } from './DeploymentRow';
 import { ServiceMetrics } from './ServiceMetrics';
@@ -251,52 +256,69 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
 /* Variables tab                                                       */
 /* ------------------------------------------------------------------ */
 
-type Var = { key: string; value: string };
-
-function useServiceVars(serviceId: string) {
-  const storageKey = `ll:vars:${serviceId}`;
-  const [vars, setVars] = useState<Var[]>(() => JSON.parse(localStorage.getItem(storageKey) || '[]'));
-  useEffect(() => localStorage.setItem(storageKey, JSON.stringify(vars)), [vars, storageKey]);
-  return [vars, setVars] as const;
-}
-
 function VariablesTab({ service }: { service: Service }) {
   const { t } = useI18n();
   const { toast } = useUI();
-  const [vars, setVars] = useServiceVars(service.id);
+  const vars = useServiceVariables(service.id);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   const [raw, setRaw] = useState(false);
   const [rawText, setRawText] = useState('');
   const [systemOpen, setSystemOpen] = useState(false);
   const [revealed, setRevealed] = useState<string[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
 
-  const add = () => {
-    if (!name.trim()) return;
-    setVars((v) => [...v.filter((x) => x.key !== name.trim()), { key: name.trim(), value }]);
+  /** 쓰기 요청 하나. 성공하면 true 이고, 실패하면 이유를 화면에 띄우고 false 다. */
+  const attempt = async (task: () => Promise<void>, describe: (e: unknown) => string = (e) => describeVariablesError(e, t)) => {
+    setProblem(null);
+    try {
+      await task();
+      return true;
+    } catch (e) {
+      setProblem(describe(e));
+      return false;
+    }
+  };
+
+  const add = async () => {
+    const key = name.trim();
+    if (!key) return;
+    if (!(await attempt(() => vars.add(key, value)))) return;
     setName('');
     setValue('');
     setAdding(false);
   };
 
+  const startEdit = (v: { key: string; value: string }) => {
+    setProblem(null);
+    setEditing(v.key);
+    setEditValue(v.value);
+  };
+
+  const saveEdit = async () => {
+    if (editing === null) return;
+    if (await attempt(() => vars.update(editing, editValue))) setEditing(null);
+  };
+
+  const remove = async (key: string) => {
+    if (await attempt(() => vars.remove(key))) setRevealed((r) => r.filter((k) => k !== key));
+  };
+
   const openRaw = () => {
-    setRawText(vars.map((v) => `${v.key}=${JSON.stringify(v.value)}`).join('\n'));
+    setProblem(null);
+    setRawText(toRaw(vars.variables));
     setRaw(true);
   };
 
-  const saveRaw = () => {
-    const parsed: Var[] = [];
-    rawText.split('\n').forEach((line) => {
-      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (m) {
-        let v = m[2];
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-        parsed.push({ key: m[1], value: v });
-      }
-    });
-    setVars(parsed);
+  // 형식이 틀린 줄이 있으면 서버가 아무것도 바꾸지 않고 422 를 준다.
+  const saveRaw = async () => {
+    const describe = (e: unknown) => describeVariablesError(e, t) + (e instanceof ApiError && e.status === 422 ? ` ${t('service.vars.err.nothingChanged')}` : '');
+    if (!(await attempt(() => vars.replaceAll(rawText), describe))) return;
     setRaw(false);
+    toast(t('service.vars.updated'));
   };
 
   const [emptyPre, emptyPost] = t('service.vars.emptySub').split('{editor}');
@@ -317,7 +339,7 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="btn-label-muted">{t('service.vars.shared')}</span>
               </span>
             </button>
-            <button type="button" className="btn btn-ghost" onClick={openRaw}>
+            <button type="button" className="btn btn-ghost" disabled={!vars.ready} onClick={openRaw}>
               <div className="btn-icon">
                 <Braces size={16} />
               </div>
@@ -325,7 +347,7 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="btn-label-muted">{t('service.vars.raw')}</span>
               </span>
             </button>
-            <button type="button" className="btn btn-primary-outline" onClick={() => setAdding(true)}>
+            <button type="button" className="btn btn-primary-outline" disabled={!vars.ready} onClick={() => { setProblem(null); setAdding(true); }}>
               <div className="btn-icon">
                 <Plus size={16} />
               </div>
@@ -336,14 +358,21 @@ function VariablesTab({ service }: { service: Service }) {
       </div>
 
       <div className="vars-body">
+        <p className="vars-note">{t('service.vars.note')}</p>
+        {problem && (
+          <p className="vars-note error" role="alert">
+            {problem}
+          </p>
+        )}
+
         {adding && (
           <div className="vars-new">
-            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))} onKeyDown={(e) => e.key === 'Enter' && add()} />
-            <input className="input mono" placeholder={t('service.vars.valuePh')} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-            <button type="button" className="btn btn-primary" onClick={add} disabled={!name.trim()}>
+            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.replace(/[^A-Za-z0-9_]/g, '_'))} onKeyDown={(e) => e.key === 'Enter' && void add()} />
+            <input className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void add()} />
+            <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
               {t('service.vars.add')}
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={() => setAdding(false)}>
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={() => { setProblem(null); setAdding(false); }}>
               <X size={16} />
             </button>
           </div>
@@ -352,17 +381,27 @@ function VariablesTab({ service }: { service: Service }) {
         {raw ? (
           <div className="vars-raw">
             <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
-            <textarea className="vars-raw-text mono" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder={'SESSION_SECRET="..."\nPORT=8080'} />
+            <p className="vars-note warn">{t('service.vars.rawWarn')}</p>
+            <textarea className="vars-raw-text mono" autoComplete="off" spellCheck={false} value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder={'DATABASE_URL="postgres://..."\nLOG_LEVEL=info'} />
             <div className="vars-raw-actions">
-              <button type="button" className="btn btn-outline" onClick={() => setRaw(false)}>
+              <button type="button" className="btn btn-outline" onClick={() => { setProblem(null); setRaw(false); }}>
                 {t('service.vars.cancel')}
               </button>
-              <button type="button" className="btn btn-primary" onClick={saveRaw}>
-                {t('service.vars.update')}
+              <button type="button" className="btn btn-primary" disabled={vars.busy} onClick={() => void saveRaw()}>
+                {vars.busy ? t('service.vars.updating') : t('service.vars.update')}
               </button>
             </div>
           </div>
-        ) : vars.length === 0 ? (
+        ) : vars.loading ? (
+          <p className="vars-note">{t('service.vars.loading')}</p>
+        ) : vars.error ? (
+          <div className="vars-load-error">
+            <p className="vars-note error">{describeVariablesError(vars.error.error, t)}</p>
+            <button type="button" className="btn btn-outline" onClick={vars.retry}>
+              {t('service.vars.retry')}
+            </button>
+          </div>
+        ) : vars.variables.length === 0 ? (
           <div className="vars-empty-wrap">
             <div className="vars-empty">
               <p className="vars-empty-title">{t('service.vars.emptyTitle')}</p>
@@ -377,52 +416,89 @@ function VariablesTab({ service }: { service: Service }) {
           </div>
         ) : (
           <div className="vars-table">
-            {vars.map((v) => (
-              <div key={v.key} className="vars-row">
-                <span className="vars-key mono">{v.key}</span>
-                <span className="vars-val mono">{revealed.includes(v.key) ? v.value || '""' : '*******'}</span>
-                <div className="vars-row-actions">
-                  <button type="button" className="icon-btn" aria-label={t('service.vars.reveal')} onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
-                    {revealed.includes(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={t('service.vars.copy')}
-                    onClick={() => {
-                      navigator.clipboard?.writeText(v.value);
-                      toast(t('service.vars.copied', { key: v.key }));
+            {vars.variables.map((v) =>
+              editing === v.key ? (
+                <div key={v.key} className="vars-row">
+                  <span className="vars-key mono">{v.key}</span>
+                  <input
+                    className="input mono"
+                    autoFocus
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-label={t('service.vars.valueOf', { key: v.key })}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveEdit();
+                      if (e.key === 'Escape') {
+                        // 캔버스가 Esc 로 패널을 닫으니, 수정만 취소하고 패널은 그대로 둔다.
+                        e.stopPropagation();
+                        setEditing(null);
+                      }
                     }}
-                  >
-                    <Copy size={14} />
-                  </button>
-                  <button type="button" className="icon-btn" aria-label={t('service.vars.delete')} onClick={() => setVars((all) => all.filter((x) => x.key !== v.key))}>
-                    <Trash2 size={14} />
-                  </button>
+                  />
+                  <div className="vars-row-actions">
+                    <button type="button" className="icon-btn" aria-label={t('service.vars.save')} disabled={vars.busy} onClick={() => void saveEdit()}>
+                      <Check size={14} />
+                    </button>
+                    <button type="button" className="icon-btn" aria-label={t('service.vars.cancel')} onClick={() => setEditing(null)}>
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={v.key} className="vars-row">
+                  <span className="vars-key mono">{v.key}</span>
+                  <span className="vars-val mono">{revealed.includes(v.key) ? v.value || '""' : '*******'}</span>
+                  <div className="vars-row-actions">
+                    <button type="button" className="icon-btn" aria-label={t('service.vars.reveal')} onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
+                      {revealed.includes(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={t('service.vars.copy')}
+                      onClick={() => {
+                        navigator.clipboard?.writeText(v.value);
+                        toast(t('service.vars.copied', { key: v.key }));
+                      }}
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button type="button" className="icon-btn" aria-label={t('service.vars.edit')} disabled={vars.busy} onClick={() => startEdit(v)}>
+                      <Pencil size={14} />
+                    </button>
+                    <button type="button" className="icon-btn" aria-label={t('service.vars.delete')} disabled={vars.busy} onClick={() => void remove(v.key)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ),
+            )}
           </div>
         )}
 
-        <div className="vars-system">
-          <div>
-            <button type="button" className="vars-system-btn" data-state={systemOpen ? 'open' : 'closed'} onClick={() => setSystemOpen((v) => !v)}>
-              <div className="side-icon">{systemOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
-              <p>{t('service.vars.platform', { n: service.platformVariables.length })}</p>
-            </button>
-          </div>
-          {systemOpen && (
-            <div className="vars-table system">
-              {service.platformVariables.map((v) => (
-                <div key={v.key} className="vars-row">
-                  <span className="vars-key mono">{v.key}</span>
-                  <span className="vars-val mono">*******</span>
-                </div>
-              ))}
+        {vars.ready && (
+          <div className="vars-system">
+            <div>
+              <button type="button" className="vars-system-btn" data-state={systemOpen ? 'open' : 'closed'} onClick={() => setSystemOpen((v) => !v)}>
+                <div className="side-icon">{systemOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
+                <p>{t('service.vars.platform', { n: vars.systemVariables.length })}</p>
+              </button>
             </div>
-          )}
-        </div>
+            {systemOpen && (
+              <div className="vars-table system">
+                {vars.systemVariables.map((v) => (
+                  <div key={v.key} className="vars-row" title={v.description}>
+                    <span className="vars-key mono">{v.key}</span>
+                    <span className="vars-desc">{v.description}</span>
+                    <span className="vars-val mono">{v.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -477,7 +553,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
         <div className="pane-content">
           <div className={`pane-content-inner${current === 'settings' ? ' flush' : ''}`}>
             {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
-            {current === 'variables' && <VariablesTab service={service} />}
+            {current === 'variables' && <VariablesTab key={service.id} service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}
             {current === 'settings' && <ServiceSettings project={project} service={service} onScaled={() => void deps.reload()} />}

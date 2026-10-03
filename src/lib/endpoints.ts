@@ -196,6 +196,39 @@ export const getServiceScaling = (serviceId: number | string, signal?: AbortSign
 export const updateServiceScaling = (serviceId: number | string, json: ScalingUpdate, idempotencyKey?: string) =>
   request<ScalingDto>(`/services/${serviceId}/scaling`, { method: 'PUT', json, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
 
+/* variables */
+/** 사용자가 등록한 환경변수. 값은 소유자에게 평문으로 온다. */
+export type VariableDto = { key: string; value: string };
+/** 플랫폼이 배포할 때 앱에 넣는 변수. 서비스만으로 값이 정해지는 것만 value 가 있다. 사용자가 바꿀 수 없다. */
+export type SystemVariableDto = { key: string; description: string; value?: string };
+export type ServiceVariablesDto = {
+  /** 키 순. */
+  variables: VariableDto[];
+  systemVariables: SystemVariableDto[];
+};
+/**
+ * 변수를 바꿔도 실행 중인 앱은 그대로이고, 다음 배포(Deploy·Redeploy)나 Restart 가 그 시점의 변수를 가져간다.
+ * 서버는 키(영문·숫자·밑줄, 숫자로 시작 불가, 128자 이하, PORT·IRIS_ 접두어 예약)와 개수(100개)·값 크기(32KiB)를 검증하고
+ * 어기면 422 INVALID_INPUT 을 준다. 암호화 키가 없는 서버는 503 NOT_CONFIGURED 다.
+ */
+export const getServiceVariables = (serviceId: number | string, signal?: AbortSignal) =>
+  request<ServiceVariablesDto>(`/services/${serviceId}/variables`, { signal });
+/** 이미 있는 키면 409 VARIABLE_CONFLICT. */
+export const createServiceVariable = (serviceId: number | string, json: VariableDto) =>
+  request<VariableDto>(`/services/${serviceId}/variables`, { method: 'POST', json });
+/** 없는 키면 404 VARIABLE_NOT_FOUND. */
+export const updateServiceVariable = (serviceId: number | string, key: string, value: string) =>
+  request<VariableDto>(`/services/${serviceId}/variables/${encodeURIComponent(key)}`, { method: 'PUT', json: { value } });
+/** 없는 키면 404 VARIABLE_NOT_FOUND. */
+export const deleteServiceVariable = (serviceId: number | string, key: string) =>
+  request<void>(`/services/${serviceId}/variables/${encodeURIComponent(key)}`, { method: 'DELETE' });
+/**
+ * `.env` 텍스트(`KEY=VALUE` 한 줄에 하나)로 서비스의 변수 전체를 바꾼다. 텍스트에 없는 키는 지워진다.
+ * 파싱은 서버가 하고, 형식이 틀린 줄이 있으면 422 INVALID_INPUT 으로 아무것도 바뀌지 않는다(응답에 줄 번호는 없다).
+ */
+export const replaceServiceVariables = (serviceId: number | string, raw: string) =>
+  request<ServiceVariablesDto>(`/services/${serviceId}/variables`, { method: 'PUT', json: { raw } });
+
 /* logs */
 /** 런타임 로그 한 줄. timestampNs 는 Unix 나노초이고, number 로는 정밀도가 모자라서 문자열로 온다. */
 export type LogEntryDto = { timestampNs: string; message: string; pod: string; container: string };
