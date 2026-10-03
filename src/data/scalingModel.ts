@@ -8,12 +8,13 @@ export const MAX_REPLICAS = 10;
 export type Stop = { qty: string; amount: number };
 
 // 서버는 임의의 수량을 받지만 화면은 이 칸으로만 고르게 한다. 서버에 이미 다른 값이 저장돼 있으면 그 값을 칸으로 끼워 넣는다.
+// 최대값은 iris-infra 의 노드(m7i-flex.large: 2 vCPU·8 GiB)에 맞춘다. Pod 하나가 노드보다 큰 CPU 를 쓸 수는 없어서
+// 2 vCPU 를 넘는 칸은 고를 수 있어도 소용이 없다. 노드 종류가 바뀌면 이 칸도 함께 고친다.
 export const CPU_STOPS: Stop[] = [
   { qty: '250m', amount: 0.25 },
   { qty: '500m', amount: 0.5 },
   { qty: '1', amount: 1 },
   { qty: '2', amount: 2 },
-  { qty: '4', amount: 4 },
 ];
 export const MEMORY_STOPS: Stop[] = [
   { qty: '256Mi', amount: 256 },
