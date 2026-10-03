@@ -144,8 +144,8 @@ export type ServiceDomainDto = {
 };
 
 export type TargetDto = { id: number; name: string; kind: 'AWS' | 'ONPREM'; region?: string; domainSuffix?: string };
-/** on-prem(ONPREM) 은 인프라 활성화 전까지 화면에는 보여주되 고를 수 없게 한다. */
-export const isTargetSupported = (target: TargetDto) => target.kind !== 'ONPREM';
+/** 서버가 제공하는 AWS·온프레미스 타깃을 서비스 생성과 설정에서 선택할 수 있다. */
+export const isTargetSupported = (target: TargetDto) => target.kind === 'AWS' || target.kind === 'ONPREM';
 export type InstallationDto = { installationId: number; accountLogin: string; accountType: string };
 export type RepositoryDto = { fullName: string; url: string; defaultBranch: string; isPrivate: boolean; installationId: number };
 export type BranchDto = { name: string; isDefault: boolean };
