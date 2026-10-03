@@ -34,6 +34,15 @@ const RANGE_KEYS: Record<string, MessageKey> = {
   'Last 7 days': 'service.metrics.range.7d',
 };
 
+/**
+ * 처음 열 때 고르는 기간(최근 1시간). 트래픽 지표는 약 15분 늦게 집계돼서 15분이면 처음부터 네 카드가 "집계 중"으로만 보인다.
+ * 목록 순서가 바뀌어도 따라가도록 인덱스가 아니라 길이로 찾고, 1시간 항목이 없으면 첫 항목으로 돌아간다.
+ */
+const DEFAULT_RANGE = Math.max(
+  0,
+  METRIC_RANGES.findIndex((r) => r.ms === 60 * 60_000),
+);
+
 const CHART_HEIGHT = 299;
 const NETWORK_HEIGHT = 268;
 const PAD_TOP = 16; // 맨 위 눈금 라벨이 들어갈 자리
@@ -391,7 +400,7 @@ export function ServiceMetrics({ service }: { service: Service }) {
   const { t } = useI18n();
   const [layout, setLayout] = useState<'grid' | 'rows'>('grid');
   const rangeLabel = (label: string) => (RANGE_KEYS[label] ? t(RANGE_KEYS[label]) : label);
-  const [range, setRange] = useState(0);
+  const [range, setRange] = useState(DEFAULT_RANGE);
   const [live, setLive] = useState(true);
   const [sum, setSum] = useState({ cpu: true, memory: true });
   const [replicas, setReplicas] = useState({ cpu: false, memory: false });
