@@ -62,7 +62,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | Configure GitHub App | `GET /github/install` |
 | 프로젝트 Settings 이름·설명, Danger | `GET·PATCH·DELETE /projects/{id}` |
 | 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
-| Create 의 Deploy(첫 배포), Deploy·Redeploy·Rollback 버튼 | `POST /services/{id}/deployments` |
+| Create 의 Deploy(첫 배포), Deploy·Redeploy·Restart·Rollback 버튼 | `POST /services/{id}/deployments` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
 | 배포 패널 Details(상태 이력, 단계별 소요 시간) | `GET /services/{id}/deployments/{deploymentId}` |
 | 서비스 공개 주소(캔버스 노드, 서비스 패널 상단, Settings 의 Public Networking) | `GET /services/{id}/domains` |
@@ -97,6 +97,8 @@ MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members
 서비스 상태는 was 가 서비스 응답에 붙여 주는 최근 배포(`latestDeployment`)로 정합니다. 성공·롤백됨은 online, 진행 중(QUEUED·BUILDING·DEPLOYING)은 Deploying, 실패·수동 개입은 crashed 로 표시합니다.
 
 서비스를 클러스터에서 내리는 요청(`triggerType=REMOVE`, was ADR 0016)은 배포가 아니라 이벤트로 보여 줍니다. 가장 최근에 성공한 요청이 REMOVE 면 서비스가 내려간 것이라 Active 배포가 없고(캔버스 `Service is removed`, 도메인은 링크 없이 흐리게, Console·Scale Apply 는 막음), Deployments 에는 `Taken down` 으로 남으며 그 앞의 성공 배포는 대체된 이력(`Removed`)입니다. 다시 올리는 것은 Deploy·Redeploy·Rollback 입니다. REMOVE 가 진행 중이면 앱이 아직 떠 있으니 이전 배포가 Active 로 남고 `Removing` 만 보입니다. FAILED 는 서비스를 건드리기 전에 끝난 것이라 online 그대로 안내만 하고, MANUAL_INTERVENTION 은 상태를 알 수 없어서 crashed 로 보여 주되 앱이 떠 있을 수 있다고 알립니다. REMOVE 를 요청하는 버튼은 없습니다. REMOVE 행에는 Redeploy·Rollback 을 주지 않습니다.
+
+Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를 빌드 없이 다시 배포해 Pod 을 새로 시작합니다(`triggerType=RESTART`, `sourceSha`·`sourceDeploymentId` 없이 보냅니다). 서비스 패널 Deployments 탭에서 **Active 배포 행**의 메뉴(Redeploy 아래)에만 있고, 진행 중인 배포가 있거나 서비스가 내려가 Active 행이 없으면 보이지 않습니다. History 행에서 이전 버전으로 되돌리는 것은 Rollback 입니다. 서버가 그래도 409(`DEPLOYMENT_IN_PROGRESS`·`NO_SUCCEEDED_DEPLOYMENT`)를 주면 토스트로 보여 줍니다. 서비스 Settings 의 Scale Apply 도 서버에서 RESTART 배포를 만들며, 그 요청은 이력에 `via Restart` 로 남습니다.
 
 빌드·배포 로그는 API 가 없어서 비어 있고, Variables 탭의 값은 서버에 저장되지 않고 이 브라우저에만 남습니다.
 

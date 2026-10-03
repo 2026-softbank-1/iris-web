@@ -12,6 +12,7 @@ export const ko = {
   'service.deploy': '배포',
   'service.deployRequested': '배포를 요청했어요',
   'service.redeployRequested': '재배포를 요청했어요',
+  'service.restartRequested': '재시작을 요청했어요',
   'service.rollbackRequested': '롤백을 요청했어요',
   'service.replicaOne': '레플리카 {n}개',
   'service.replicaOther': '레플리카 {n}개',
@@ -77,6 +78,7 @@ export const ko = {
 
   'service.row.actions': '배포 작업',
   'service.row.redeploy': '재배포',
+  'service.row.restart': '재시작',
   'service.row.rollback': '이 배포로 롤백',
   'service.row.copyId': 'ID 복사',
   'service.row.via': '·',
@@ -158,6 +160,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'service.deploy': 'デプロイ',
   'service.deployRequested': 'デプロイをリクエストしました',
   'service.redeployRequested': '再デプロイをリクエストしました',
+  'service.restartRequested': '再起動をリクエストしました',
   'service.rollbackRequested': 'ロールバックをリクエストしました',
   'service.replicaOne': 'レプリカ {n}',
   'service.replicaOther': 'レプリカ {n}',
@@ -223,6 +226,7 @@ export const ja: Record<keyof typeof ko, string> = {
 
   'service.row.actions': 'デプロイ操作',
   'service.row.redeploy': '再デプロイ',
+  'service.row.restart': '再起動',
   'service.row.rollback': 'このデプロイにロールバック',
   'service.row.copyId': 'IDをコピー',
   'service.row.via': '·',
@@ -304,6 +308,7 @@ export const en: Record<keyof typeof ko, string> = {
   'service.deploy': 'Deploy',
   'service.deployRequested': 'Deployment requested',
   'service.redeployRequested': 'Redeploy requested',
+  'service.restartRequested': 'Restart requested',
   'service.rollbackRequested': 'Rollback requested',
   'service.replicaOne': '{n} Replica',
   'service.replicaOther': '{n} Replicas',
@@ -369,6 +374,7 @@ export const en: Record<keyof typeof ko, string> = {
 
   'service.row.actions': 'Deployment actions',
   'service.row.redeploy': 'Redeploy',
+  'service.row.restart': 'Restart',
   'service.row.rollback': 'Roll back to this',
   'service.row.copyId': 'Copy ID',
   'service.row.via': 'via',

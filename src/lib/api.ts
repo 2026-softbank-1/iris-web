@@ -65,7 +65,7 @@ export function describeError(error: unknown): string {
     case 'SERVICE_NAME_CONFLICT': return 'A service with this name already exists in this project.';
     case 'REPOSITORY_NOT_ACCESSIBLE': return 'This repository is not accessible. Install the GitHub App and grant it access.';
     case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
-    case 'NO_SUCCEEDED_DEPLOYMENT': return 'This service has no running deployment. Deploy it successfully before changing its scale.';
+    case 'NO_SUCCEEDED_DEPLOYMENT': return 'This service has no running deployment. Deploy it successfully first.';
     case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';

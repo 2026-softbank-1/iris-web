@@ -15,7 +15,7 @@ type ListState = { serviceId: string; dtos: api.DeploymentDto[]; error: string |
 
 /**
  * 서비스 하나의 배포 요청 목록. 진행 중인 배포가 있으면 3초마다 다시 받고, 끝나면 멈춘다.
- * 배포·재배포·롤백 요청도 여기서 보낸다(서버가 Idempotency-Key 로 중복을 막는다).
+ * 배포·재배포·롤백·재시작 요청도 여기서 보낸다(서버가 Idempotency-Key 로 중복을 막는다).
  */
 export function useDeployments(service?: Service) {
   const { user } = useAuth();
@@ -76,6 +76,8 @@ export function useDeployments(service?: Service) {
     deploy: () => request({ triggerType: 'MANUAL' }),
     redeploy: (deploymentId: string) => request({ triggerType: 'REDEPLOY', sourceDeploymentId: Number(deploymentId) }),
     rollback: (deploymentId: string) => request({ triggerType: 'ROLLBACK', sourceDeploymentId: Number(deploymentId) }),
+    /** 지금 떠 있는(마지막으로 성공한) 배포의 이미지를 빌드 없이 다시 배포해 Pod 을 새로 시작한다. 원본 배포는 서버가 정한다. */
+    restart: () => request({ triggerType: 'RESTART' }),
   };
 }
 
