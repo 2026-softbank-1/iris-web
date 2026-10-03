@@ -48,7 +48,52 @@ export type DeploymentDto = LatestDeploymentDto & {
 };
 export type DeploymentStageDto = { status: DeploymentStatus; startedAt: string; finishedAt?: string; durationSeconds?: number };
 export type DeploymentHistoryDto = { fromStatus?: DeploymentStatus; toStatus: DeploymentStatus; failureCode?: FailureCode; createdAt: string };
-export type DeploymentDetailDto = DeploymentDto & { stages: DeploymentStageDto[]; history: DeploymentHistoryDto[] };
+/** 배포가 쓴 소스. 브랜치는 배포 시점이 아니라 서비스의 지금 설정이다. */
+export type DeploymentSourceDto = { repository: string; branch: string };
+export type DeploymentTargetDto = { id: number; name: string; kind: string };
+/**
+ * 배포 상세에 보여 줄 설정. 값은 배포 시점의 스냅샷이 아니라 서비스의 **지금** 설정이다(startCommand 는 빌드가 기록한 값이 있으면 그 값).
+ * builder 가 없으면 아직 확정되지 않은 것이라 화면은 Auto-detect 로 보인다. targets 는 실제로 반영한 타깃이고, 반영 전이면 서비스에 지정된 타깃이다.
+ */
+export type DeploymentConfigurationDto = {
+  build: { builder?: Builder; rootDirectory?: string; buildCommand?: string };
+  deploy: { targets: DeploymentTargetDto[]; port?: number; startCommand?: string };
+};
+export type BuildStatus = 'PENDING' | 'SNAPSHOTTING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+/** 빌드가 끝난 상태. 로그를 더 기다리지 않는다. */
+export const isBuildFinished = (status?: BuildStatus) => status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELLED';
+export type DeploymentBuildDto = {
+  status: BuildStatus;
+  builder?: Builder;
+  imageDigest?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failureCode?: FailureCode;
+};
+export type ReleaseStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'ROLLING_BACK' | 'ROLLED_BACK';
+/** 타깃 하나에 배포한 결과. 배포까지 가지 못한 요청은 releases 가 빈 배열이다. */
+export type DeploymentReleaseDto = {
+  id: number;
+  targetId: number;
+  status: ReleaseStatus;
+  argoSyncStatus?: string;
+  argoHealthStatus?: string;
+  gitopsCommitSha?: string;
+  failureCode?: FailureCode;
+  finishedAt?: string;
+};
+/** 성공했던 배포를 더 새로운 성공 배포가 대신했을 때만 있다(화면의 Removed). */
+export type DeploymentReplacedByDto = { deploymentId: number; at: string };
+export type DeploymentDetailDto = DeploymentDto & {
+  stages: DeploymentStageDto[];
+  history: DeploymentHistoryDto[];
+  source: DeploymentSourceDto;
+  configuration: DeploymentConfigurationDto;
+  /** 빌드를 시작하기 전에 끝난 요청은 없다. */
+  build?: DeploymentBuildDto;
+  releases: DeploymentReleaseDto[];
+  replacedBy?: DeploymentReplacedByDto;
+};
 export type DeploymentCreate = {
   triggerType: 'MANUAL' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART';
   /**
@@ -171,6 +216,71 @@ export const createDeployment = (serviceId: number | string, json: DeploymentCre
   request<DeploymentDto>(`/services/${serviceId}/deployments`, { method: 'POST', json, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
 export const getDeployment = (serviceId: number | string, deploymentId: number | string) =>
   request<DeploymentDetailDto>(`/services/${serviceId}/deployments/${deploymentId}`);
+
+/* deployment logs */
+/** 빌드 로그 한 줄. timestampNs 는 Unix 나노초 문자열이다. 같은 시각의 줄이 여럿일 수 있다. */
+export type BuildLogEntryDto = { timestampNs: string; message: string };
+export type BuildLogsDto = {
+  /** 시간 오름차순. */
+  entries: BuildLogEntryDto[];
+  /** 다음 호출의 cursor. 읽을 로그 스트림이 없으면 보낸 cursor 가 그대로 오고, 저장된 끝부분으로 대신한 응답에는 없다. */
+  nextCursor?: string;
+  buildStatus?: BuildStatus;
+  /** 빌드가 끝났고 이번 호출에서 읽은 로그가 없다. true 이면 폴링을 멈춘다. */
+  isComplete: boolean;
+  /** 저장된 끝부분만 있고 앞부분이 빠졌다(실패한 빌드). */
+  isPartial: boolean;
+  /** 로그를 만든 빌드가 속한 배포. 롤백·재시작은 빌드를 새로 하지 않아 원본 배포다. 읽을 로그가 없으면 없다. */
+  loggedDeploymentId?: number;
+};
+/**
+ * 배포의 빌드 로그. 처음부터 limit(1~1000, 기본 500)줄을 주고, nextCursor 를 cursor 로 다시 불러 이어 읽는다.
+ * 진행 중인 빌드는 isComplete 가 true 가 될 때까지 이어 읽는다. CloudWatch 설정이 없는데 저장된 끝부분도 없으면 503 NOT_CONFIGURED 다.
+ */
+export const getBuildLogs = (serviceId: number | string, deploymentId: number | string, query: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) =>
+  request<BuildLogsDto>(`/services/${serviceId}/deployments/${deploymentId}/build-logs`, { query, signal });
+
+/** 배포 하나의 로그 응답이 함께 주는 기간. 조회할 것이 없으면(release 가 없는 배포 등) 없다. */
+export type DeploymentLogsDto = LogsDto & { start?: string; end?: string };
+/**
+ * 이 배포의 release 가 붙은 앱 컨테이너 로그. 최근 limit(1~1000, 기본 200)줄을 시간 **오름차순**으로 준다(서비스 로그와 달리).
+ * targetId 를 안 주면 배포가 반영된 첫 타깃이고, 배포가 쓰지 않은 타깃이면 422 다.
+ * start·end 를 안 주면 DEPLOYING 이 된 때부터 교체될 때까지(최대 7일)다. 주려면 타임존이 있는 ISO 8601 이고 최대 7일, 미래는 422 다.
+ * search 는 대소문자를 구분하는 부분 문자열이다.
+ */
+export const getDeploymentLogs = (
+  serviceId: number | string,
+  deploymentId: number | string,
+  query: { targetId?: number; start?: string; end?: string; limit?: number; search?: string } = {},
+  signal?: AbortSignal,
+) => request<DeploymentLogsDto>(`/services/${serviceId}/deployments/${deploymentId}/deploy-logs`, { query, signal });
+
+export type StatusClass = '2xx' | '3xx' | '4xx' | '5xx';
+export const STATUS_CLASSES: StatusClass[] = ['2xx', '3xx', '4xx', '5xx'];
+/**
+ * ALB 접근 로그 한 건. URL·메서드·IP 는 수집하지 않아 없다.
+ * status 는 사용자에게 돌려준 코드, targetStatus 는 서비스(Pod)가 돌려준 코드(ALB 가 직접 응답했으면 없다).
+ */
+export type NetworkLogEntryDto = {
+  timestampNs: string;
+  status: number;
+  targetStatus?: number;
+  receivedBytes: number;
+  sentBytes: number;
+  /** ALB 가 서비스에 요청을 보내고 응답 헤더를 받기까지(초). 클라이언트 체감 시간이 아니다. 없으면 측정되지 않은 것이다. */
+  responseTimeSeconds?: number;
+};
+export type NetworkLogsDto = { entries: NetworkLogEntryDto[]; isTruncated: boolean; start?: string; end?: string };
+/**
+ * 이 배포가 서비스한 구간(SUCCEEDED 가 된 때부터 교체될 때까지)의 ALB 접근 로그. 최근 limit(1~1000, 기본 200)건을 시간 오름차순으로 준다.
+ * 서비스한 적 없는 배포는 빈 entries 다. ALB 가 약 5분 주기로 로그를 올려서 최근 몇 분은 비어 있을 수 있다.
+ */
+export const getNetworkLogs = (
+  serviceId: number | string,
+  deploymentId: number | string,
+  query: { targetId?: number; start?: string; end?: string; limit?: number; statusClass?: StatusClass } = {},
+  signal?: AbortSignal,
+) => request<NetworkLogsDto>(`/services/${serviceId}/deployments/${deploymentId}/network-logs`, { query, signal });
 
 /* diagnosis */
 export type DiagnosisStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED';

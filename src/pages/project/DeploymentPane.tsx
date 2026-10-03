@@ -8,11 +8,12 @@ import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
+import type { DeploymentDetailDto } from '../../lib/endpoints';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
+import { BuildLogsTab, DeployLogsTab, NetworkLogsTab } from './DeploymentLogs';
 import { DiagnosisPanel } from './DiagnosisPanel';
-import { LogTable } from './LogTable';
 
-type DTab = { id: string; label: MessageKey; logs?: boolean; ai?: boolean };
+type DTab = { id: 'details' | 'build' | 'deploy' | 'http' | 'diagnosis'; label: MessageKey; logs?: boolean; ai?: boolean };
 const DTABS: DTab[] = [
   { id: 'details', label: 'service.dtab.details' },
   { id: 'build', label: 'service.dtab.build', logs: true },
@@ -47,12 +48,16 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   }
 }
 
-function Details({ d, service }: { d: Deployment; service: Service }) {
+function Details({ d, service, serviceBase, detail, error }: { d: Deployment; service: Service; serviceBase: string; detail: DeploymentDetailDto | null; error: string | null }) {
   const { t } = useI18n();
   const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
   const [statusOpen, setStatusOpen] = useState(false);
-  const { detail, error } = useDeploymentDetail(service.id, d.id);
+  // 구성·소스는 상세 응답의 값으로 그린다. 응답을 받기 전(또는 받지 못했을 때)에는 서비스의 지금 설정으로 채운다.
   const remote = service.remote;
+  const build = detail?.configuration.build ?? remote;
+  const deploy = detail?.configuration.deploy ?? remote;
+  const targets = detail ? detail.configuration.deploy.targets.map((x) => x.name).join(', ') : service.region;
+  const replacedBy = detail?.replacedBy;
   const problem = d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION';
   return (
     <div className="details">
@@ -68,6 +73,12 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
               <div className="side-icon">{statusOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
             </div>
           </button>
+          {replacedBy && (
+            <p className="details-status-note">
+              <Link to={`${serviceBase}/deployment/${replacedBy.deploymentId}/details`}>{t('service.dp.replacedBy', { id: replacedBy.deploymentId })}</Link>
+              <span> · {fmtKst(replacedBy.at)}</span>
+            </p>
+          )}
           {statusOpen && (
             <div className="details-timeline">
               {error && <p className="set-muted">{error}</p>}
@@ -100,13 +111,13 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                 {d.message}
               </p>
               <div className="details-commit-meta">
-                <p>{d.repo}</p>
-                {d.branch && (
+                <p>{detail?.source.repository ?? d.repo}</p>
+                {(detail?.source.branch ?? d.branch) && (
                   <div className="details-branch">
                     <div className="side-icon">
                       <GitBranch size={16} />
                     </div>
-                    <p>{d.branch}</p>
+                    <p>{detail?.source.branch ?? d.branch}</p>
                   </div>
                 )}
                 {d.sourceSha && <p className="mono">{d.sourceSha.slice(0, 7)}</p>}
@@ -146,14 +157,14 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
               <div className="details-col-body">
                 <KV label={t('service.dp.builder')}>
                   <div className="details-builder">
-                    <span>{remote?.builder ?? t('service.dp.autoDetect')}</span>
+                    <span>{build?.builder ?? t('service.dp.autoDetect')}</span>
                     <BuilderIcon size={20} />
                   </div>
                 </KV>
                 <hr />
-                <KV label={t('service.dp.rootDir')}>{remote?.rootDirectory ?? '/'}</KV>
+                <KV label={t('service.dp.rootDir')}>{build?.rootDirectory ?? '/'}</KV>
                 <hr />
-                <KV label={t('service.dp.buildCmd')}>{remote?.buildCommand ?? '—'}</KV>
+                <KV label={t('service.dp.buildCmd')}>{build?.buildCommand ?? '—'}</KV>
               </div>
             </div>
             <div className="details-box col">
@@ -164,11 +175,11 @@ function Details({ d, service }: { d: Deployment; service: Service }) {
                 <p>{t('service.dtab.deploy')}</p>
               </div>
               <div className="details-col-body">
-                <KV label={t('service.dp.targets')}>{service.region || '—'}</KV>
+                <KV label={t('service.dp.targets')}>{targets || '—'}</KV>
                 <hr className="soft" />
-                <KV label={t('service.dp.port')}>{remote?.port ?? '—'}</KV>
+                <KV label={t('service.dp.port')}>{deploy?.port ?? '—'}</KV>
                 <hr className="soft" />
-                <KV label={t('service.dp.startCmd')}>{remote?.startCommand ?? '—'}</KV>
+                <KV label={t('service.dp.startCmd')}>{deploy?.startCommand ?? '—'}</KV>
               </div>
             </div>
           </div>
@@ -185,9 +196,11 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
   const { toast } = useUI();
   const { run } = useRunner();
   const navigate = useNavigate();
+  // 상세 응답은 Details 의 구성·소스와 Deploy·Network Logs 의 타깃이 쓴다. 진행 중이면 3초마다 다시 받는다.
+  const { detail, error: detailError, failure: detailFailure } = useDeploymentDetail(service.id, deployment.id);
   const diagnosable = canDiagnose(deployment);
   const tabs = diagnosable ? [...DTABS, DIAGNOSIS_TAB] : DTABS;
-  // 로그 API 가 아직 없어서 처음에는 상세(Details)를 보여준다. 진단할 수 없는 배포의 /diagnosis 주소도 상세로 간다.
+  // 주소에 탭이 없으면 상세(Details)를 보여준다. 진단할 수 없는 배포의 /diagnosis 주소도 상세로 간다.
   const current = tabs.some((x) => x.id === tab) ? tab! : 'details';
   const currentTab = tabs.find((x) => x.id === current)!;
   const serviceBase = `/project/${project.id}/service/${service.id}`;
@@ -269,9 +282,11 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
             ))}
           </div>
           <div role="tabpanel" aria-label={currentTab.ai ? t(currentTab.label) : `${t(currentTab.label)} ${t('service.dtab.logs')}`} className="dp-panel" data-state="active">
-            {current === 'details' && <Details d={deployment} service={service} />}
+            {current === 'details' && <Details d={deployment} service={service} serviceBase={serviceBase} detail={detail} error={detailError} />}
             {current === 'diagnosis' && <DiagnosisPanel key={deployment.id} service={service} deployment={deployment} base={base} />}
-            {current !== 'details' && current !== 'diagnosis' && <LogTable key={current} kind={current as 'build' | 'deploy' | 'http'} lines={[]} emptyLabel={t('service.dp.noLogs')} />}
+            {current === 'build' && <BuildLogsTab key={deployment.id} service={service} deployment={deployment} serviceBase={serviceBase} />}
+            {current === 'deploy' && <DeployLogsTab key={deployment.id} service={service} deployment={deployment} detail={detail} detailError={detailFailure} />}
+            {current === 'http' && <NetworkLogsTab key={deployment.id} service={service} deployment={deployment} detail={detail} detailError={detailFailure} />}
           </div>
         </div>
       </div>
