@@ -2709,3 +2709,68 @@ button.st-box {
 .st-port .mono {
   font-size: 12px;
 }
+
+/* Deployment strategy ---------------------------------------------- */
+.st-strategies {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.st-strategy {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.st-strategy > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.st-strategy input {
+  flex-shrink: 0;
+  margin: 3px 0 0;
+  accent-color: var(--primary-strong);
+}
+
+.st-strategy.selected {
+  border-color: var(--primary-strong);
+}
+
+.st-strategy.locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.st-strategy:has(input:focus-visible) {
+  box-shadow: 0 0 0 3px var(--primary-border);
+}
+
+.st-hint.warn {
+  color: var(--yellow);
+}
+
+.details-strategy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--yellow);
+}
+
+.details-strategy-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.st-strategy:lang(ko),
+.details-strategy-note:lang(ko) {
+  word-break: keep-all;
+}

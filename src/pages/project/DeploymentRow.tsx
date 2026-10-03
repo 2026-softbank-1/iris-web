@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
 import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
 import { deploymentLabel } from '../../data/deploymentModel';
+import { strategyLabel } from '../../data/deploymentStrategyModel';
 import { fmtKstFull, type Deployment } from '../../data/mock';
 import { formatAgo, useI18n } from '../../i18n';
 import { canDiagnose } from '../../data/diagnosisModel';
@@ -149,6 +150,8 @@ export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeplo
                 <time title={fmtKstFull(d.createdAt)}>{formatAgo(d.createdAt, lang)}</time>
                 {'  '}{t('service.row.via')}{'  '}
                 <span>{d.via ?? 'GitHub'}</span>
+                {/* 롤링은 기본이라 적지 않는다. 롤링으로 대체된 배포는 상세에서 알린다. */}
+                {d.deploymentStrategy && d.deploymentStrategy !== 'ROLLING' && <span>{' · '}{strategyLabel(t, d.deploymentStrategy)}</span>}
               </p>
             </div>
           </div>

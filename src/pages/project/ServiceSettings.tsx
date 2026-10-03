@@ -27,13 +27,14 @@ import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttribut
 import { useNavigate } from 'react-router-dom';
 import { RepoIcon } from '../../components/brand';
 
-import { useUI } from '../../components/ui';
+import { ConfirmDialog, useUI } from '../../components/ui';
+import { DEPLOYMENT_STRATEGIES, MIN_REPLICAS_FOR_PROGRESSIVE, fallsBackToRolling, isStrategyRejected, needsReplicas, strategyDescKey, strategyLabel, strategyOf } from '../../data/deploymentStrategyModel';
 import type { Project, Service } from '../../data/mock';
 import { useProjects } from '../../data/ProjectsContext';
 import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
 import { useServiceScaling } from '../../data/useServiceScaling';
 import { ApiError, describeError } from '../../lib/api';
-import { isTargetSupported, listBranches, type Builder, type ServiceUpdate } from '../../lib/endpoints';
+import { isTargetSupported, listBranches, type Builder, type DeploymentStrategy, type ServiceUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
 
 /* ------------------------------------------------------------------ */
@@ -154,6 +155,56 @@ function LimitSlider({ name, ready, stops, value, parse, format, disabled, onCha
   );
 }
 
+/**
+ * 배포 방식을 고르는 즉시 저장한다. 저장하는 동안은 다시 고를 수 없고, 저장에 실패하면 저장된 값으로 되돌린다.
+ * 카나리·블루그린은 **저장된** 레플리카(savedReplicas)가 2개 이상일 때만 고를 수 있다. 아직 모르면(불러오는 중·실패) 고를 수 없다.
+ */
+function StrategyPicker({ value, savedReplicas, replicasUnknown, onSave }: { value: DeploymentStrategy; savedReplicas: number | null; replicasUnknown: boolean; onSave: (strategy: DeploymentStrategy) => Promise<boolean> }) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(value);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setShown(value), [value]);
+  const canProgressive = savedReplicas !== null && savedReplicas >= MIN_REPLICAS_FOR_PROGRESSIVE;
+  const choose = async (next: DeploymentStrategy) => {
+    if (busy || next === shown) return;
+    setShown(next);
+    setBusy(true);
+    const saved = await onSave(next);
+    setBusy(false);
+    if (!saved) setShown(value);
+  };
+  const label = (strategy: DeploymentStrategy) => strategyLabel(t, strategy);
+  const vars = { min: MIN_REPLICAS_FOR_PROGRESSIVE, strategy: label(value) };
+  const hint = busy
+    ? { text: t('svcSettings.strategy.saving') }
+    : savedReplicas !== null && fallsBackToRolling(value, savedReplicas)
+      ? { text: t('svcSettings.strategy.fallback', vars), warn: true }
+      : savedReplicas !== null && !canProgressive
+        ? { text: t('svcSettings.strategy.needsReplicas', vars) }
+        : replicasUnknown
+          ? { text: t('svcSettings.strategy.replicasUnknown') }
+          : null;
+  return (
+    <>
+      <div className="st-strategies" role="radiogroup" aria-label={t('svcSettings.strategy.title')} aria-busy={busy}>
+        {DEPLOYMENT_STRATEGIES.map((strategy) => {
+          const locked = needsReplicas(strategy) && !canProgressive;
+          return (
+            <label key={strategy} className={`st-box st-strategy${shown === strategy ? ' selected' : ''}${locked ? ' locked' : ''}`}>
+              <input type="radio" name="deployment-strategy" value={strategy} checked={shown === strategy} disabled={busy || locked} onChange={() => void choose(strategy)} />
+              <span>
+                <b>{label(strategy)}</b>
+                <span className="st-muted">{t(strategyDescKey(strategy))}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {hint && <p className={`st-hint${hint.warn ? ' warn' : ''}`}>{hint.text}</p>}
+    </>
+  );
+}
+
 // 키는 섹션 앵커 id(set-<키>)로도 쓰이므로 번역하지 않는다.
 const SECTION_LABEL: Record<string, MessageKey> = {
   Source: 'svcSettings.sec.source',
@@ -207,6 +258,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   };
 
   const applyScale = async () => {
+    setDownscaleWarning(false);
     try {
       await scale.apply();
       toast(t('svcSettings.scale.requested'));
@@ -232,6 +284,31 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [serverless, setServerless] = useState(false);
   const [skipped, setSkipped] = useState(false);
   const scale = useServiceScaling(service.id);
+  const strategy = strategyOf(remote);
+  const [downscaleWarning, setDownscaleWarning] = useState(false);
+  // 저장된 레플리카로는 고른 방식을 쓰다가 이번 적용으로 2개 미만이 되면, 롤링으로 대체된다고 먼저 알린다.
+  const requestScale = () => {
+    const willFallBack = scale.savedReplicas !== null && scale.replicas !== null && !fallsBackToRolling(strategy, scale.savedReplicas) && fallsBackToRolling(strategy, scale.replicas);
+    if (willFallBack) setDownscaleWarning(true);
+    else void applyScale();
+  };
+  const saveStrategy = async (next: DeploymentStrategy) => {
+    try {
+      const updated = await updateService(project.id, service.id, { deploymentStrategy: next });
+      // 배포 방식을 모르는 서버(구버전)는 키를 무시하고 저장하지 않는다.
+      if (strategyOf(updated.remote) !== next) {
+        toast(t('svcSettings.strategy.unavailable'));
+        return false;
+      }
+      toast(t('svcSettings.strategy.saved'));
+      return true;
+    } catch (e) {
+      if (!isStrategyRejected(e)) toast(describeError(e));
+      else if (scale.savedReplicas !== null && scale.savedReplicas < MIN_REPLICAS_FOR_PROGRESSIVE) toast(t('svcSettings.strategy.needsReplicas', { min: MIN_REPLICAS_FOR_PROGRESSIVE }));
+      else toast(t('svcSettings.strategy.unavailable'));
+      return false;
+    }
+  };
   const [retries, setRetries] = useState('10');
   const [paths, setPaths] = useState<string[]>([]);
   const [pathDraft, setPathDraft] = useState('');
@@ -588,13 +665,23 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       <button type="button" className="btn btn-outline" disabled={!scale.edited || scale.busy} onClick={scale.reset}>
                         {t('svcSettings.scale.reset')}
                       </button>
-                      <button type="button" className="btn btn-primary-outline" disabled={!scale.dirty || scale.busy || !!service.deploying || !!service.removed} onClick={() => void applyScale()}>
+                      <button type="button" className="btn btn-primary-outline" disabled={!scale.dirty || scale.busy || !!service.deploying || !!service.removed} onClick={requestScale}>
                         {scale.busy ? t('svcSettings.scale.applying') : t('svcSettings.scale.apply')}
                       </button>
                     </>
                   )}
                 </div>
               </Item>
+              <ConfirmDialog
+                open={downscaleWarning}
+                title={t('svcSettings.strategy.downscale.title')}
+                confirmLabel={t('svcSettings.strategy.downscale.continue')}
+                cancelLabel={t('svcSettings.strategy.downscale.cancel')}
+                onClose={() => setDownscaleWarning(false)}
+                onConfirm={() => void applyScale()}
+              >
+                {t('svcSettings.strategy.downscale.body', { min: MIN_REPLICAS_FOR_PROGRESSIVE, strategy: strategyLabel(t, strategy) })}
+              </ConfirmDialog>
             </Section>
           )}
 
@@ -657,12 +744,17 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('Deploy', 'start', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
+          {show('Deploy', 'start', 'strategy', 'rolling', 'canary', 'blue-green', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
             <Section name="Deploy" icon={Rocket}>
               <Item title={t('svcSettings.startCmd.title')} desc={t('svcSettings.startCmd.desc')} id="start-cmd">
                 {remote && <ValueSetting label={t('svcSettings.startCmd.label')} value={remote.startCommand ?? ''} placeholder={t('svcSettings.startCmd.placeholder')} onSave={(v) => save({ startCommand: v })} />}
                 <p className="st-muted">{t('svcSettings.preDeploy')}</p>
               </Item>
+              {remote && (
+                <Item title={t('svcSettings.strategy.title')} desc={t('svcSettings.strategy.desc')} id="deployment-strategy">
+                  <StrategyPicker value={strategy} savedReplicas={scale.savedReplicas} replicasUnknown={!!scale.error} onSave={saveStrategy} />
+                </Item>
+              )}
               <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">
                 <Toggle checked={teardown} onChange={setTeardown} label={t('svcSettings.teardown.toggle')} />
               </Item>

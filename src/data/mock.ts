@@ -2,7 +2,7 @@
 // (deployments, logs, metrics). Projects and services come from the API (see ProjectsContext).
 
 import type { MessageKey, Vars } from '../i18n';
-import type { DeploymentTrigger, FailureCode, ServiceDto } from '../lib/endpoints';
+import type { DeploymentStrategy, DeploymentTrigger, FailureCode, ServiceDto } from '../lib/endpoints';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
@@ -63,6 +63,9 @@ export interface Deployment {
   requestedBy?: number;
   /** 진행 중(QUEUED·BUILDING·DEPLOYING)인지. */
   isActive?: boolean;
+  /** 요청 시점의 배포 방식과 실제로 쓴 방식. 배포 방식 도입 전 요청에는 없다. */
+  requestedDeploymentStrategy?: DeploymentStrategy;
+  deploymentStrategy?: DeploymentStrategy;
 }
 
 export type ServiceState = 'online' | 'offline' | 'crashed';

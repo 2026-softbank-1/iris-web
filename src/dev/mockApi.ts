@@ -10,6 +10,7 @@ import type {
   DeploymentLogsDto,
   DeploymentReleaseDto,
   DeploymentStatus,
+  DeploymentStrategy,
   DeploymentTrigger,
   DiagnosisAnalysisDto,
   DiagnosisDto,
@@ -22,6 +23,7 @@ import type {
   NetworkLogsDto,
   ProjectDto,
   RepositoryDto,
+  ScalingDto,
   ServiceDomainDto,
   ServiceDto,
   SessionUser,
@@ -36,7 +38,7 @@ const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 const iso = (ms: number) => new Date(ms).toISOString();
 const ok = (data: unknown, status = 200): MockResponse => ({ status, body: { success: true, data } });
-const fail = (status: number, code: string, message: string): MockResponse => ({ status, body: { success: false, code, message } });
+const fail = (status: number, code: string, message: string, details?: { field: string; reason: string }[]): MockResponse => ({ status, body: { success: false, code, message, details } });
 
 /* ------------------------------------------------------------------ */
 /* 시드 데이터                                                           */
@@ -78,19 +80,37 @@ const service = (id: number, projectId: number, name: string, repo: string, extr
   platform: 'linux/amd64',
   port: 3000,
   targetIds: [1],
+  deploymentStrategy: 'ROLLING',
   createdAt: iso(t0 - 10 * DAY),
   updatedAt: iso(t0 - DAY),
   ...extra,
 });
 
 const services: MockService[] = [
-  service(11, 1, 'web', 'likelion/web', { rootDirectory: 'apps/web', buildCommand: 'npm run build', startCommand: 'npm start' }),
+  service(11, 1, 'web', 'likelion/web', { rootDirectory: 'apps/web', buildCommand: 'npm run build', startCommand: 'npm start', deploymentStrategy: 'CANARY' }),
   service(12, 1, 'api', 'likelion/api', { port: 8000, builder: 'dockerfile', dockerfilePath: 'Dockerfile' }),
   service(13, 1, 'worker', 'likelion/worker', { port: undefined }),
-  service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1] }),
+  // 블루그린으로 저장한 뒤 레플리카를 1개로 줄여 다음 배포부터 롤링으로 대체되는 서비스.
+  service(21, 2, 'gateway', 'softbank/iris-gateway', { targetIds: [1], deploymentStrategy: 'BLUE_GREEN' }),
   service(22, 2, 'docs', 'softbank/iris-docs', { isAutoDeploy: false }),
   service(31, 3, 'sandbox', 'kylo-dev/playground'),
 ];
+
+/** 저장된 Pod 수·자원. 설정한 적 없는 서비스는 서버 기본값(레플리카 1)이다. */
+const scalings = new Map<number, Omit<ScalingDto, 'serviceId' | 'deploymentRequestId'>>([
+  [11, { replicas: 2, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }],
+  [21, { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }],
+]);
+const scalingOf = (s: MockService): ScalingDto => ({
+  serviceId: s.id,
+  ...(scalings.get(s.id) ?? { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }),
+});
+const STRATEGIES: DeploymentStrategy[] = ['ROLLING', 'CANARY', 'BLUE_GREEN'];
+/** was 와 같다: 요청 시점의 방식을 남기고, 레플리카가 2개 미만이면 실제로는 롤링으로 배포한다. */
+const strategySnapshot = (s: MockService) => {
+  const requested = s.deploymentStrategy ?? 'ROLLING';
+  return { requestedDeploymentStrategy: requested, deploymentStrategy: scalingOf(s).replicas < 2 ? 'ROLLING' : requested } satisfies Pick<DeploymentDto, 'requestedDeploymentStrategy' | 'deploymentStrategy'>;
+};
 
 const isSingleTarget = (v: unknown): v is number[] => Array.isArray(v) && v.length === 1 && targets.some((x) => x.id === v[0]);
 
@@ -138,6 +158,12 @@ const deployments: MockDeployment[] = [
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
   deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
+
+// 배포 방식 도입 뒤의 요청만 방식을 남긴다. web 의 최근 배포는 카나리로 배포했고, gateway 는 레플리카가 1개라 블루그린 대신 롤링으로 배포 중이다.
+for (const d of deployments) {
+  if (d.serviceId === 11 && d.sourceCommitMessage === 'feat: 랜딩 페이지 추가') Object.assign(d, { requestedDeploymentStrategy: 'CANARY', deploymentStrategy: 'CANARY' });
+  if (d.serviceId === 21 && d.status === 'DEPLOYING') Object.assign(d, { requestedDeploymentStrategy: 'BLUE_GREEN', deploymentStrategy: 'ROLLING' });
+}
 
 // 롤백은 빌드를 새로 하지 않고 원본 배포가 만든 이미지를 쓴다(빌드 로그도 원본 배포의 것이다).
 {
@@ -899,6 +925,13 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
         if (!isSingleTarget(body.targetIds)) return fail(422, 'INVALID_INPUT', 'a service needs exactly one target');
         if (body.targetIds[0] !== s.targetIds[0] && deploymentsOf(s.id).length > 0) return fail(409, 'CONFLICT', 'target cannot change after deployment');
       }
+      if (body?.deploymentStrategy !== undefined) {
+        const strategy = body.deploymentStrategy as DeploymentStrategy;
+        if (!STRATEGIES.includes(strategy)) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'deploymentStrategy', reason: 'unknown deployment strategy' }]);
+        if (strategy !== 'ROLLING' && scalingOf(s).replicas < 2) {
+          return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'deploymentStrategy', reason: 'requires at least 2 replicas' }]);
+        }
+      }
       Object.assign(s, body, { updatedAt: iso(Date.now()) });
     }
     if (method === 'DELETE') {
@@ -916,6 +949,27 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     return ok({ entries, isTruncated: entries.length >= Number(q.limit ?? 500) });
   }
   if (seg[2] === 'metrics') return ok(metricsFor(s, q));
+  if (seg[2] === 'scaling' && seg.length === 3) {
+    if (method === 'PUT') {
+      const replicas = Number(body?.replicas);
+      if (!Number.isInteger(replicas) || replicas < 0 || replicas > 10) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'replicas', reason: 'must be from 0 to 10' }]);
+      if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
+      const source = deploymentsOf(s.id).find((d) => statusOf(d) === 'SUCCEEDED');
+      if (!source || source.triggerType === 'REMOVE') return fail(409, 'NO_SUCCEEDED_DEPLOYMENT', 'No succeeded deployment');
+      scalings.set(s.id, { replicas, resources: body?.resources as ScalingDto['resources'] });
+      // 적용은 지금 떠 있는 이미지로 RESTART 배포를 만든다. 방식은 바뀐 레플리카로 정한다.
+      const d: MockDeployment = {
+        ...deployment(s.id, 0, 'QUEUED', 'RESTART', source.sourceCommitMessage ?? '재시작'),
+        ...strategySnapshot(s),
+        createdAt: iso(Date.now()),
+        sourceDeploymentId: source.id,
+        auto: true,
+      };
+      deployments.push(d);
+      return ok({ ...scalingOf(s), deploymentRequestId: d.id } satisfies ScalingDto, 202);
+    }
+    return ok(scalingOf(s));
+  }
   if (seg[2] === 'deployments' && seg.length === 3) {
     if (method === 'POST') {
       if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
@@ -928,6 +982,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
           : deployments.find((d) => d.id === Number(body?.sourceDeploymentId));
       const d: MockDeployment = {
         ...deployment(s.id, 0, 'QUEUED', (body?.triggerType as DeploymentTrigger) ?? 'MANUAL', source?.sourceCommitMessage ?? '수동 배포'),
+        ...strategySnapshot(s),
         createdAt: iso(Date.now()),
         sourceDeploymentId: source?.id,
         auto: true,

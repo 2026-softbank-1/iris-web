@@ -77,6 +77,8 @@ export function useServiceScaling(serviceId: string) {
     error: current?.error ?? null,
     retry: () => { setLoaded(null); setAttempt((n) => n + 1); },
     ready: !!scaling,
+    /** 서버에 저장된 레플리카 수. 편집 중인 값이 아니다. 아직 받지 못했으면 null. */
+    savedReplicas: scaling?.replicas ?? null,
     replicasText, setReplicasText, replicas,
     cpu, setCpu, cpuStops,
     memory, setMemory, memoryStops,

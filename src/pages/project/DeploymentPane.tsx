@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { apiStatusLabel, canRedeploy, deploymentLabel, failureKey } from '../../data/deploymentModel';
+import { MIN_REPLICAS_FOR_PROGRESSIVE, strategyLabel } from '../../data/deploymentStrategyModel';
 import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
@@ -60,6 +61,10 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
   const targets = detail ? detail.configuration.deploy.targets.map((x) => x.name).join(', ') : service.region;
   const replacedBy = detail?.replacedBy;
   const problem = d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION';
+  // 배포 방식 도입 전 요청과 REMOVE 요청에는 없다. 요청과 다르면 레플리카가 모자라 롤링으로 대체된 것이다.
+  const strategy = detail?.deploymentStrategy ?? d.deploymentStrategy;
+  const requestedStrategy = detail?.requestedDeploymentStrategy ?? d.requestedDeploymentStrategy;
+  const fellBackFrom = strategy === 'ROLLING' && requestedStrategy !== 'ROLLING' ? requestedStrategy : undefined;
   return (
     <div className="details">
       <div className={`details-status${problem ? ' crashed' : ''}`}>
@@ -181,6 +186,20 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
                 <KV label={t('service.dp.port')}>{deploy?.port ?? '—'}</KV>
                 <hr className="soft" />
                 <KV label={t('service.dp.startCmd')}>{deploy?.startCommand ?? '—'}</KV>
+                {strategy && (
+                  <>
+                    <hr className="soft" />
+                    <KV label={t('service.dp.strategy')}>
+                      {strategyLabel(t, strategy)}
+                      {fellBackFrom && (
+                        <p className="details-strategy-note">
+                          <TriangleAlert size={14} />
+                          <span>{t('service.dp.strategyFallback', { requested: strategyLabel(t, fellBackFrom), min: MIN_REPLICAS_FOR_PROGRESSIVE })}</span>
+                        </p>
+                      )}
+                    </KV>
+                  </>
+                )}
               </div>
             </div>
           </div>
