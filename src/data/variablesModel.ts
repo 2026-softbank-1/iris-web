@@ -1,4 +1,5 @@
 import type { MessageKey } from '../i18n';
+import type { ErrorDetail } from '../lib/api';
 import type { VariableDto } from '../lib/endpoints';
 
 const byKey = (a: VariableDto, b: VariableDto) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
@@ -25,4 +26,19 @@ export const INVALID_INPUT_KEYS: Record<string, MessageKey> = {
   'variable value is too long': 'service.vars.err.valueTooLong',
   'too many variables': 'service.vars.err.tooMany',
   'invalid variable line': 'service.vars.err.invalidLine',
+};
+
+const TOO_LONG_KEYS: Record<string, MessageKey> = {
+  key: 'service.vars.err.keyTooLong',
+  value: 'service.vars.err.valueTooLong',
+  raw: 'service.vars.err.rawTooLong',
+};
+
+/** 서버 스키마 검증(422 VALIDATION_ERROR)이 길이 초과를 알려 주면 그 필드의 문구를 돌려준다. 그 밖의 검증은 null 이다. */
+export const validationKey = (details: ErrorDetail[]): MessageKey | null => {
+  for (const d of details) {
+    const key = TOO_LONG_KEYS[d.field];
+    if (key && /at most/i.test(d.reason)) return key;
+  }
+  return null;
 };

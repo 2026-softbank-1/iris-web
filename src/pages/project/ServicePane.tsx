@@ -22,7 +22,7 @@ import {
   Pencil,
   Sparkles,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
@@ -296,6 +296,16 @@ function VariablesTab({ service }: { service: Service }) {
     }
   };
 
+  const closeAdd = () => {
+    setProblem(null);
+    setAdding(false);
+  };
+
+  const closeRaw = () => {
+    setProblem(null);
+    setRaw(false);
+  };
+
   const add = async () => {
     const key = name.trim();
     if (!key) return;
@@ -332,6 +342,28 @@ function VariablesTab({ service }: { service: Service }) {
     if (!(await attempt(() => vars.replaceAll(rawText), describe))) return;
     setRaw(false);
     toast(t('service.vars.updated'));
+  };
+
+  // 캔버스가 Esc 로 패널을 닫으니, 이 탭의 입력창에서는 Esc 를 여기서 막아 쓰던 내용이 사라지지 않게 한다.
+  const onAddKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') void add();
+    else if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeAdd();
+    }
+  };
+
+  const onEditKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') void saveEdit();
+    else if (e.key === 'Escape') {
+      e.stopPropagation();
+      setEditing(null);
+    }
+  };
+
+  // Raw 편집기는 붙여 넣은 긴 텍스트가 들어 있을 수 있어서 Esc 로 닫지 않고, 취소 버튼으로만 닫는다.
+  const onRawKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') e.stopPropagation();
   };
 
   const [emptyPre, emptyPost] = t('service.vars.emptySub').split('{editor}');
@@ -380,12 +412,12 @@ function VariablesTab({ service }: { service: Service }) {
 
         {adding && (
           <div className="vars-new">
-            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.replace(/[^A-Za-z0-9_]/g, '_'))} onKeyDown={(e) => e.key === 'Enter' && void add()} />
-            <input className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void add()} />
+            <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={(e) => setName(e.target.value.replace(/[^A-Za-z0-9_]/g, '_'))} onKeyDown={onAddKey} />
+            <input className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
             <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
               {t('service.vars.add')}
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={() => { setProblem(null); setAdding(false); }}>
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={closeAdd}>
               <X size={16} />
             </button>
           </div>
@@ -395,9 +427,9 @@ function VariablesTab({ service }: { service: Service }) {
           <div className="vars-raw">
             <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
             <p className="vars-note warn">{t('service.vars.rawWarn')}</p>
-            <textarea className="vars-raw-text mono" autoComplete="off" spellCheck={false} value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder={'DATABASE_URL="postgres://..."\nLOG_LEVEL=info'} />
+            <textarea className="vars-raw-text mono" autoComplete="off" spellCheck={false} value={rawText} onChange={(e) => setRawText(e.target.value)} onKeyDown={onRawKey} placeholder={'DATABASE_URL="postgres://..."\nLOG_LEVEL=info'} />
             <div className="vars-raw-actions">
-              <button type="button" className="btn btn-outline" onClick={() => { setProblem(null); setRaw(false); }}>
+              <button type="button" className="btn btn-outline" onClick={closeRaw}>
                 {t('service.vars.cancel')}
               </button>
               <button type="button" className="btn btn-primary" disabled={vars.busy} onClick={() => void saveRaw()}>
@@ -441,14 +473,7 @@ function VariablesTab({ service }: { service: Service }) {
                     aria-label={t('service.vars.valueOf', { key: v.key })}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void saveEdit();
-                      if (e.key === 'Escape') {
-                        // 캔버스가 Esc 로 패널을 닫으니, 수정만 취소하고 패널은 그대로 둔다.
-                        e.stopPropagation();
-                        setEditing(null);
-                      }
-                    }}
+                    onKeyDown={onEditKey}
                   />
                   <div className="vars-row-actions">
                     <button type="button" className="icon-btn" aria-label={t('service.vars.save')} disabled={vars.busy} onClick={() => void saveEdit()}>

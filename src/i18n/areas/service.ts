@@ -63,6 +63,10 @@ export const ko = {
   'service.vars.err.tooMany': '변수는 서비스당 100개까지 만들 수 있어요.',
   'service.vars.err.invalidLine': '형식이 맞지 않는 줄이 있어요. 줄마다 KEY=VALUE 형식이어야 해요.',
   'service.vars.err.nothingChanged': '아무것도 바뀌지 않았어요.',
+  'service.vars.err.network': '서버에 연결하지 못했어요. 네트워크를 확인한 뒤 다시 시도해 주세요.',
+  'service.vars.err.server': '서버에서 오류가 났어요. 잠시 후 다시 시도해 주세요.',
+  'service.vars.err.keyTooLong': '변수 이름은 128자까지 쓸 수 있어요.',
+  'service.vars.err.rawTooLong': '텍스트가 너무 길어요. 1MiB 이하로 입력해 주세요.',
 
   'service.dtab.details': '상세',
   'service.dtab.build': '빌드',
@@ -230,6 +234,10 @@ export const ja: Record<keyof typeof ko, string> = {
   'service.vars.err.tooMany': '変数は1サービスにつき100個まで作成できます。',
   'service.vars.err.invalidLine': '形式が正しくない行があります。各行は KEY=VALUE 形式にしてください。',
   'service.vars.err.nothingChanged': '何も変更されていません。',
+  'service.vars.err.network': 'サーバーに接続できませんでした。ネットワークを確認して、もう一度お試しください。',
+  'service.vars.err.server': 'サーバーでエラーが発生しました。しばらくしてからもう一度お試しください。',
+  'service.vars.err.keyTooLong': '変数名は128文字までです。',
+  'service.vars.err.rawTooLong': 'テキストが長すぎます。1MiB 以下にしてください。',
 
   'service.dtab.details': '詳細',
   'service.dtab.build': 'ビルド',
@@ -397,6 +405,10 @@ export const en: Record<keyof typeof ko, string> = {
   'service.vars.err.tooMany': 'A service can have up to 100 variables.',
   'service.vars.err.invalidLine': 'Some line isn\'t in KEY=VALUE form. Each line must be KEY=VALUE.',
   'service.vars.err.nothingChanged': 'Nothing was changed.',
+  'service.vars.err.network': 'Couldn\'t reach the server. Check your connection and try again.',
+  'service.vars.err.server': 'The server ran into an error. Try again in a moment.',
+  'service.vars.err.keyTooLong': 'Variable names can be up to 128 characters.',
+  'service.vars.err.rawTooLong': 'The text is too long. Keep it within 1 MiB.',
 
   'service.dtab.details': 'Details',
   'service.dtab.build': 'Build',
