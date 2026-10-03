@@ -21,7 +21,7 @@ export type Builder = 'dockerfile' | 'railpack';
 export type DeploymentStatus = 'QUEUED' | 'BUILDING' | 'DEPLOYING' | 'SUCCEEDED' | 'FAILED' | 'ROLLED_BACK' | 'MANUAL_INTERVENTION';
 /**
  * 배포 요청을 만든 방식. was 가 값을 늘려 갈 수 있으니 화면은 모르는 값이 와도 죽지 않아야 한다(deploymentModel 의 VIA 참고).
- * 웹이 직접 요청하는 것은 MANUAL·REDEPLOY·ROLLBACK 뿐이다(DeploymentCreate).
+ * 웹이 직접 요청하는 것은 MANUAL·REDEPLOY·ROLLBACK·RESTART 뿐이다(DeploymentCreate).
  */
 export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART' | 'REMOVE';
 export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED';
@@ -50,8 +50,12 @@ export type DeploymentStageDto = { status: DeploymentStatus; startedAt: string; 
 export type DeploymentHistoryDto = { fromStatus?: DeploymentStatus; toStatus: DeploymentStatus; failureCode?: FailureCode; createdAt: string };
 export type DeploymentDetailDto = DeploymentDto & { stages: DeploymentStageDto[]; history: DeploymentHistoryDto[] };
 export type DeploymentCreate = {
-  triggerType: 'MANUAL' | 'REDEPLOY' | 'ROLLBACK';
-  /** REDEPLOY·ROLLBACK 에서 필수. ROLLBACK 은 SUCCEEDED 인 배포여야 한다. */
+  triggerType: 'MANUAL' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART';
+  /**
+   * REDEPLOY·ROLLBACK 에서 필수. ROLLBACK 은 SUCCEEDED 인 배포여야 한다.
+   * RESTART 는 지금 떠 있는(마지막으로 성공한) 배포의 이미지를 빌드 없이 다시 배포하며 보내지 않는다.
+   * 성공한 배포가 없거나 내려간(REMOVE) 서비스면 409 NO_SUCCEEDED_DEPLOYMENT, 진행 중인 배포가 있으면 409 DEPLOYMENT_IN_PROGRESS 다.
+   */
   sourceDeploymentId?: number;
   /** MANUAL 에서만 쓴다. 없으면 서버가 브랜치의 최신 커밋을 읽는다. */
   sourceSha?: string;

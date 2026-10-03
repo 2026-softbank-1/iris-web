@@ -23,7 +23,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
-import { apiStatusLabel, canRedeploy, deploymentLabel, formatDuration } from '../../data/deploymentModel';
+import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { isDeploymentInProgress } from '../../lib/endpoints';
@@ -172,7 +172,13 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
       {active ? (
         <div className="deps-active-wrap">
           <div className="deps-active">
-            <DeploymentRow d={active} to={`${base}/deployment/${active.id}`} variant="active" onRedeploy={() => void run(() => deps.redeploy(active.id), 'Redeploy requested')} />
+            <DeploymentRow
+              d={active}
+              to={`${base}/deployment/${active.id}`}
+              variant="active"
+              onRedeploy={() => void run(() => deps.redeploy(active.id), 'Redeploy requested')}
+              onRestart={canRestart(active, deps.items) ? () => void run(deps.restart, 'Restart requested') : undefined}
+            />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
                 <div className="deps-success-left">

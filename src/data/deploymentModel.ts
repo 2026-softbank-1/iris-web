@@ -157,6 +157,12 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
  */
 export const canRedeploy = (d: Pick<Deployment, 'trigger'>) => d.trigger !== 'REMOVE';
 
+/**
+ * Restart 를 줄 수 있는 배포인가. 지금 서비스 중인 배포(Active)에만 주고, 진행 중인 배포가 있으면 서버가 409 를 주니 막는다.
+ * 서비스가 내려갔으면 Active 가 없으니 어느 행에도 주지 않는다.
+ */
+export const canRestart = (d: Pick<Deployment, 'status'>, all: Pick<Deployment, 'isActive'>[]) => d.status === 'ACTIVE' && !all.some((x) => x.isActive);
+
 /** Activity 목록의 한 줄에 쓰는 말("서비스 deployment succeeded"). REMOVE 는 배포가 아니라 서비스를 내리는 요청이라 말을 바꾼다. */
 export function activityOf(dto: Pick<DeploymentDto, 'status' | 'triggerType' | 'isActive'>): { noun: string; state: string } {
   if (dto.triggerType !== 'REMOVE') return { noun: 'deployment', state: apiStatusLabel(dto.status).toLowerCase() };
