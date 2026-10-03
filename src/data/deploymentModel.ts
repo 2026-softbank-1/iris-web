@@ -142,6 +142,7 @@ export function toDeployments(dtos: DeploymentDto[], service: Service, me?: Sess
       buildRange: { start: dto.createdAt, end: dto.updatedAt },
       deployRange: { start: dto.createdAt, end: dto.updatedAt },
       sourceSha: dto.sourceSha,
+      updatedAt: dto.updatedAt,
       trigger: dto.triggerType,
       via: via.replace('GitHub push', 'GitHub').replace(' deploy', ''),
       failureCode: dto.failureCode,

@@ -7,8 +7,10 @@ export const ko = {
   'diag.retry': '다시 시도',
   'diag.cancel': '취소',
 
-  'diag.none.title': '아직 진단 결과가 없어요',
+  'diag.none.title': '곧 자동으로 진단이 시작돼요',
   'diag.none.body': '배포가 실패하면 AI가 로그를 분석해 원인과 해결책을 자동으로 찾아요. 진단이 시작되면 여기에 바로 보여요. 보통 20~60초, 길면 2~3분쯤 걸려요.',
+  'diag.none.old.title': '아직 진단 결과가 없어요',
+  'diag.none.old.body': '자동 진단은 배포가 실패한 직후에만 시작돼요. 이 배포는 시간이 지나서 자동으로 진단되지 않았어요. 아래 버튼으로 직접 진단할 수 있어요. 보통 20~60초, 길면 2~3분쯤 걸려요.',
   'diag.none.note': '해결책은 제안일 뿐이에요. 서버가 직접 적용하지 않고 배포 상태도 바뀌지 않아요.',
   'diag.starting': '시작하는 중…',
 
@@ -103,8 +105,10 @@ export const ja: Record<keyof typeof ko, string> = {
   'diag.retry': '再試行',
   'diag.cancel': 'キャンセル',
 
-  'diag.none.title': 'まだ診断結果がありません',
+  'diag.none.title': 'まもなく自動で診断が始まります',
   'diag.none.body': 'デプロイが失敗すると、AIがログを分析して原因と解決策を自動で探します。診断が始まると、ここにすぐ表示されます。通常20〜60秒、長いと2〜3分ほどかかります。',
+  'diag.none.old.title': 'まだ診断結果がありません',
+  'diag.none.old.body': '自動診断はデプロイが失敗した直後だけ始まります。このデプロイは時間がたっているため、自動では診断されませんでした。下のボタンから手動で診断できます。通常20〜60秒、長いと2〜3分ほどかかります。',
   'diag.none.note': '解決策はあくまで提案です。サーバーが自動で適用することはなく、デプロイの状態も変わりません。',
   'diag.starting': '開始しています…',
 
@@ -199,8 +203,10 @@ export const en: Record<keyof typeof ko, string> = {
   'diag.retry': 'Retry',
   'diag.cancel': 'Cancel',
 
-  'diag.none.title': 'No diagnosis yet',
+  'diag.none.title': 'Diagnosis will start automatically soon',
   'diag.none.body': 'When a deployment fails, AI analyzes the logs and looks for a cause and a fix automatically. It shows up here as soon as the diagnosis starts. It usually takes 20 to 60 seconds, up to 2 to 3 minutes.',
+  'diag.none.old.title': 'No diagnosis yet',
+  'diag.none.old.body': 'Automatic diagnosis only starts right after a deployment fails. This one is too old to have been diagnosed automatically. You can run it yourself with the button below. It usually takes 20 to 60 seconds, up to 2 to 3 minutes.',
   'diag.none.note': 'A fix is only a suggestion. The server does not apply it, and the deployment status does not change.',
   'diag.starting': 'Starting…',
 

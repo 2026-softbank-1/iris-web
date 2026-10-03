@@ -17,6 +17,17 @@ export const DIAGNOSIS_STALE_MS = 4 * 60_000;
 export const MAX_POLL_FAILURES = 3;
 
 /**
+ * iris-was 의 자동 진단은 실패가 확정된 지(updated_at 기준) 이 시간 안인 배포만 시작한다. 그보다 오래된 실패는 진단 행이 없는 채로 남고,
+ * 그런 배포만 사용자가 직접 시작한다. 서버 설정과 같아야 한다. 서버·브라우저 시계 차이를 감안해 조금 더 기다린다.
+ */
+export const AUTO_DIAGNOSIS_WINDOW_MS = 10 * 60_000;
+const AUTO_DIAGNOSIS_GRACE_MS = 60_000;
+
+/** 진단이 아직 없는 이 배포를 서버가 곧 자동으로 시작할 것인가. 아니면(오래된 실패, 시각을 모름) 사용자가 직접 시작해야 한다. */
+export const isAutoDiagnosisPending = (updatedAt: string | undefined, now = Date.now()) =>
+  updatedAt !== undefined && now - Date.parse(updatedAt) <= AUTO_DIAGNOSIS_WINDOW_MS + AUTO_DIAGNOSIS_GRACE_MS;
+
+/**
  * AI 진단을 볼 수 있는 배포인가. 서버가 FAILED·ROLLED_BACK·MANUAL_INTERVENTION 만 진단하고 나머지는 409 DEPLOYMENT_NOT_FAILED 다.
  * 서비스를 내리는 요청(REMOVE)은 빌드·실행 로그가 없는 배포가 아니라서 뺀다. 상태는 toDeployments 가 바꾼 화면 모델의 값이다.
  */

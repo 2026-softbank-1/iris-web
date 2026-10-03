@@ -114,14 +114,14 @@ const deployment = (
 // 서비스마다 다른 상태가 보이게 둔다: 성공 / 빌드 중 / 실패 / 배포 중 / 배포 이력 없음.
 const deployments: MockDeployment[] = [
   deployment(11, 3 * DAY, 'SUCCEEDED', 'PUSH', 'chore: 초기 설정'),
-  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED', 'build'), // ① 진단 없음(404) → 서버가 자동 시작 → 진행 중 → 성공
+  deployment(11, 2 * DAY, 'FAILED', 'PUSH', 'feat: 대시보드 차트', 'BUILD_FAILED', 'build'), // ① 오래된 실패라 자동 진단이 없다 → 시작 버튼 → 진행 중 → 성공
   deployment(11, 26 * HOUR, 'ROLLED_BACK', 'PUSH', 'fix: 차트 빌드 오류 수정', undefined, 'runtime'), // ④ 이미 성공한 진단이 있다
   deployment(11, 25 * HOUR, 'SUCCEEDED', 'ROLLBACK', 'chore: 초기 설정'),
   deployment(11, 2 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 랜딩 페이지 추가'),
   deployment(12, 5 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 프로젝트 API'),
   deployment(12, 40_000, 'BUILDING', 'MANUAL', 'feat: 배포 로그 SSE'),
   deployment(13, DAY, 'SUCCEEDED', 'PUSH', 'feat: 배포 큐 워커'),
-  deployment(13, 20 * MIN, 'FAILED', 'PUSH', 'refactor: 재시도 정책', 'DEPLOY_FAILED', 'error'), // ③ 시작할 때마다 다른 오류로 실패
+  deployment(13, 3 * MIN, 'FAILED', 'PUSH', 'refactor: 재시도 정책', 'DEPLOY_FAILED', 'error'), // 방금 실패해 서버가 자동 시작(③ 시작할 때마다 다른 오류로 실패). dev 서버를 켠 지 10분이 지나면 오래된 실패가 된다
   deployment(13, 3 * HOUR, 'FAILED', 'PUSH', 'chore: 의존성 정리', 'BUILD_FAILED', 'insufficient'), // ② 근거 부족
   deployment(13, 5 * HOUR, 'FAILED', 'PUSH', 'fix: 헬스체크 경로 변경', 'DEPLOY_FAILED', 'noFailure'), // 로그에 실패 흔적 없음
   deployment(21, 6 * HOUR, 'SUCCEEDED', 'CLI', 'feat: 게이트웨이 라우팅'),
@@ -287,8 +287,12 @@ function metricsFor(s: MockService, q: Query): MetricSeriesDto[] {
 /* ------------------------------------------------------------------ */
 
 const DIAGNOSIS_RUN_MS = 8_000; // 진짜는 20~60초지만 화면을 보려고 짧게 한다
-/** 서버는 배포 실패를 확정하면 진단을 스스로 시작한다. 처음 조회한 지 이만큼 지나면 그렇게 시작한 것으로 친다(그 전에는 404). */
+/**
+ * 서버는 실패가 확정된 지 10분 안인 배포만 진단을 스스로 시작하고, 오래된 실패는 진단 행이 없는 채로 둔다(사용자가 POST 로 시작한다).
+ * 최근 실패는 처음 조회한 지 이만큼 지나면 그렇게 시작한 것으로 친다(그 전에는 404).
+ */
 const DIAGNOSIS_AUTO_START_MS = 4_000;
+const DIAGNOSIS_AUTO_WINDOW_MS = 10 * MIN;
 const firstSeen = new Map<number, number>();
 const DIAGNOSIS_STALE_MS = 4 * MIN;
 const DIAGNOSIS_FAIL_CODES = ['MODEL_TIMEOUT', 'DIAGNOSIS_LOGS_UNAVAILABLE', 'INTERNAL_ERROR', 'MODEL_RATE_LIMIT', 'BUSY', 'EXTERNAL_ERROR'];
@@ -522,10 +526,11 @@ function newDiagnosis(d: MockDeployment): MockDiagnosis {
 
 const isFailedStatus = (d: MockDeployment) => d.triggerType !== 'REMOVE' && ['FAILED', 'ROLLED_BACK', 'MANUAL_INTERVENTION'].includes(toDeploymentDto(d).status);
 
-/** 조회. 실패한 배포에 진단이 아직 없으면 서버가 스스로 시작한 것처럼, 처음 조회한 지 몇 초 뒤부터 진단이 생긴다. */
+/** 조회. 방금 실패한 배포에 진단이 아직 없으면 서버가 스스로 시작한 것처럼, 처음 조회한 지 몇 초 뒤부터 진단이 생긴다. */
 function getDiagnosis(d: MockDeployment): MockResponse {
   let latest = latestDiagnosis(d.id);
-  if (!latest && d.diagnosis && isFailedStatus(d)) {
+  const recent = Date.now() - Date.parse(toDeploymentDto(d).updatedAt) <= DIAGNOSIS_AUTO_WINDOW_MS;
+  if (!latest && d.diagnosis && isFailedStatus(d) && recent) {
     const seen = firstSeen.get(d.id) ?? Date.now();
     firstSeen.set(d.id, seen);
     if (Date.now() - seen >= DIAGNOSIS_AUTO_START_MS) latest = newDiagnosis(d);

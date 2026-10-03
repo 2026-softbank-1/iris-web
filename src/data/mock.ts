@@ -53,6 +53,8 @@ export interface Deployment {
   deployRange: { start: string; end: string };
   /** 아래는 was 의 배포 요청에서 온 값이다. 샘플 데이터에는 없다. */
   sourceSha?: string;
+  /** 배포 요청이 마지막으로 바뀐 시각(ISO). 실패했다면 실패가 확정된 시각이다. */
+  updatedAt?: string;
   trigger?: DeploymentTrigger;
   /** 화면에 보여줄 시작 방식("GitHub", "Manual" 등). */
   via?: string;
