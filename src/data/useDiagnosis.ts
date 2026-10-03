@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 import { ApiError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { DIAGNOSIS_POLL_MS, MAX_POLL_FAILURES, describeStartError, isStaleRunning } from './diagnosisModel';
+import { DIAGNOSIS_IDLE_POLL_MS, DIAGNOSIS_POLL_MS, MAX_POLL_FAILURES, describeStartError, isStaleRunning } from './diagnosisModel';
 
 /**
  * 화면이 그릴 진단 상태.
- * loading: 처음 받는 중 · none: 진단한 적 없음(404) · error: 상태를 받지 못함 · ready: 가장 최근 진단(RUNNING·SUCCEEDED·FAILED 모두).
+ * loading: 처음 받는 중 · none: 진단이 아직 없음(404, 서버가 실패를 확정하면 스스로 시작한다) · error: 상태를 받지 못함 · ready: 가장 최근 진단(RUNNING·SUCCEEDED·FAILED 모두).
  * stale 은 RUNNING 이 4분을 넘겨 서버가 죽은 것으로 보는 경우다. 이때는 폴링을 멈추고 다시 시작하게 한다.
  */
 export type DiagnosisView =
@@ -19,7 +19,7 @@ type Held = { key: string; view: { kind: 'none' } | { kind: 'error' } | { kind: 
 
 /**
  * 배포 하나의 AI 진단. 열면 가장 최근 진단을 받아 오고(탭을 닫았다 다시 열어도 이어서 보인다), RUNNING 이면 2~3초마다 다시 받아
- * SUCCEEDED·FAILED 가 되면 멈춘다. 화면을 떠나면(언마운트·다른 배포로 이동) 폴링과 진행 중인 조회를 취소한다.
+ * SUCCEEDED·FAILED 가 되면 멈춘다. 진단이 아직 없으면(404) 10초마다 다시 확인해서, 서버가 자동으로 시작한 진단을 알아챈다. 화면을 떠나면(언마운트·다른 배포로 이동) 폴링과 진행 중인 조회를 취소한다.
  * 진단을 시작하는 POST 는 취소하지 않는다: 서버가 이미 받았을 수 있어서 결과를 버려도 진단은 계속된다.
  */
 export function useDiagnosis(serviceId: string, deploymentId: string) {
@@ -51,7 +51,11 @@ export function useDiagnosis(serviceId: string, deploymentId: string) {
       } catch (e) {
         if (ctrl.signal.aborted) return;
         if (e instanceof ApiError && e.code === 'DIAGNOSIS_NOT_FOUND') {
+          // 응답은 제대로 받았다. 아직 진단이 없을 뿐이라 느리게 계속 본다.
+          failures = 0;
+          seen = true;
           setHeld({ key, view: { kind: 'none' } });
+          timer = window.setTimeout(() => void poll(), DIAGNOSIS_IDLE_POLL_MS);
           return;
         }
         // 처음부터 못 받으면 바로 알리고, 진행 중에 잠깐 끊긴 것은 몇 번 더 본다.
@@ -79,8 +83,9 @@ export function useDiagnosis(serviceId: string, deploymentId: string) {
     try {
       const diagnosis = await api.startDeploymentDiagnosis(serviceId, deploymentId, refresh);
       setHeld({ key, view: { kind: 'ready', diagnosis } });
-      // 202 는 RUNNING 이다. 200 은 이미 성공한 진단이라 더 받을 것이 없다.
-      if (diagnosis.status === 'RUNNING') setAttempt((n) => n + 1);
+      // 조회·폴링을 처음부터 다시 한다. 202(RUNNING)면 폴링을 이어 가야 하고, 200(이미 성공)이어도 '진단 없음'을 다시 확인하던
+      // 느린 타이머가 이 결과를 덮어쓰지 않게 정리한다.
+      setAttempt((n) => n + 1);
     } catch (e) {
       // 이미 진단 중이면 새로 시작하지 않고 폴링으로 이어서 본다.
       if (e instanceof ApiError && e.code === 'DIAGNOSIS_IN_PROGRESS') setAttempt((n) => n + 1);

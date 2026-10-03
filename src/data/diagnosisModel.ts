@@ -1,24 +1,25 @@
 // AI 진단 화면이 쓰는 순수 함수들. 훅은 useDiagnosis.ts 에 있다.
 import type { MessageKey, Vars } from '../i18n';
 import { ApiError, describeError } from '../lib/api';
-import type { DeploymentStatus as ApiStatus, DeploymentTrigger, DiagnosisChangeDto, DiagnosisDto } from '../lib/endpoints';
+import type { DiagnosisChangeDto, DiagnosisDto } from '../lib/endpoints';
 import type { Deployment } from './mock';
 
 /** 진행 중인 진단을 다시 받는 주기. 서버 안내는 2~3초다. */
 export const DIAGNOSIS_POLL_MS = 2500;
+/**
+ * 진단이 아직 없을 때 다시 확인하는 주기. 서버가 배포 실패를 확정하면 진단을 스스로 시작하므로(사용자가 누르지 않는다),
+ * 실패 직후에 연 화면도 시작된 진단을 알아채야 한다.
+ */
+export const DIAGNOSIS_IDLE_POLL_MS = 10_000;
 /** RUNNING 이 이보다 오래가면 서버가 중간에 죽은 것이다. 다시 시작(POST)하면 서버가 낡은 진단을 닫고 새로 시작한다. */
 export const DIAGNOSIS_STALE_MS = 4 * 60_000;
 /** 진행 중에 조회가 이만큼 연달아 실패하면 폴링을 멈추고 알린다. */
 export const MAX_POLL_FAILURES = 3;
 
 /**
- * AI 진단을 줄 수 있는 배포인가. 서버가 FAILED·ROLLED_BACK·MANUAL_INTERVENTION 만 받고 나머지는 409 DEPLOYMENT_NOT_FAILED 다.
- * 서비스를 내리는 요청(REMOVE)은 빌드·실행 로그가 없는 배포가 아니라서 뺀다.
+ * AI 진단을 볼 수 있는 배포인가. 서버가 FAILED·ROLLED_BACK·MANUAL_INTERVENTION 만 진단하고 나머지는 409 DEPLOYMENT_NOT_FAILED 다.
+ * 서비스를 내리는 요청(REMOVE)은 빌드·실행 로그가 없는 배포가 아니라서 뺀다. 상태는 toDeployments 가 바꾼 화면 모델의 값이다.
  */
-export const canDiagnoseApi = (d: { status: ApiStatus; triggerType: DeploymentTrigger }) =>
-  d.triggerType !== 'REMOVE' && (d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION');
-
-/** 화면 모델(Deployment)용. 상태는 toDeployments 가 바꾼 값이다. */
 export const canDiagnose = (d: Pick<Deployment, 'status' | 'trigger'>) =>
   d.trigger !== 'REMOVE' && (d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION');
 

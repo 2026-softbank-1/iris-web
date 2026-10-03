@@ -2,14 +2,13 @@
 // 진단 내용(요약·원인·해결책·근거 로그)은 서버가 한국어로 주므로 번역하지 않는다. 여기는 그것을 감싸는 화면 문구뿐이다.
 export const ko = {
   'diag.action': 'AI 진단',
-  'diag.callout': '로그를 분석해 원인과 해결책을 제안해요',
   'diag.loading': '진단 정보를 불러오는 중…',
   'diag.loadError': '진단 상태를 확인하지 못했어요',
   'diag.retry': '다시 시도',
   'diag.cancel': '취소',
 
-  'diag.none.title': 'AI가 실패 원인을 찾아 드려요',
-  'diag.none.body': '실패한 배포의 로그를 AI가 분석해 원인과 해결책을 제안해요. 보통 20~60초, 길면 2~3분쯤 걸려요.',
+  'diag.none.title': '아직 진단 결과가 없어요',
+  'diag.none.body': '배포가 실패하면 AI가 로그를 분석해 원인과 해결책을 자동으로 찾아요. 진단이 시작되면 여기에 바로 보여요. 보통 20~60초, 길면 2~3분쯤 걸려요.',
   'diag.none.note': '해결책은 제안일 뿐이에요. 서버가 직접 적용하지 않고 배포 상태도 바뀌지 않아요.',
   'diag.starting': '시작하는 중…',
 
@@ -99,14 +98,13 @@ export const ko = {
 
 export const ja: Record<keyof typeof ko, string> = {
   'diag.action': 'AI診断',
-  'diag.callout': 'ログを分析して、原因と解決策を提案します',
   'diag.loading': '診断情報を読み込み中…',
   'diag.loadError': '診断の状態を確認できませんでした',
   'diag.retry': '再試行',
   'diag.cancel': 'キャンセル',
 
-  'diag.none.title': 'AIが失敗の原因を探します',
-  'diag.none.body': '失敗したデプロイのログをAIが分析し、原因と解決策を提案します。通常20〜60秒、長いと2〜3分ほどかかります。',
+  'diag.none.title': 'まだ診断結果がありません',
+  'diag.none.body': 'デプロイが失敗すると、AIがログを分析して原因と解決策を自動で探します。診断が始まると、ここにすぐ表示されます。通常20〜60秒、長いと2〜3分ほどかかります。',
   'diag.none.note': '解決策はあくまで提案です。サーバーが自動で適用することはなく、デプロイの状態も変わりません。',
   'diag.starting': '開始しています…',
 
@@ -196,14 +194,13 @@ export const ja: Record<keyof typeof ko, string> = {
 
 export const en: Record<keyof typeof ko, string> = {
   'diag.action': 'AI Diagnosis',
-  'diag.callout': 'Analyzes the logs and suggests a cause and a fix',
   'diag.loading': 'Loading diagnosis…',
   'diag.loadError': 'Could not check the diagnosis status',
   'diag.retry': 'Retry',
   'diag.cancel': 'Cancel',
 
-  'diag.none.title': 'Let AI find out why it failed',
-  'diag.none.body': 'AI analyzes the logs of the failed deployment and suggests a cause and a fix. It usually takes 20 to 60 seconds, up to 2 to 3 minutes.',
+  'diag.none.title': 'No diagnosis yet',
+  'diag.none.body': 'When a deployment fails, AI analyzes the logs and looks for a cause and a fix automatically. It shows up here as soon as the diagnosis starts. It usually takes 20 to 60 seconds, up to 2 to 3 minutes.',
   'diag.none.note': 'A fix is only a suggestion. The server does not apply it, and the deployment status does not change.',
   'diag.starting': 'Starting…',
 
