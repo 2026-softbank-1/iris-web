@@ -69,6 +69,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | 프로젝트 Logs (기간만큼 과거 로그를 받고, 이어서 실시간) | `GET /services/{id}/logs`, `GET /services/{id}/logs/stream` (SSE) |
 | 서비스 Metrics 탭 (CPU, Memory, Public Network Traffic) | `GET /services/{id}/metrics` |
 | 서비스 Settings 의 Scale (Replica 수, CPU·메모리 한도) | `GET·PUT /services/{id}/scaling` |
+| 서비스 Variables 탭 (추가·수정·삭제, Raw Editor, LikeLion 이 넣는 변수) | `GET·POST·PUT /services/{id}/variables`, `PUT·DELETE /services/{id}/variables/{key}` |
 
 웹훅(`POST /webhooks/github`)은 GitHub 가 was 를 호출하는 용도라서 웹에서는 쓰지 않습니다.
 
@@ -78,6 +79,8 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 
 서비스 Settings 의 Scale 은 was 가 저장한 **원하는** 설정(Replica 수, Pod 하나의 CPU·메모리 limits)을 보여 주고, 실제로 떠 있는 Pod 수나 적용 완료를 뜻하지는 않습니다. 슬라이더는 정해진 칸(CPU 0.25·0.5·1·2 vCPU, 메모리 256 MiB~4 GiB)에서 고르고, was 에 이미 다른 값이 저장돼 있으면 그 값도 칸으로 보여 줍니다. 적용(PUT)은 Pod 이 새로 시작되는 RESTART 배포를 만드니 값을 고칠 때마다 보내지 않고 Apply 를 눌러야 보냅니다. requests 는 화면에서 고치지 않고 저장된 값을 그대로 보내되, 새 limits 보다 크면 limits 로 낮춥니다. 배포가 진행 중이면 Apply 를 막고, 성공한 배포가 없으면 서버가 409 를 줍니다. CPU 최대 2 vCPU 는 iris-infra 노드(`m7i-flex.large`, 2 vCPU·8 GiB)의 크기에 맞춘 값입니다. Replica 는 0~10이고 0 이면 요청을 처리하지 못합니다.
 
+서비스 Variables 탭은 was 가 저장한 환경변수를 보여 주고 고칩니다. 값은 소유자에게 평문으로 오므로 눈(보기)·복사 버튼이 그대로 동작하고, 화면은 값을 콘솔에 찍거나 오류에 싣지 않습니다. **변수를 바꿔도 실행 중인 앱은 그대로**이고, 다음 배포(Deploy·Redeploy)나 Restart 부터 그 시점의 변수가 반영됩니다. Rollback 은 그 배포 당시의 변수를 되돌리니, 롤백 직후에는 이 탭의 현재 값과 실행 중인 값이 다를 수 있습니다. 변수 하나는 `POST`(이미 있으면 409 `VARIABLE_CONFLICT`)·`PUT /{key}`·`DELETE /{key}`(없으면 404 `VARIABLE_NOT_FOUND`)로 바꾸고, Raw Editor 는 서버 응답의 변수를 `KEY="값"` 줄로 채워 보여 주다가 저장하면 텍스트 그대로 `PUT /variables {raw}` 로 보냅니다. 이 호출은 변수 **전체를 교체**해서 텍스트에 없는 변수는 지워지고(편집기에 안내가 있습니다), 파싱과 검증은 서버가 합니다. 형식이 틀린 줄이 있으면 422 `INVALID_INPUT` 이고 아무것도 바뀌지 않으며 응답에 줄 번호는 없습니다. 서버 규칙은 키가 영문·숫자·밑줄(숫자로 시작 불가, 128자 이하), `PORT`·`IRIS_` 로 시작하는 이름은 예약, 서비스당 100개, 값 32KiB 이하이고 빈 값은 허용합니다. 서버에 암호화 키가 없으면 503 `NOT_CONFIGURED` 입니다. 하단의 "variables added by LikeLion" 은 응답의 `systemVariables`(이름·설명, 서비스만으로 정해지는 변수는 값도)입니다.
+
 - Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
 - 서비스: Deployments, Variables, Metrics, Console, Settings
@@ -85,7 +88,7 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 - 프로젝트 Logs, Observability, Sandboxes
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
-요청 지표(Requests·Request Error Rate·Response Time), 환경 변수, 빌드·배포 로그 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
+요청 지표(Requests·Request Error Rate·Response Time), 빌드·배포 로그 API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.

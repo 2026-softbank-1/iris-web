@@ -25,7 +25,6 @@ function toService(dto: api.ServiceDto, targets: api.TargetDto[]): Service {
     replicas: 0, // 서버에 없는 값이라 화면에서 숨긴다
     // 서비스 응답의 latestDeployment(가장 최근 배포 요청)로 상태를 정한다.
     ...serviceStatusOf(dto.latestDeployment),
-    platformVariables: [],
     deployments: [],
     remote: dto,
   };

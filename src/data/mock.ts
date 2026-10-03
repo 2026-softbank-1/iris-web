@@ -88,7 +88,6 @@ export interface Service {
   replicas: number;
   state: ServiceState;
   crashedBanner?: string;
-  platformVariables: { key: string; value: string }[];
   deployments: Deployment[];
   /** 최근 배포가 진행 중인지(QUEUED·BUILDING·DEPLOYING). */
   deploying?: boolean;
@@ -314,18 +313,6 @@ const caddyDeployLogs: LogLine[] = [
 /* Projects                                                            */
 /* ------------------------------------------------------------------ */
 
-const platformVars = (service: string, domain?: string) => [
-  { key: 'LIKELION_ENVIRONMENT', value: 'production' },
-  { key: 'LIKELION_ENVIRONMENT_ID', value: '7d1c2a40-…' },
-  { key: 'LIKELION_ENVIRONMENT_NAME', value: 'production' },
-  { key: 'LIKELION_PRIVATE_DOMAIN', value: `${service.toLowerCase()}.likelion.internal` },
-  { key: 'LIKELION_PROJECT_ID', value: '…' },
-  { key: 'LIKELION_PROJECT_NAME', value: '…' },
-  { key: 'LIKELION_SERVICE_ID', value: '…' },
-  { key: 'LIKELION_SERVICE_NAME', value: service },
-  ...(domain ? [{ key: 'LIKELION_PUBLIC_DOMAIN', value: domain }] : []),
-].slice(0, 8);
-
 export const projects: Project[] = [
   {
     id: '1dbb463d-a2a3-49b3-93b9-fd737bd0bc13',
@@ -346,7 +333,6 @@ export const projects: Project[] = [
         regionLong: 'US West (California, USA)',
         replicas: 1,
         state: 'online',
-        platformVariables: platformVars('portpolio-production', 'portpolio-production-production.up.likelion.uk'),
         deployments: [
           {
             id: '647b8145-0c5e-4a9b-8a51-2f0d5e7c1a90',
@@ -394,7 +380,6 @@ export const projects: Project[] = [
         // so the service is now offline. Use 'crashed' to show the red dashboard state instead.
         state: 'offline',
         crashedBanner: "Deployment was removed because it's been crashed for too long",
-        platformVariables: platformVars('Temp_log'),
         deployments: [
           {
             id: '8e31b2c0-77a4-4b0e-9d3f-1c2b3a4d5e6f',
