@@ -21,8 +21,8 @@ import {
   ChevronUp,
   Pencil,
 } from 'lucide-react';
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
@@ -31,7 +31,7 @@ import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuratio
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
-import { toRaw } from '../../data/variablesModel';
+import { initialVariableValue, mergeUploadedEnvironment, toRaw } from '../../data/variablesModel';
 import { isDeploymentInProgress } from '../../lib/endpoints';
 import { DeploymentRow } from './DeploymentRow';
 import { DiagnosisBrief } from './DiagnosisBrief';
@@ -270,6 +270,10 @@ function VariablesTab({ service }: { service: Service }) {
   const { t } = useI18n();
   const { toast } = useUI();
   const vars = useServiceVariables(service.id);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const [defaultSuggested, setDefaultSuggested] = useState(false);
+
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
@@ -294,6 +298,7 @@ function VariablesTab({ service }: { service: Service }) {
   };
 
   const closeAdd = () => {
+    setDefaultSuggested(false);
     setProblem(null);
     setName('');
     setValue('');
@@ -303,6 +308,7 @@ function VariablesTab({ service }: { service: Service }) {
   const closeRaw = () => {
     setProblem(null);
     setRaw(false);
+    setRawText('');
   };
 
   const add = async () => {
@@ -329,6 +335,32 @@ function VariablesTab({ service }: { service: Service }) {
     if (await attempt(() => vars.remove(key))) setRevealed((r) => r.filter((k) => k !== key));
   };
 
+  const openAdd = (key = '') => {
+    setProblem(null); setName(key); setAdding(true);
+    const existing = vars.variables.find(v => v.key === key);
+    if (existing) { setAdding(false); setEditing(existing.key); setEditValue(existing.value); setDefaultSuggested(false); return; }
+    setValue(initialVariableValue(key));
+    setDefaultSuggested(key === 'SESSION_SECRET');
+  };
+  useEffect(() => {
+    if (!vars.ready) return;
+    const action = searchParams.get('action');
+    if (action !== 'add' && action !== 'upload') return;
+    const key = (searchParams.get('keys') ?? '').split(',').find(k => /^[A-Z][A-Z0-9_]{0,127}$/.test(k)) ?? '';
+    if (action === 'add') openAdd(key);
+    else { setRaw(true); setRawText(toRaw(vars.variables)); }
+    const next = new URLSearchParams(searchParams); next.delete('action'); next.delete('keys'); setSearchParams(next, { replace: true });
+  }, [vars.ready, searchParams]);
+  const uploadEnvironment = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file) return;
+    try {
+      if (file.size > 64 * 1024) throw new Error('large');
+      const text = await file.text();
+      setRawText(mergeUploadedEnvironment(vars.variables, text)); setRaw(true); setProblem(null);
+    } catch { setProblem(t('repair.environment.fileError')); }
+  };
+
   const openRaw = () => {
     setProblem(null);
     setRawText(toRaw(vars.variables));
@@ -339,6 +371,7 @@ function VariablesTab({ service }: { service: Service }) {
   const saveRaw = async () => {
     if (!(await attempt(() => vars.replaceAll(rawText), (e) => describeRawError(e, t)))) return;
     setRaw(false);
+    setRawText('');
     toast(t('service.vars.updated'));
   };
 
@@ -363,7 +396,9 @@ function VariablesTab({ service }: { service: Service }) {
   // 이름은 영문·숫자·밑줄만 남긴다. 붙여 넣은 이름 앞뒤의 공백이 `_` 로 바뀌지 않게 먼저 잘라 내고, 직접 친 공백은 `_` 가 된다.
   const onNameChange = (e: ChangeEvent<HTMLInputElement>) => {
     const pasted = (e.nativeEvent as InputEvent).inputType === 'insertFromPaste';
-    setName((pasted ? e.target.value.trim() : e.target.value).replace(/[^A-Za-z0-9_]/g, '_'));
+    const key = (pasted ? e.target.value.trim() : e.target.value).replace(/[^A-Za-z0-9_]/g, '_');
+    setName(key);
+    if (key === 'SESSION_SECRET' && !value && !vars.variables.some(v => v.key === key)) { setValue(initialVariableValue(key)); setDefaultSuggested(true); }
   };
 
   // Raw 편집기는 붙여 넣은 긴 텍스트가 들어 있을 수 있어서 Esc 로 닫지 않고, 취소 버튼으로만 닫는다.
@@ -397,7 +432,7 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="btn-label-muted">{t('service.vars.raw')}</span>
               </span>
             </button>
-            <button type="button" className="btn btn-primary-outline" disabled={!vars.ready} onClick={() => { setProblem(null); setAdding(true); }}>
+            <button type="button" className="btn btn-primary-outline" disabled={!vars.ready} onClick={() => openAdd()}>
               <div className="btn-icon">
                 <Plus size={16} />
               </div>
@@ -409,6 +444,9 @@ function VariablesTab({ service }: { service: Service }) {
 
       <div className="vars-body">
         <p className="vars-note">{t('service.vars.note')}</p>
+        <input ref={uploadInput} type="file" hidden aria-label={t('repair.environment.upload')} onChange={e => void uploadEnvironment(e)} />
+        <button className="btn btn-outline btn-sm" disabled={!vars.ready || vars.busy} onClick={() => uploadInput.current?.click()}>{t('repair.environment.upload')}</button>
+        {adding && defaultSuggested && <p className="vars-note">{t('repair.environment.defaultNote')}</p>}
         {problem && (
           <p className="vars-note error" role="alert">
             {problem}
@@ -418,7 +456,7 @@ function VariablesTab({ service }: { service: Service }) {
         {adding && (
           <div className="vars-new">
             <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={onNameChange} onKeyDown={onAddKey} />
-            <input className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
+            <input type="password" className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
             <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
               {t('service.vars.add')}
             </button>
@@ -430,6 +468,7 @@ function VariablesTab({ service }: { service: Service }) {
 
         {raw ? (
           <div className="vars-raw">
+            <p className="vars-note">{t('repair.environment.uploadNote')}</p>
             <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
             <p className="vars-note warn">{t('service.vars.rawWarn')}</p>
             <textarea className="vars-raw-text mono" autoComplete="off" spellCheck={false} value={rawText} onChange={(e) => setRawText(e.target.value)} onKeyDown={onRawKey} placeholder={'DATABASE_URL="postgres://..."\nLOG_LEVEL=info'} />

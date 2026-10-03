@@ -1,3 +1,6 @@
+import { environmentVariableNames, environmentVariablesUrl } from '../../data/environmentConfiguration';
+import { useDiagnosis } from '../../data/useDiagnosis';
+import { EnvironmentVariablesNotice } from './EnvironmentVariablesNotice';
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +13,9 @@ import { getRepair, type RepairDto } from '../../lib/endpoints';
 export function FailedRepairButton({ serviceId, deploymentId, to }: { serviceId: string; deploymentId: string; to: string }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const { view } = useDiagnosis(serviceId, deploymentId);
+  const [requiredNames, setRequiredNames] = useState<string[] | null>(null);
+  const environmentNames = environmentVariableNames(view.kind === 'ready' ? view.diagnosis : undefined);
   const [repair, setRepair] = useState<RepairDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -37,8 +43,9 @@ export function FailedRepairButton({ serviceId, deploymentId, to }: { serviceId:
     try {
       const next = await triggerAutomaticRepair(serviceId, deploymentId);
       if (mounted.current) { setRepair(next); navigate(`${to}#repair`); }
-    } catch (e) { if (mounted.current) setError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e)); }
+    } catch (e) { if (e instanceof ApiError && e.code === 'CONFIGURATION_VALUES_REQUIRED') { if (mounted.current) setRequiredNames(e.details.map(d => d.field)); return; } if (mounted.current) setError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e)); }
     finally { submitting.current = false; if (mounted.current) setBusy(false); }
   }
+  if (requiredNames !== null || environmentNames.length > 0) return <EnvironmentVariablesNotice compact names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(to)} />;
   return <span className="failed-repair-action"><button type="button" className="btn btn-primary btn-sm" disabled={busy || !!isAutomaticRepairPending(repair)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void start(); }}><Sparkles size={14} />{t(busy || isAutomaticRepairPending(repair) ? 'repair.loading' : 'repair.fixRedeploy')}</button>{error && <span role="alert" className="failed-repair-error">{error}</span>}</span>;
 }

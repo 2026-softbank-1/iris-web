@@ -1,3 +1,5 @@
+import { environmentVariableNames, environmentVariablesUrl } from '../../data/environmentConfiguration';
+import { EnvironmentVariablesNotice } from './EnvironmentVariablesNotice';
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n';
@@ -7,7 +9,9 @@ import { getLatestRepair, getRepair, getRepairAccess, githubInstallUrl, repairAr
 
 export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId: string; deploymentId: string; diagnosis: DiagnosisDto }) {
   const { t } = useI18n();
-  const eligible = (diagnosis.analysis?.remediation.plans ?? []).filter((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code' || c.kind === 'configuration'));
+  const eligible = (diagnosis.analysis?.remediation.plans ?? []).filter((p) => (p.changes?.length ?? 0) > 0 && p.changes!.every((c) => c.kind === 'code'));
+  const [requiredNames, setRequiredNames] = useState<string[] | null>(null);
+  const environmentNames = environmentVariableNames(diagnosis);
   const [repair, setRepair] = useState<RepairDto | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [access, setAccess] = useState<RepairAccessDto | null>(null);
@@ -20,6 +24,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
   const submitting = useRef(false);
   const mounted = useRef(true);
   const publication = repair?.publication;
+  const needsEnvironment = requiredNames !== null || environmentNames.length > 0 || repair?.result?.status === 'configuration_required';
   const candidate = repair?.status === 'SUCCEEDED' && repair.result?.status === 'candidate_ready';
   const generating = isAutomaticRepairPending(repair);
 
@@ -83,6 +88,7 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
     try { const next = await triggerAutomaticRepair(serviceId, deploymentId, diagnosis.id); if (mounted.current) setRepair(next); }
     catch (e) {
       if (!mounted.current) return;
+      if (e instanceof ApiError && e.code === 'CONFIGURATION_VALUES_REQUIRED') { setRequiredNames(e.details.map(d => d.field)); return; }
       setError(e instanceof ApiError && e.code === 'SOURCE_HEAD_CHANGED' ? t('repair.changed') : describeError(e));
       if (e instanceof ApiError && e.status === 403) { try { setAccess(await getRepairAccess(serviceId)); } catch { setAccess(null); } }
     } finally { submitting.current = false; if (mounted.current) setBusy(false); }
@@ -92,22 +98,22 @@ export function RepairPanel({ serviceId, deploymentId, diagnosis }: { serviceId:
   return (
     <section id="repair" className="diag-summary repair-panel" aria-label={t('repair.title')}>
       <div className="diag-bar"><b><Sparkles size={16} /> {t('repair.title')}</b><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => setReload((v) => v + 1)}><RefreshCw size={14} />{t('repair.refresh')}</button></div>
-      <p className="diag-muted">{t('repair.note')}</p>
-      <p role="status">{t(`repair.state.${state}`)}</p>
+      {needsEnvironment ? <EnvironmentVariablesNotice names={requiredNames ?? environmentNames} variablesUrl={environmentVariablesUrl(window.location.pathname)} /> : <p className="diag-muted">{t('repair.note')}</p>}
+      {!needsEnvironment && <p role="status">{t(`repair.state.${state}`)}</p>}
       {repair && <p className="diag-muted mono">#{repair.id} · {repair.sourceSha.slice(0, 7)}</p>}
-      {!repair && eligible.length === 0 && <p>{t('repair.noCode')}</p>}
+      {!needsEnvironment && !repair && eligible.length === 0 && <p>{t('repair.noCode')}</p>}
       {error && <p role="alert" className="diag-text">{error}</p>}
       {repair?.errorCode && <p role="alert" className="diag-muted">{repair.errorCode}</p>}
       {publication?.errorCode && publication.status === 'ERROR' && <p role="alert">{t(publication.errorCode === 'MERGE_BLOCKED' ? 'repair.blocked' : publication.errorCode === 'SOURCE_HEAD_CHANGED' ? 'repair.changed' : 'repair.publishFailed')} <span className="mono">({publication.errorCode})</span></p>}
       {candidate && <details><summary>{t('repair.review')}</summary>{patch !== null ? <pre className="details-code mono repair-patch">{patch}</pre> : <p>{t(patchError ? 'repair.patchError' : 'repair.loading')}</p>}{repair.result?.changedFiles?.map((f) => <p key={f.path} className="mono">{f.path}</p>)}</details>}
-      {access && !access.canWrite && publication?.status !== 'MERGED' && <div className="repair-access">
+      {!needsEnvironment && access && !access.canWrite && publication?.status !== 'MERGED' && <div className="repair-access">
         <p>{t('repair.authorizationNote')}</p>
         {access && !access.canWrite && <p className="diag-muted">{t('repair.adminNote')}</p>}
         {(!access || !access.canWrite) && <><a className="btn btn-outline" href={access?.installationUrl ?? githubInstallUrl()} target="_blank" rel="noreferrer">{t('repair.grant')}<ExternalLink size={14} /></a><a className="btn btn-outline" href={githubInstallUrl()} target="_blank" rel="noreferrer">{t('repair.connect')}</a></>}
         <button type="button" className="btn btn-outline" disabled={checking || busy} onClick={() => void checkAccess()}>{t(checking ? 'repair.loading' : 'repair.check')}</button>
       </div>}
       <div className="diag-brief-actions">
-        {publication?.status !== 'MERGED' && publication?.status !== 'REDEPLOY_REQUESTED' && <button type="button" className="btn btn-primary" disabled={!loaded || busy || !!generating || eligible.length === 0 || access?.canWrite === false} onClick={() => void execute()}><Sparkles size={16} />{t(busy || generating ? 'repair.loading' : 'repair.title')}</button>}
+        {!needsEnvironment && publication?.status !== 'MERGED' && publication?.status !== 'REDEPLOY_REQUESTED' && <button type="button" className="btn btn-primary" disabled={!loaded || busy || !!generating || eligible.length === 0 || access?.canWrite === false} onClick={() => void execute()}><Sparkles size={16} />{t(busy || generating ? 'repair.loading' : 'repair.title')}</button>}
         {publication?.redeploymentId && <a className="btn btn-outline" href={window.location.pathname.replace(/deployment\/[^/]+.*$/, `deployment/${publication.redeploymentId}`)}>{t('repair.viewDeployment')}</a>}
         {publication?.pullUrl && <a className="btn btn-outline" href={publication.pullUrl} target="_blank" rel="noreferrer">{t('repair.viewPr')}<ExternalLink size={14} /></a>}
       </div>

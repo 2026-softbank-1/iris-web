@@ -1,4 +1,11 @@
 export const ko = {
+  "repair.environment.title": "개발자 설정이 필요해요",
+  "repair.environment.note": "필수 환경변수를 확인하고 값을 추가하거나 .env 파일을 업로드한 뒤 다시 배포해 주세요. 앱과 플랫폼의 기본값은 유지하며, AI는 비밀값을 변경하지 않아요.",
+  "repair.environment.add": "환경변수 추가",
+  "repair.environment.upload": ".env 업로드",
+  "repair.environment.uploadNote": "파일 내용을 확인하고 저장하면 적용돼요. 파일에 없는 기존 변수는 유지해요.",
+  "repair.environment.fileError": "환경변수 파일을 읽을 수 없어요. 64 KiB 이하의 텍스트 파일을 선택해 주세요.",
+  "repair.environment.defaultNote": "SESSION_SECRET의 최초값을 안전하게 생성했어요. 값을 확인하고 저장해 주세요. 기존에 저장된 값은 유지해요.",
   "repair.state.redeployRequested": "설정을 복구하고 재배포를 요청했어요. 새 배포의 진행 상태를 확인하세요.",
   "repair.viewDeployment": "새 배포 보기",
   "repair.fixRedeploy": "AI 수정·재배포",
@@ -29,7 +36,7 @@ export const ko = {
   "repair.blocked": "GitHub 검사·승인·충돌 문제로 머지가 차단됐어요. PR에서 해결한 뒤 같은 머지를 다시 시도하세요.",
   "repair.changed": "원본 브랜치나 PR이 변경됐어요. 최신 실패 배포를 진단하고 새 수정 후보를 생성하세요.",
   "repair.publishFailed": "핫픽스 작업을 완료하지 못했어요. 권한과 PR을 확인한 뒤 같은 작업을 다시 시도하세요.",
-  "repair.note": "AI 수정 한 번으로 코드 문제는 핫픽스 생성·main 머지 후 재배포하고, 지원되는 설정 문제는 변수를 복구한 뒤 재배포합니다. 화면을 닫아도 계속됩니다.",
+  "repair.note": "AI 수정은 코드 문제를 핫픽스 생성·main 머지 후 재배포합니다. 필수 환경변수는 개발자가 추가해 주세요. 화면을 닫아도 코드 수정은 계속됩니다.",
   "repair.state.ready": "AI 수정을 누르면 바로 시작합니다.",
   "repair.state.candidate": "기존 수정 후보가 있습니다. AI 수정을 누르면 핫픽스 생성과 머지까지 자동 처리합니다.",
   "repair.state.failed": "AI 수정을 완료하지 못했어요. 오류를 해결한 뒤 같은 작업을 다시 시도하세요.",
@@ -40,6 +47,13 @@ export const ko = {
 };
 
 export const en = {
+  "repair.environment.title": "Developer configuration required",
+  "repair.environment.note": "Check required environment variables, add values or upload a .env file, then redeploy. App and platform defaults are preserved; AI does not change secrets.",
+  "repair.environment.add": "Add variables",
+  "repair.environment.upload": "Upload .env",
+  "repair.environment.uploadNote": "Review the file before saving. Existing variables absent from the file are preserved.",
+  "repair.environment.fileError": "Could not read the environment file. Choose a text file up to 64 KiB.",
+  "repair.environment.defaultNote": "A secure initial SESSION_SECRET has been generated. Review and save it. Existing saved values are preserved.",
   "repair.state.redeployRequested": "Configuration restored and redeployment requested. Check the new deployment.",
   "repair.viewDeployment": "View new deployment",
   "repair.fixRedeploy": "AI fix & redeploy",
@@ -70,7 +84,7 @@ export const en = {
   "repair.blocked": "GitHub checks, approvals or conflicts block merging. Resolve them in the PR, then retry the same merge.",
   "repair.changed": "The source branch or PR changed. Diagnose the latest failed deployment and generate a new candidate.",
   "repair.publishFailed": "Hotfix action did not finish. Check permissions and the PR, then retry this attempt.",
-  "repair.note": "One click fixes code through a hotfix and main merge, or restores supported runtime settings, then requests redeployment. It continues after you leave.",
+  "repair.note": "One click fixes code through a hotfix and main merge, then requests redeployment. Developers provide required environment variables. Code repair continues after you leave.",
   "repair.state.ready": "Click AI repair to start immediately.",
   "repair.state.candidate": "A candidate already exists. Click AI repair to publish its hotfix and merge automatically.",
   "repair.state.failed": "AI repair did not finish. Resolve the error and retry this attempt.",
@@ -81,6 +95,13 @@ export const en = {
 };
 
 export const ja = {
+  "repair.environment.title": "開発者による設定が必要です",
+  "repair.environment.note": "必須環境変数を確認し、値を追加するか.envファイルをアップロードして再デプロイしてください。既定値は維持し、AIは秘密値を変更しません。",
+  "repair.environment.add": "環境変数を追加",
+  "repair.environment.upload": ".envをアップロード",
+  "repair.environment.uploadNote": "内容を確認して保存してください。ファイルに含まれない既存の変数は維持します。",
+  "repair.environment.fileError": "64 KiB以下のテキストファイルを選択してください。",
+  "repair.environment.defaultNote": "SESSION_SECRETの安全な初期値を生成しました。確認して保存してください。既存値は維持します。",
   "repair.state.redeployRequested": "設定を復旧し再デプロイを要求しました。新しいデプロイを確認してください。",
   "repair.viewDeployment": "新しいデプロイを見る",
   "repair.fixRedeploy": "AI修正・再デプロイ",
@@ -111,7 +132,7 @@ export const ja = {
   "repair.blocked": "GitHubのチェック・承認・競合でマージが拒否されました。PRで解決して再試行してください。",
   "repair.changed": "元のブランチまたはPRが変更されました。最新の失敗デプロイを診断し、新しい候補を生成してください。",
   "repair.publishFailed": "ホットフィックス処理が完了していません。権限とPRを確認して同じ処理を再試行してください。",
-  "repair.note": "一度押すとコード修正・mainへのマージ、または対応する実行時設定の復旧後に再デプロイします。画面を閉じても続行します。",
+  "repair.note": "コード修正・mainへのマージ後に再デプロイします。必須環境変数は開発者が追加してください。画面を閉じてもコード修正は続行します。",
   "repair.state.ready": "AI修正を押すとすぐに開始します。",
   "repair.state.candidate": "既存の修正候補があります。AI修正を押すと公開とマージまで自動実行します。",
   "repair.state.failed": "AI修正が完了しませんでした。エラーを解決して同じ処理を再試行してください。",

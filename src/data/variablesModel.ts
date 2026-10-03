@@ -57,3 +57,16 @@ export const rawIssues = (details: ErrorDetail[]): RawIssue[] =>
     const key = /^reserved key (\S+)$/.exec(reason)?.[1] ?? /^value of (\S+) is longer than /.exec(reason)?.[1];
     return [{ line: Number(m[1]), key, unclosedQuote: reason === 'quoted value is not closed', keyTooLong: /^key .+ is longer than \d+ characters$/.test(reason) }];
   });
+
+
+/** A suggested first-use value; nothing is persisted until the developer saves. */
+export function initialVariableValue(key: string): string {
+  if (key !== 'SESSION_SECRET') return '';
+  return [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Preserve variables not supplied by the uploaded file. Server validates and parses values. */
+export function mergeUploadedEnvironment(existing: VariableDto[], file: string): string {
+  // The .env parser uses the last value for duplicate keys, including multiline values.
+  return [toRaw(existing), file].filter(Boolean).join('\n');
+}
