@@ -30,9 +30,8 @@ import { canDiagnose } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
-import { describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
+import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
 import { toRaw } from '../../data/variablesModel';
-import { ApiError } from '../../lib/api';
 import { isDeploymentInProgress } from '../../lib/endpoints';
 import { DeploymentRow } from './DeploymentRow';
 import { ServiceMetrics } from './ServiceMetrics';
@@ -329,8 +328,7 @@ function VariablesTab({ service }: { service: Service }) {
 
   // 형식이 틀린 줄이 있으면 서버가 아무것도 바꾸지 않고 422 를 준다.
   const saveRaw = async () => {
-    const describe = (e: unknown) => describeVariablesError(e, t) + (e instanceof ApiError && e.status === 422 ? ` ${t('service.vars.err.nothingChanged')}` : '');
-    if (!(await attempt(() => vars.replaceAll(rawText), describe))) return;
+    if (!(await attempt(() => vars.replaceAll(rawText), (e) => describeRawError(e, t)))) return;
     setRaw(false);
     toast(t('service.vars.updated'));
   };

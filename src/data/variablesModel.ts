@@ -42,3 +42,18 @@ export const validationKey = (details: ErrorDetail[]): MessageKey | null => {
   }
   return null;
 };
+
+export type RawIssue = { line: number; key?: string; unclosedQuote: boolean; keyTooLong: boolean };
+
+/**
+ * Raw 저장이 거부될 때 서버가 details 에 싣는 `{field: 'raw', reason: 'line N: ...'}` 를 읽는다. 줄 번호는 1부터이고,
+ * 예약어·긴 값처럼 키 이름이 들어오는 사유는 키도 꺼낸다. 값은 서버가 싣지 않는다. 줄 번호가 없는 항목은 건너뛴다.
+ */
+export const rawIssues = (details: ErrorDetail[]): RawIssue[] =>
+  details.flatMap((d) => {
+    const m = d.field === 'raw' ? /^line (\d+): (.*)$/.exec(d.reason) : null;
+    if (!m) return [];
+    const reason = m[2];
+    const key = /^reserved key (\S+)$/.exec(reason)?.[1] ?? /^value of (\S+) is longer than /.exec(reason)?.[1];
+    return [{ line: Number(m[1]), key, unclosedQuote: reason === 'quoted value is not closed', keyTooLong: /^key .+ is longer than \d+ characters$/.test(reason) }];
+  });
