@@ -1,6 +1,6 @@
 # LikeLion dashboard frontend
 
-React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, 요청 지표 등 API가 아직 없는 화면은 샘플입니다.
+React + TypeScript + Vite로 구현한 LikeLion 다크 대시보드 프론트엔드입니다. 로그인, 프로젝트, 서비스, GitHub 저장소 조회는 API 서버(was)에 연결되어 있고, API가 아직 없는 화면은 샘플입니다.
 
 ## 실행
 
@@ -70,7 +70,8 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 | 배포 패널 Network Logs | `GET /services/{id}/deployments/{deploymentId}/network-logs` |
 | 서비스 공개 주소(캔버스 노드, 서비스 패널 상단, Settings 의 Public Networking) | `GET /services/{id}/domains` |
 | 프로젝트 Logs (기간만큼 과거 로그를 받고, 이어서 실시간) | `GET /services/{id}/logs`, `GET /services/{id}/logs/stream` (SSE) |
-| 서비스 Metrics 탭 (CPU, Memory, Public Network Traffic) | `GET /services/{id}/metrics` |
+| 서비스 Metrics 탭 (CPU, Memory) | `GET /services/{id}/metrics` |
+| 서비스 Metrics 탭 (Public Network Traffic, Requests, Request Error Rate, Response Time) | `GET /services/{id}/traffic-metrics` |
 | 서비스 Settings 의 Scale (Replica 수, CPU·메모리 한도) | `GET·PUT /services/{id}/scaling` |
 | 서비스 Variables 탭 (추가·수정·삭제, Raw Editor, LikeLion 이 넣는 변수) | `GET·POST·PUT /services/{id}/variables`, `PUT·DELETE /services/{id}/variables/{key}` |
 | 배포 패널 AI 진단 탭 (실패한 배포의 원인·해결책) | `GET /services/{id}/deployments/{deploymentId}/diagnosis`, `POST …/diagnose[?refresh=true]` |
@@ -79,7 +80,15 @@ was 와 연결된 화면 (아래 엔드포인트는 모두 `/api/v1` 아래):
 
 프로젝트 Logs 는 서비스마다 첫 번째 배포 대상(`targetIds[0]`)의 런타임 로그를 보여줍니다. was 에 `LOKI_URL` 이 설정돼 있지 않으면 `NOT_CONFIGURED` 오류가 납니다. 서버가 5분마다 스트림을 끊으면 브라우저가 `Last-Event-ID` 로 이어 붙고, 한 번에 받을 양을 넘으면(`overflow`) 과거 로그 조회로 따라잡습니다. 스택 트레이스처럼 앞 줄에 이어지는 줄(공백으로 시작하는 줄, `Caused by:`)은 같은 pod 의 앞 줄과 한 행으로 묶어 보여줍니다. 레벨은 was 가 주지 않아서 본문의 `ERROR`, `level=warn` 같은 표기와 줄 맨 앞의 `npm error`, `SyntaxError:` 같은 표기로 추정합니다.
 
-서비스 Metrics 탭은 서비스의 첫 번째 배포 대상(`targetIds[0]`)의 CPU·Memory·네트워크 지표를 보여줍니다. 시간 범위마다 조회 간격(`step`)이 정해져 있고(15분 30초, 1시간·6시간 60초, 1일 120초, 7일 600초), 끝(`end`)은 지금보다 30초 앞입니다. Live 가 켜져 있으면 30초마다 다시 받고 Pause 하면 멈춥니다. 범례의 `Sum` 은 합계 한 줄, `Replicas` 는 Pod 마다 한 줄(`groupBy=pod`, 켠 카드가 있을 때만 추가로 조회)입니다. Pod 이 50개를 넘으면 서버가 422 를 주므로 안내를 보여줍니다. `groupBy` 를 모르는 was 는 쿼리를 무시하고 합계만 돌려주는데, 이때는 오류로 보지 않고 합계 한 줄로 그리며 Replicas 는 비활성처럼 보입니다. `Public Network Traffic` 의 값은 공용 트래픽만 가른 것이 아니라 Pod 의 네트워크 rate(Egress = `network_transmit`, Ingress = `network_receive`)입니다. Requests·Request Error Rate·Response Time 은 API 가 없어 비어 있습니다.
+서비스 Metrics 탭은 서비스의 첫 번째 배포 대상(`targetIds[0]`)의 CPU·Memory 지표(`/metrics`)를 보여줍니다. 시간 범위마다 조회 간격(`step`)이 정해져 있고(15분 30초, 1시간·6시간 60초, 1일 120초, 7일 600초), 끝(`end`)은 지금보다 30초 앞입니다. Live 가 켜져 있으면 30초마다 다시 받고 Pause 하면 멈춥니다. 범례의 `Sum` 은 합계 한 줄, `Replicas` 는 Pod 마다 한 줄(`groupBy=pod`, 켠 카드가 있을 때만 추가로 조회)입니다. Pod 이 50개를 넘으면 서버가 422 를 주므로 안내를 보여줍니다. `groupBy` 를 모르는 was 는 쿼리를 무시하고 합계만 돌려주는데, 이때는 오류로 보지 않고 합계 한 줄로 그리며 Replicas 는 비활성처럼 보입니다.
+
+Public Network Traffic·Requests·Request Error Rate·Response Time 은 ALB 접근 로그 기반 지표(`/traffic-metrics`)입니다. `/metrics` 와 요청·로딩·오류 상태가 따로라서 한쪽이 실패해도 다른 쪽 차트는 그대로 그려집니다. Pod 전체 네트워크(`/metrics` 의 `network_*`)는 더 이상 쓰지 않습니다.
+
+- 이 API 는 `step` 이 60초 이상이어야 해서 15분·1시간·6시간 60초, 1일 120초, 7일 600초입니다. 요청 수는 `step` 길이 버킷의 합계라서 범례에 분당·2분당·10분당으로 적습니다.
+- 요청이 없는 분에는 점이 없습니다. 0 으로 채우거나 점을 이어 붙이지 않고 선을 끊습니다.
+- 지표가 약 15분 늦게 집계됩니다. 응답의 `availableUntil` 이후는 비어 있는 것이 아니라 '집계 대기'입니다. 보이는 범위가 전부 대기이면(Last 15 min) 안내를 보이고, 일부만 대기이면 그 구간을 옅게 칠하고 '집계 대기'라고 표시합니다.
+- 요청 오류율은 5xx·4xx 두 줄(축은 %), 응답 시간은 p50·p95 두 줄(축은 ms·s, 평균은 그리지 않음)입니다. 응답 시간은 5분 구간 값이라 받은 점을 그대로 그리고 합치지 않습니다.
+- 이 API 가 아직 없는 was 는 404 를 주는데, 오류로 보지 않고 '지표가 없어요' 빈 상태로 둡니다. API 가 나가면 다음 조회부터 자동으로 동작합니다.
 
 서비스 Settings 의 Scale 은 was 가 저장한 **원하는** 설정(Replica 수, Pod 하나의 CPU·메모리 limits)을 보여 주고, 실제로 떠 있는 Pod 수나 적용 완료를 뜻하지는 않습니다. 슬라이더는 정해진 칸(CPU 0.25·0.5·1·2 vCPU, 메모리 256 MiB~4 GiB)에서 고르고, was 에 이미 다른 값이 저장돼 있으면 그 값도 칸으로 보여 줍니다. 적용(PUT)은 Pod 이 새로 시작되는 RESTART 배포를 만드니 값을 고칠 때마다 보내지 않고 Apply 를 눌러야 보냅니다. requests 는 화면에서 고치지 않고 저장된 값을 그대로 보내되, 새 limits 보다 크면 limits 로 낮춥니다. 배포가 진행 중이면 Apply 를 막고, 성공한 배포가 없으면 서버가 409 를 줍니다. CPU 최대 2 vCPU 는 iris-infra 노드(`m7i-flex.large`, 2 vCPU·8 GiB)의 크기에 맞춘 값입니다. Replica 는 0~10이고 0 이면 요청을 처리하지 못합니다.
 
@@ -102,14 +111,14 @@ Deploy Logs 는 이 배포의 release 가 붙은 앱 컨테이너 로그를 최�
 - 프로젝트 Logs, Observability, Sandboxes
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
-요청 지표(Requests·Request Error Rate·Response Time) API 는 was 에 아직 없어서 해당 화면은 샘플이거나 비어 있습니다.
+`/traffic-metrics` 가 prod 의 was 에 나가기 전에는 Public Network Traffic·Requests·Request Error Rate·Response Time 카드가 '지표가 없어요' 빈 상태입니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.
 
 ## 제한 사항
 
-실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 사용량과 요청 지표(Requests·Request Error Rate·Response Time)는 정적/샘플 데이터입니다.
+실제 배포, 결제, 초대, 계정 관리는 하지 않습니다. 일부 버튼은 안내만 표시하며 일부 보조 설정 화면은 간소화되어 있습니다. 사용량은 정적/샘플 데이터입니다.
 
 서비스 상태는 was 가 서비스 응답에 붙여 주는 최근 배포(`latestDeployment`)로 정합니다. 성공·롤백됨은 online, 진행 중(QUEUED·BUILDING·DEPLOYING)은 Deploying, 실패·수동 개입은 crashed 로 표시합니다.
 

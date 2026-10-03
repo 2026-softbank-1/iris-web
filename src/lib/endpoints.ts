@@ -463,6 +463,27 @@ export const getServiceMetrics = (
   signal?: AbortSignal,
 ) => request<MetricSeriesDto[]>(`/services/${serviceId}/metrics`, { query, signal });
 
+/**
+ * 트래픽 지표(ALB 접근 로그 기반). series 는 항상 같은 순서로 8개이고 데이터가 없는 지표는 points 가 빈 배열이다.
+ * metric 은 requests(requests)·error_rate_4xx·error_rate_5xx(ratio, 0~1)·public_network_receive·public_network_transmit(bytes/s)·
+ * response_time_avg·response_time_p50·response_time_p95(seconds).
+ * 각 점의 timestamp(Unix 초)는 step 길이 버킷이 끝나는 이벤트 시각이다. 요청이 없는 구간에는 점이 없다(0 이 아니다).
+ */
+export type TrafficMetricsDto = {
+  /** 이 시각(Unix 초)까지만 집계가 끝났다. 이후는 비어 있는 것이 아니라 아직 모르는 구간이다(약 15분 지연). */
+  availableUntil: number;
+  series: MetricSeriesDto[];
+};
+/**
+ * 기간 안의 서비스 트래픽 지표. start·end 는 요청이 일어난 이벤트 시각이고 end 는 미래일 수 없다.
+ * step 은 60~86400초이고(30 이면 422) (end-start)/step 이 1440 을 넘으면 422 다. 아직 이 API 가 없는 서버는 404 를 준다.
+ */
+export const getServiceTrafficMetrics = (
+  serviceId: number | string,
+  query: { targetId: number; start: string; end: string; step: number },
+  signal?: AbortSignal,
+) => request<TrafficMetricsDto>(`/services/${serviceId}/traffic-metrics`, { query, signal });
+
 /* targets */
 export const listTargets = () => request<TargetDto[]>('/targets');
 
