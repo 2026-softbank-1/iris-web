@@ -43,11 +43,11 @@
           </div>
         </div>
         <Dialog open={dlg} title="송금하시겠어요?" secondaryLabel="취소" primaryLabel="송금" onPrimary={()=>setDlg(false)} onSecondary={()=>setDlg(false)} onClose={()=>setDlg(false)}>
-          김토스님에게 50,000원을 보낼게요.
+          홍길동님에게 50,000원을 보낼게요.
         </Dialog>
         <BottomSheet open={sheet} title="계좌 선택" onClose={()=>setSheet(false)}>
           <div style={{display:'flex', flexDirection:'column', gap:4, marginBottom:16}}>
-            <div style={{padding:'14px 0', fontWeight:600}}>토스뱅크 · 1,250,000원</div>
+            <div style={{padding:'14px 0', fontWeight:600}}>예시은행 · 1,250,000원</div>
             <div style={{padding:'14px 0', fontWeight:600}}>국민은행 · 430,000원</div>
           </div>
           <Button fullWidth onClick={()=>setSheet(false)}>선택 완료</Button>
