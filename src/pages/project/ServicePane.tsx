@@ -9,6 +9,7 @@ import {
   Globe,
   EyeOff as EyeOffIcon,
   GalleryHorizontalEnd,
+  Minus,
   Plus,
   Braces,
   TriangleAlert,
@@ -552,11 +553,11 @@ function VariablesTab({ project, service }: { project: Project; service: Service
           <div className="vars-new">
             <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={onNameChange} onKeyDown={onAddKey} />
             <input type="password" className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
-            <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
-              {t('service.vars.add')}
+            <button type="button" className="btn btn-primary btn-icon-only" aria-label={t('service.vars.add')} title={t('service.vars.add')} onClick={() => void add()} disabled={!name.trim() || vars.busy}>
+              <Plus size={16} />
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={closeAdd}>
-              <X size={16} />
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} title={t('service.vars.cancel')} onClick={closeAdd}>
+              <Minus size={16} />
             </button>
           </div>
         )}

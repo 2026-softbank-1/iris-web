@@ -1,5 +1,5 @@
 import { Hourglass } from 'lucide-react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useI18n, type MessageKey } from '../i18n';
 
 // 워크스페이스 설정은 아직 서버 기능이 없어서 모두 '준비 중'으로 보여준다.
@@ -27,9 +27,6 @@ export function WorkspaceSettings() {
           </div>
           <p className="soon-title">{t('create.soon.title')}</p>
           <p className="soon-desc">{t(current.desc)}</p>
-          <Link to="/dashboard" className="btn btn-secondary soon-back">
-            {t('project.backToDashboard')}
-          </Link>
         </div>
       </div>
     </div>
