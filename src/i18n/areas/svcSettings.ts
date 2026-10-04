@@ -47,6 +47,7 @@ export const ko = {
 
   'svcSettings.port.title': '포트',
   'svcSettings.port.desc': '앱이 요청을 받는 포트예요.',
+  'svcSettings.port.fixed': '앱은 8080 포트로 요청을 받아요(고정). PORT 환경변수도 8080이에요.',
   'svcSettings.port.placeholder': '예: 8080',
   'svcSettings.public.title': '공개 네트워킹',
   'svcSettings.public.desc': '아래 도메인으로 HTTP를 통해 이 서비스에 접속할 수 있어요.',
@@ -214,6 +215,7 @@ export const ja: Record<keyof typeof ko, string> = {
 
   'svcSettings.port.title': 'ポート',
   'svcSettings.port.desc': 'アプリが待ち受けるポートです。',
+  'svcSettings.port.fixed': 'アプリはポート8080でリクエストを受け付けます(固定)。PORT環境変数も8080です。',
   'svcSettings.port.placeholder': '例: 8080',
   'svcSettings.public.title': 'パブリックネットワーク',
   'svcSettings.public.desc': '以下のドメインからHTTPでこのサービスにアクセスできます。',
@@ -381,6 +383,7 @@ export const en: Record<keyof typeof ko, string> = {
 
   'svcSettings.port.title': 'Port',
   'svcSettings.port.desc': 'The port your app listens on.',
+  'svcSettings.port.fixed': 'Your app receives requests on port 8080 (fixed). The PORT variable is 8080 too.',
   'svcSettings.port.placeholder': 'e.g. 8080',
   'svcSettings.public.title': 'Public Networking',
   'svcSettings.public.desc': 'Reach this service over HTTP with the domains below.',

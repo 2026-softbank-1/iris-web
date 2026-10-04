@@ -92,9 +92,6 @@ export const ko = {
 
   'nav.projects': '프로젝트',
   'nav.settings': '설정',
-  'nav.domains': '도메인',
-  'nav.auditLogs': '감사 로그',
-  'nav.developer': '개발자',
   'nav.collapse': '사이드바 접기',
   'menu.account': '계정 설정',
   'menu.theme': '테마',

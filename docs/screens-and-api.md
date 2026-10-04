@@ -15,7 +15,7 @@ README 에서 옮긴 상세다. 엔드포인트는 모두 was 의 `/api/v1` 아�
 | Create → 레포 구성 확인(분석 게이트) | `POST /projects/{id}/repository-analyses`, `GET /projects/{id}/repository-analyses/{analysisId}`, `POST …/{analysisId}/apply` |
 | Configure GitHub App | `GET /github/install` |
 | 프로젝트 Settings 이름·설명, Danger | `GET·PATCH·DELETE /projects/{id}` |
-| 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
+| 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
 | Create 의 Deploy(첫 배포), Deploy·Redeploy·Restart·Rollback 버튼 | `POST /services/{id}/deployments` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
 | 배포 패널 Details(상태 이력, 소스, 구성, 대체한 배포) | `GET /services/{id}/deployments/{deploymentId}` |
@@ -68,17 +68,31 @@ Deploy Logs 는 이 배포의 release 가 붙은 앱 컨테이너 로그를 최�
 
 **AI 수정**은 진단할 수 있는 실패 배포에서 `AI 수정·재배포` 버튼(배포 행·배포 패널·실패 배너·AI 진단 탭)으로 시작한다. `POST …/auto-repair`(Idempotency-Key)로 요청하고, 진행 중인 작업이 있으면 `POST /repairs/{id}/auto` 로 이어 가며, 끝날 때까지 `GET /repairs/{id}` 를 2.5초마다 받는다. AI 진단 탭은 `repairs/latest`·`repair-access`(GitHub App 권한)·`artifacts`(패치)로 결과와 권한 안내를 보여 준다. 환경변수 값이 필요한 실패(`CONFIGURATION_VALUES_REQUIRED` 또는 진단이 사람 조치를 요구)는 AI 수정을 끄고 Variables 이동과 수동 재배포(`POST /deployments`, MANUAL)를 안내한다. 자동 머지·재배포 여부는 서버 응답(`autoMerge`·`autoRedeploy`)을 따른다. mock(`VITE_MOCK_API=1`)에는 AI 수정 시나리오가 없다.
 
-- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
+- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장) (Templates 는 샘플이라 숨겼다)
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
 - 서비스: Deployments, Variables, Metrics, Console, Settings
 - 배포: Details, Build/Deploy/Network Logs(검색, 다운로드, 상태 코드 필터)
-- 프로젝트 Logs, Observability, Sandboxes
+- 프로젝트 Logs (Observability, Sandboxes 는 샘플이라 숨겼다)
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
 `/traffic-metrics` 가 prod 의 was 에 나가기 전에는 Public Network Traffic·Requests·Request Error Rate·Response Time 카드가 '지표가 없어요' 빈 상태입니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.
+
+## 주석 처리한 설정 항목
+
+was 에 대응 기능이 없어서(토스트만 뜨거나 화면 상태일 뿐이라) 서비스 Settings 와 프로젝트 헤더에서 주석 처리했다. 코드(`ServiceSettings.tsx`, `ProjectLayout.tsx`)에 `[주석 처리]` 로 남겨 두었으니, was 가 지원하면 주석을 풀고 연결한다.
+
+- 소스 저장소의 편집·연결 해제, 업스트림 저장소(Railway 템플릿 개념), 프로젝트 헤더의 환경 생성
+- 포트: was 가 `service.port` 를 저장만 하고 읽지 않는다. 컨테이너 포트는 `APP_PORT = 8080` 고정이라 입력칸 대신 고정 안내만 보인다.
+- 도메인 생성·커스텀 도메인·TCP 프록시, 비공개 네트워킹, IPv6
+- 엣지(공격 방어 모드, CDN), 감시 경로
+- 이전 배포 정리, Cron, 헬스체크, 서버리스, 재시작 정책, 배포 전 단계 (헬스체크는 저장소의 `iris.json` 으로만 지원)
+- 설정 파일, 빌드 건너뛰기(기능 플래그)
+- 샘플 화면: Observability, Sandboxes(프로젝트 왼쪽 메뉴), Templates(커맨드 팔레트·대시보드). 페이지 파일은 그대로 두고 라우트·메뉴만 주석 처리했다. 예전 주소는 프로젝트 첫 화면·대시보드로 이동한다. 서비스 Console 은 샘플이지만 남겨 두었다.
+
+워크스페이스의 도메인·감사 로그·개발자 화면은 같은 이유로 주석이 아니라 삭제했다.
 
 ## 제한 사항
 

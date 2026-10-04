@@ -1,30 +1,21 @@
 import {
   // ChartNoAxesColumn, // Usage nav item (disabled for now)
-  ChevronDown,
-  ChevronUp,
   EllipsisVertical,
   LayoutGrid,
   LogOut,
   Moon,
-  Settings,
   Sun,
   User,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LogoMark } from '../components/brand';
 import { NotificationsButton } from '../components/HeaderActions';
 import { Avatar, Popover, usePopover } from '../components/ui';
 import { useAuth, useSessionUser } from '../auth/AuthContext';
 import { getTheme, toggleTheme } from '../lib/theme';
 import { LanguageButton } from '../components/LanguageButton';
-import { useI18n, type MessageKey } from '../i18n';
-
-const SETTINGS_LINKS: { to: string; label: MessageKey }[] = [
-  { to: '/workspace/domains', label: 'nav.domains' },
-  { to: '/workspace/audit-logs', label: 'nav.auditLogs' },
-  { to: '/workspace/developer', label: 'nav.developer' },
-];
+import { useI18n } from '../i18n';
 
 function SideItem({ to, icon, label, end }: { to: string; icon: ReactNode; label: string; end?: boolean }) {
   return (
@@ -78,13 +69,7 @@ function AccountButton() {
 }
 
 export function WorkspaceLayout() {
-  const location = useLocation();
   const { t } = useI18n();
-  const inSettings = SETTINGS_LINKS.some((l) => location.pathname.startsWith(l.to));
-  const [settingsOpen, setSettingsOpen] = useState(inSettings);
-  useEffect(() => {
-    if (inSettings) setSettingsOpen(true);
-  }, [inSettings]);
 
   return (
     <div className="ws-shell">
@@ -101,33 +86,8 @@ export function WorkspaceLayout() {
           <div className="side-section">
             <nav className="side-nav">
               <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label={t('nav.projects')} />
-              <div className="side-divider inset" />
               {/* Usage is disabled for now (non-MVP) */}
               {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
-              <button type="button" className={`side-item side-btn${settingsOpen ? ' open' : ''}`} onClick={() => setSettingsOpen((v) => !v)}>
-                <div className="side-icon">
-                  <Settings size={16} />
-                </div>
-                <span className="side-btn-label">
-                  {t('nav.settings')}
-                  <div className="side-icon">{settingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
-                </span>
-              </button>
-              {settingsOpen && (
-                <div className="side-sub">
-                  <div className="side-sub-line" />
-                  {SETTINGS_LINKS.map((l) => (
-                    <NavLink key={l.to} to={l.to} className="side-link">
-                      {({ isActive }) => (
-                        <div className={`side-item sub${isActive ? ' active' : ''}`}>
-                          <span className="side-sub-spacer" />
-                          <span>{t(l.label)}</span>
-                        </div>
-                      )}
-                    </NavLink>
-                  ))}
-                </div>
-              )}
             </nav>
           </div>
           <div className="side-fill" />

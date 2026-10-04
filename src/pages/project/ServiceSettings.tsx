@@ -1,25 +1,25 @@
 import {
-  ChevronDown,
+  // ChevronDown, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Code,
-  LogOut,
-  PencilLine,
-  RefreshCw,
+  // LogOut, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // PencilLine, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // RefreshCw, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   ArrowRight,
-  CircleCheck,
+  // CircleCheck, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Globe,
-  Zap,
-  ShieldAlert,
+  // Zap, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // ShieldAlert, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Copy,
   Earth,
-  FileCode2,
-  Flag,
+  // FileCode2, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // Flag, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Hammer,
   Network,
-  Pencil,
-  Plus,
+  // Pencil, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // Plus, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Rocket,
   Scaling,
-  Shield,
+  // Shield, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -213,12 +213,12 @@ function StrategyPicker({ value, savedReplicas, replicasUnknown, rollingOnly, on
 const SECTION_LABEL: Record<string, MessageKey> = {
   Source: 'svcSettings.sec.source',
   Networking: 'svcSettings.sec.networking',
-  Edge: 'svcSettings.sec.edge',
+  // Edge: 'svcSettings.sec.edge', // [주석 처리] 섹션을 숨겼다
   Scale: 'svcSettings.sec.scale',
   Build: 'svcSettings.sec.build',
   Deploy: 'svcSettings.sec.deploy',
-  'Config-as-code': 'svcSettings.sec.config',
-  'Feature-flags': 'svcSettings.sec.flags',
+  // 'Config-as-code': 'svcSettings.sec.config', // [주석 처리] 섹션을 숨겼다
+  // 'Feature-flags': 'svcSettings.sec.flags', // [주석 처리] 섹션을 숨겼다
   Danger: 'svcSettings.sec.danger',
 };
 const SECTIONS = Object.keys(SECTION_LABEL);
@@ -282,11 +282,12 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
     return () => { cancelled = true; };
   }, [service.repo]);
   const [filter, setFilter] = useState('');
-  const [ipv6, setIpv6] = useState(false);
-  const [cdn, setCdn] = useState(false);
-  const [teardown, setTeardown] = useState(false);
-  const [serverless, setServerless] = useState(false);
-  const [skipped, setSkipped] = useState(false);
+  // [주석 처리] 아래 상태는 주석 처리한 항목(IPv6·CDN·이전 배포 정리·서버리스·빌드 건너뛰기)의 것이다.
+  // const [ipv6, setIpv6] = useState(false);
+  // const [cdn, setCdn] = useState(false);
+  // const [teardown, setTeardown] = useState(false);
+  // const [serverless, setServerless] = useState(false);
+  // const [skipped, setSkipped] = useState(false);
   const scale = useServiceScaling(service.id);
   const strategy = strategyOf(remote);
   // 온프레미스 타깃은 롤링만 지원한다. 타깃 목록을 아직 받지 못했으면 서버의 422 가 막는다.
@@ -316,9 +317,10 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
       return false;
     }
   };
-  const [retries, setRetries] = useState('10');
-  const [paths, setPaths] = useState<string[]>([]);
-  const [pathDraft, setPathDraft] = useState('');
+  // [주석 처리] 재시작 정책·감시 경로의 상태.
+  // const [retries, setRetries] = useState('10');
+  // const [paths, setPaths] = useState<string[]>([]);
+  // const [pathDraft, setPathDraft] = useState('');
   const [active, setActive] = useState('Source');
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -399,6 +401,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       <span>{service.repo}</span>
                     </p>
                   </a>
+                  {/* [주석 처리] was 에 저장소 변경·연결 해제 API 가 없어 토스트만 뜬다.
                   <div className="st-repo-actions">
                     <button type="button" className="st-icon-btn" aria-label={t('svcSettings.edit')} onClick={() => toast(t('svcSettings.repoPickerMock'))}>
                       <PencilLine size={16} />
@@ -407,6 +410,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       <span>{t('svcSettings.disconnect')}</span>
                     </button>
                   </div>
+                  */}
                 </div>
                 {remote && (
                   <div className="st-gap12">
@@ -432,6 +436,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </div>
                 </Item>
               )}
+              {/* [주석 처리] 업스트림은 Railway 템플릿 개념이라 was 에 대응 기능이 없다(분리·업데이트 확인은 토스트만).
               <Item title={t('svcSettings.upstream')} id="upstream">
                 <div className="st-repo">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link">
@@ -454,6 +459,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </button>
                 </div>
               </Item>
+              */}
               <Item title={t('svcSettings.branch.title')} desc={t('svcSettings.branch.desc')} id="branch">
                 {remote && (
                   <>
@@ -473,6 +479,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
 
           {show('Networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
             <Section name="Networking" icon={Network}>
+              {/* [주석 처리] was 는 service.port 를 저장만 하고 읽지 않는다. 컨테이너 포트는 APP_PORT=8080 고정이다.
               {remote && (
                 <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.desc')} id="port">
                   <ValueSetting
@@ -484,6 +491,8 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   />
                 </Item>
               )}
+              */}
+              <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.fixed')} id="port" />
               <Item title={t('svcSettings.public.title')} id="public-networking">
                 <h2 className="st-item-desc">{t('svcSettings.public.desc')}</h2>
                 {service.domains === undefined ? (
@@ -535,6 +544,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 ) : (
                   <p className="st-muted st-gap16">{t('svcSettings.notExposed')}</p>
                 )}
+                {/* [주석 처리] 도메인 생성·커스텀 도메인·TCP 프록시는 was 에 API 가 없다(공개 주소는 {이름}-{id}.likelion.uk 로 계산해 조회만 한다).
                 <div className="st-btn-row">
                   <button type="button" className="btn btn-primary-outline st-plus-btn" onClick={() => toast(t('svcSettings.domainGenMock'))}>
                     <Zap size={16} className="btn-icon" />
@@ -549,7 +559,9 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     <span>{t('svcSettings.tcpProxy')}</span>
                   </button>
                 </div>
+                */}
               </Item>
+              {/* [주석 처리] 비공개 네트워킹 호스트(.likelion.internal)는 코드에 박은 값이고, IPv6 토글은 화면 상태일 뿐이다.
               <Item title={t('svcSettings.private.title')} desc={t('svcSettings.private.desc')} id="private-networking">
                 <div className="st-card">
                   <div className="st-card-row private">
@@ -584,9 +596,11 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               <Item title={t('svcSettings.ipv6.title')} desc={t('svcSettings.ipv6.desc')} id="ipv6">
                 <Toggle checked={ipv6} onChange={setIpv6} label={t('svcSettings.ipv6.toggle')} />
               </Item>
+              */}
             </Section>
           )}
 
+          {/* [주석 처리] 엣지(공격 방어 모드·CDN)는 was 에 대응 기능이 없다.
           {show('Edge', 'cdn', 'attack', 'rules') && (
             <Section name="Edge" icon={Shield}>
               <Item title={t('svcSettings.attack.title')} desc={t('svcSettings.attack.desc')} id="attack">
@@ -609,7 +623,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               </Item>
             </Section>
           )}
-
+          */}
           {show('Scale', 'region', 'replica', 'cpu', 'memory') && (
             <Section name="Scale" icon={Scaling}>
               <Item title={t('svcSettings.regions.title')} desc={t('svcSettings.regions.desc')} id="regions">
@@ -730,6 +744,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               <Item title={t('svcSettings.buildCmd.title')} desc={t('svcSettings.buildCmd.desc')} id="build-cmd">
                 {remote && <ValueSetting label={t('svcSettings.buildCmd.label')} value={remote.buildCommand ?? ''} placeholder={t('svcSettings.buildCmd.placeholder')} onSave={(v) => save({ buildCommand: v })} />}
               </Item>
+              {/* [주석 처리] 감시 경로는 화면 상태일 뿐 저장·반영되지 않는다.
               <Item title={t('svcSettings.watch.title')} desc={t('svcSettings.watch.desc')} id="watch">
                 <div className="st-watch">
                   <input
@@ -765,6 +780,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </div>
                 ))}
               </Item>
+              */}
             </Section>
           )}
 
@@ -772,13 +788,14 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             <Section name="Deploy" icon={Rocket}>
               <Item title={t('svcSettings.startCmd.title')} desc={t('svcSettings.startCmd.desc')} id="start-cmd">
                 {remote && <ValueSetting label={t('svcSettings.startCmd.label')} value={remote.startCommand ?? ''} placeholder={t('svcSettings.startCmd.placeholder')} onSave={(v) => save({ startCommand: v })} />}
-                <p className="st-muted">{t('svcSettings.preDeploy')}</p>
+                {/* [주석 처리] 배포 전 단계는 was 에서 아직 지원하지 않는다. <p className="st-muted">{t('svcSettings.preDeploy')}</p> */}
               </Item>
               {remote && (
                 <Item title={t('svcSettings.strategy.title')} desc={t('svcSettings.strategy.desc')} id="deployment-strategy">
                   <StrategyPicker value={strategy} savedReplicas={scale.savedReplicas} replicasUnknown={!!scale.error} rollingOnly={rollingOnly} onSave={saveStrategy} />
                 </Item>
               )}
+              {/* [주석 처리] 이전 배포 정리·Cron·헬스체크·서버리스·재시작 정책은 was 에 대응 기능이 없다(헬스체크는 저장소의 iris.json 으로만 지원).
               <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">
                 <Toggle checked={teardown} onChange={setTeardown} label={t('svcSettings.teardown.toggle')} />
               </Item>
@@ -812,9 +829,11 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   <input value={retries} onChange={(e) => setRetries(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                 </label>
               </Item>
+              */}
             </Section>
           )}
 
+          {/* [주석 처리] 설정 파일·빌드 건너뛰기는 버튼·토글이 동작하지 않는다.
           {show('Config-as-code', 'file') && (
             <Section name="Config-as-code" icon={FileCode2}>
               <Item title={t('svcSettings.configFile.title')} desc={t('svcSettings.configFile.desc')} id="config-file">
@@ -835,7 +854,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               </div>
             </Section>
           )}
-
+          */}
           {show('Danger', 'delete') && (
             <section className="st-section danger" id="set-Danger">
               <Item title={t('svcSettings.delete.title')} desc={t('svcSettings.delete.desc')} id="delete">
