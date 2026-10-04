@@ -343,11 +343,11 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const wide = step === 'analysis' && analysis.state.phase === 'done' && analysis.state.analysis.result.decision === 'analyze';
   return <><Dialog open={open && !addingServer} onClose={close} className={`create-dialog${wide ? ' wide' : ''}`} label={t('create.title')}>
     <header><div className="create-title">{step !== 'create' && <button className="create-back" aria-label={t('create.back')} title={t('create.back')} disabled={submitting} onClick={() => { if (step === 'analysis') { backToReview(); return; } setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={18} /></button>}<h2>{t(title)}</h2></div><button className="create-icon" aria-label={t('create.dismiss')} onClick={close}><X size={18} /></button></header>
-    {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label={t('create.prompt')} placeholder={t('create.prompt')} value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => t(o).toLowerCase().includes(query.toLowerCase())).map(option => option === GITHUB
+    {step === 'create' && <div id="create-options" className="create-options">{options.map(option => option === GITHUB
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{t(option)}</button>
         : option === DATABASE
         ? <button key={option} onClick={() => { setStep('database'); setQuery(''); setNotice(''); }}><Database size={17} />{t(option)}</button>
-        : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div></>}
+        : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div>}
     {step === 'database' && <form className="create-review" onSubmit={e => { e.preventDefault(); void createDb(); }}>
       <fieldset className="create-engines"><legend>{t('create.db.engine')}</legend>
         {api.DATABASE_ENGINES.map(engine => <label key={engine} className={dbEngine === engine ? 'on' : undefined}><input type="radio" name="create-db-engine" checked={dbEngine === engine} onChange={() => { if (dbName === dbEngine) setDbName(engine); setDbEngine(engine); }} /><Database size={16} aria-hidden />{ENGINE_LABEL[engine]}</label>)}
