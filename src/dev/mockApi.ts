@@ -71,6 +71,7 @@ let loggedIn = true;
 const sharedTargets: TargetDto[] = [
   { id: 1, name: 'aws-seoul', kind: 'AWS', region: 'ap-northeast-2', domainSuffix: 'likelion.uk' },
   { id: 2, name: 'onprem', kind: 'ONPREM', domainSuffix: 'internal.likelion.uk' },
+  { id: 50, name: 'gcp', kind: 'GCP', region: 'asia-northeast3', domainSuffix: 'gcp.likelion.uk' },
 ];
 
 /**
@@ -216,7 +217,8 @@ const scalingOf = (s: MockService): ScalingDto => ({
   ...(scalings.get(s.id) ?? { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }),
 });
 const STRATEGIES: DeploymentStrategy[] = ['ROLLING', 'CANARY', 'BLUE_GREEN'];
-const isOnPrem = (s: MockService) => targetsNow().find((x) => x.id === s.targetIds[0])?.kind === 'ONPREM';
+/** 콘솔·DB 자동 생성을 쓸 수 없는 타깃(온프레미스·GCP). */
+const isOnPrem = (s: MockService) => ['ONPREM', 'GCP'].includes(targetsNow().find((x) => x.id === s.targetIds[0])?.kind ?? '');
 /** was 와 같다: 요청 시점의 방식을 남기고, 온프레미스 타깃이거나 레플리카가 2개 미만이면 실제로는 롤링으로 배포한다. */
 const strategySnapshot = (s: MockService) => {
   const requested = s.deploymentStrategy ?? 'ROLLING';
@@ -1697,7 +1699,7 @@ function handleVariables(s: MockService, method: string, seg: string[], body: Re
 /* --- DB 생성 · apply(스택) ------------------------------------------- */
 
 const networkingRejected = (targetIds: number[] | undefined) =>
-  (targetIds ?? [1]).some((id) => targetsNow().find((x) => x.id === id)?.kind === 'ONPREM')
+  (targetIds ?? [1]).some((id) => ['ONPREM', 'GCP'].includes(targetsNow().find((x) => x.id === id)?.kind ?? ''))
     ? fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'targetIds', reason: 'networking_unsupported_target' }])
     : null;
 

@@ -25,10 +25,13 @@ function StatusDot({ status }: { status?: OnpremServerStatus }) {
  * 온프레미스 선택지 순서: 공용 onprem 타깃이 먼저, 그다음 내 서버(연결된 것 먼저). 정렬은 안정적이라 같은 무리 안에서는
  * 서버 목록 순서(최신순)를 지킨다.
  */
+/** 클라우드 라디오 순서: AWS, GCP, 그 밖. 온프레미스는 그 뒤 드롭다운이다. */
+const cloudRank = (target: TargetDto) => (target.kind === 'AWS' ? 0 : target.kind === 'GCP' ? 1 : 2);
+
 const rank = (target: TargetDto) => (target.onpremServerId == null ? 0 : target.connectionStatus === 'CONNECTED' ? 1 : 2);
 
 /**
- * 배포 대상 선택. 종류(AWS·온프레미스)만 라디오로 고르고, 온프레미스는 옆 드롭다운에서 공용 서버나 내 서버를 고른다.
+ * 배포 대상 선택. 종류(AWS·GCP·온프레미스)를 이 순서의 라디오로 고르고, 온프레미스는 옆 드롭다운에서 공용 서버나 내 서버를 고른다.
  * 저장되는 값은 고른 타깃 id 하나다. 드롭다운을 바꾸면 온프레미스 라디오도 같이 골라진다.
  */
 export function TargetPicker({
@@ -58,7 +61,7 @@ export function TargetPicker({
   const listRef = useRef<HTMLDivElement>(null);
 
   const onprems = targets.filter((target) => target.kind === 'ONPREM').sort((a, b) => rank(a) - rank(b));
-  const others = targets.filter((target) => target.kind !== 'ONPREM');
+  const others = targets.filter((target) => target.kind !== 'ONPREM').sort((a, b) => cloudRank(a) - cloudRank(b));
   const fallback = onprems.find((target) => target.connectionStatus === 'CONNECTED') ?? onprems.find((target) => target.onpremServerId == null) ?? onprems[0];
   // 온프레미스 라디오를 고르면 쓸 서버. 지금 값이 온프레미스면 그것이고, 아니면 마지막으로 고른 것 또는 기본값이다.
   const [choice, setChoice] = useState<number | undefined>();
