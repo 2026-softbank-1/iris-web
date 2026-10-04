@@ -292,7 +292,6 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
       {drafts.length > 0 && (
         <ul className="gate-cards" aria-label={t('create.gate.units')}>
           {drafts.map((d) => {
-            const unit = unitById.get(d.unitId);
             const body = (
               <>
                 <b className="gate-card-name">{d.name || d.unitId}</b>
