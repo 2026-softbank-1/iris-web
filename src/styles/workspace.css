@@ -332,6 +332,7 @@
 }
 
 .toast {
+  white-space: pre-line;
   padding: 10px 14px;
   font-size: 14px;
   line-height: 20px;

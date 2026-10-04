@@ -274,6 +274,8 @@ const repositories: RepositoryDto[] = [
   // 레포 구성 확인(분석 게이트) 시나리오: single-app 은 skip, multi-image-shop 은 analyze(3 units + postgres/redis), broken-repo 는 FAILED.
   { fullName: 'kylo-dev/single-app', url: 'https://github.com/kylo-dev/single-app', defaultBranch: 'main', isPrivate: false, installationId: 2 },
   { fullName: 'kylo-dev/multi-image-shop', url: 'https://github.com/kylo-dev/multi-image-shop', defaultBranch: 'main', isPrivate: false, installationId: 2 },
+  // Temp_log 같은 시나리오: app + mongo, 자동 생성 비밀값, archlog 사용자 URL.
+  { fullName: 'kylo-dev/temp-log', url: 'https://github.com/kylo-dev/temp-log', defaultBranch: 'main', isPrivate: false, installationId: 2 },
   { fullName: 'kylo-dev/broken-repo', url: 'https://github.com/kylo-dev/broken-repo', defaultBranch: 'main', isPrivate: true, installationId: 2 },
 ];
 const branches: BranchDto[] = [
@@ -996,11 +998,45 @@ function multiImageShopResult(root: string, mode: AnalysisMode): AnalysisGateRes
   };
 }
 
+/** Temp_log: app + mongo(compose 이미지 8.0.32, 플랫폼은 mongo:7). 비밀값 3개, URL 은 archlog 사용자. */
+function tempLogResult(root: string): AnalysisGateResultDto {
+  return {
+    ...gateBase(root),
+    decision: 'analyze',
+    complexity: 'complex',
+    reasons: [{ code: 'compose_multi_service', message: 'compose 서비스 2개 (app, mongo)', paths: ['compose.yaml'] }],
+    units: [
+      {
+        id: 'app', name: 'app', rootDirectory: '.', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 3000, startCommand: null, buildCommand: null, role: 'app', public: true,
+        env: [
+          { key: 'MONGO_URI', stage: 'runtime', required: true, binding: { kind: 'dependency', targetId: 'mongo', property: 'url', user: 'archlog', passwordSecretId: 'MONGO_APP_PASSWORD' } },
+          { key: 'SESSION_SECRET', stage: 'runtime', required: true, secretId: 'SESSION_SECRET' },
+        ],
+        dependsOn: ['mongo'], evidence: [{ path: 'compose.yaml', line: 3 }],
+      },
+    ],
+    dependencies: [
+      { id: 'mongo', engine: 'mongodb', image: 'mongo:8.0.32', port: 27017, database: 'archlog', env: [{ key: 'MONGO_APP_PASSWORD', secretId: 'MONGO_APP_PASSWORD' }], initScripts: [{ path: 'db/init-mongo.js', kind: 'js', sha256: 'c0ffee', size: 640, order: 0, supported: true }], evidence: [{ path: 'compose.yaml', line: 20 }] },
+    ],
+    secrets: [
+      { id: 'MONGO_APP_PASSWORD', generate: 'random', consumers: [{ kind: 'unit', targetId: 'app', key: 'MONGO_APP_PASSWORD', via: 'url_password' }, { kind: 'dependency', targetId: 'mongo', key: 'MONGO_APP_PASSWORD', via: 'env' }] },
+      { id: 'SESSION_SECRET', generate: 'random', consumers: [{ kind: 'unit', targetId: 'app', key: 'SESSION_SECRET', via: 'env' }] },
+      { id: 'MONGO_ROOT_PASSWORD', generate: null, platformManaged: { dependencyId: 'mongo', property: 'password' }, consumers: [{ kind: 'dependency', targetId: 'mongo', key: 'MONGO_INITDB_ROOT_PASSWORD', via: 'env' }] },
+    ],
+    questions: [{ code: 'custom_database_image', message: '플랫폼 개발용 DB는 공식 이미지를 쓰므로 Dockerfile.mongo의 커스텀 설정은 적용되지 않습니다.' }],
+  };
+}
+
 type MockAnalysis = Omit<RepositoryAnalysisDto, 'status' | 'decision' | 'complexity' | 'result'> & { startedAt: number; applied: boolean };
 const analyses: MockAnalysis[] = [];
 /** 접수 → 1.2초 QUEUED → 3초까지 RUNNING → 결과. broken-repo 는 FAILED 로 끝난다. */
 function toAnalysisDto(mock: MockAnalysis): RepositoryAnalysisDto {
   const { startedAt, applied, ...a } = mock;
+  const withProvisioning = (dto: RepositoryAnalysisDto): RepositoryAnalysisDto => {
+    const deps = dto.result?.dependencies ?? [];
+    if (deps.length === 0) return dto;
+    return { ...dto, provisioning: Object.fromEntries(deps.filter((d) => d.engine !== 'other').map((d) => [d.id, { engine: d.engine, image: ENGINE_DEFAULTS[d.engine as DatabaseEngine].image }])) };
+  };
   const elapsed = Date.now() - startedAt;
   const repo = a.sourceRepositoryUrl.split('/').slice(-1)[0];
   const root = a.rootDirectory ?? '.';
@@ -1009,8 +1045,8 @@ function toAnalysisDto(mock: MockAnalysis): RepositoryAnalysisDto {
   if (repo === 'broken-repo') {
     return { ...a, status: 'FAILED', errorCode: 'ANALYZER_FAILED', errorMessage: 'analysis gate exited with status 2' };
   }
-  const result = a.id === PENDING_ANALYSIS_ID ? pendingShopResult(root) : repo === 'multi-image-shop' ? multiImageShopResult(root, a.mode) : singleAppResult(root, a.mode);
-  return { ...a, sourceSha: SHA, status: applied ? 'APPLIED' : 'SUCCEEDED', decision: result.decision, complexity: result.complexity, result };
+  const result = a.id === PENDING_ANALYSIS_ID ? pendingShopResult(root) : repo === 'temp-log' ? tempLogResult(root) : repo === 'multi-image-shop' ? multiImageShopResult(root, a.mode) : singleAppResult(root, a.mode);
+  return withProvisioning({ ...a, sourceSha: SHA, status: applied ? 'APPLIED' : 'SUCCEEDED', decision: result.decision, complexity: result.complexity, result });
 }
 
 function gateFieldsFor(analysisId: unknown): Partial<MockService> {
@@ -1067,7 +1103,7 @@ function handleAnalyses(method: string, seg: string[], body: Record<string, unkn
     a.applied = true;
     a.appliedServiceIds = result.services.map((s) => s.id);
     a.updatedAt = iso(Date.now());
-    return ok({ analysisId: a.id, services: result.services.map(toServiceDto), databases: result.databases.map(toServiceDto), stackId, stackDeploymentId: result.deployed ? stackId * 100 : null, variableIssues: result.variableIssues, changes: result.changes.length ? result.changes : null }, 201);
+    return ok({ analysisId: a.id, services: result.services.map(toServiceDto), databases: result.databases.map(toServiceDto), stackId, stackDeploymentId: result.deployed ? stackId * 100 : null, variableIssues: result.variableIssues, changes: result.changes.length ? result.changes : null, generatedSecrets: result.generatedSecrets.length ? result.generatedSecrets : null }, 201);
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} /${seg.join('/')}`);
 }
@@ -1685,6 +1721,22 @@ function applyToStack(a: MockAnalysis, result: AnalysisGateResultDto, picks: Ana
     serviceOfUnit.set(unit.id, s);
     created.push(s);
   }
+  // 3a) 자동 생성 비밀값: random 은 consumer 서비스마다 같은 키로 저장한다(값은 응답에 싣지 않는다).
+  const generatedSecrets: { id: string; serviceIds: number[] }[] = [];
+  for (const sec of result.secrets ?? []) {
+    if (sec.generate !== 'random') continue;
+    const value = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const ids: number[] = [];
+    for (const c of sec.consumers) {
+      const svc = serviceOfUnit.get(c.targetId);
+      if (!svc || ![...created, ...databases].includes(svc)) continue;
+      // url_password 는 참조 변수의 passwordVariable 로 쓰이므로 키를 따로 만들지 않아도 서비스에 값이 저장된 것으로 본다.
+      const vars = varsOf(svc.id);
+      if (!vars.some((v) => v.key === c.key)) vars.push({ key: c.key, value });
+      ids.push(svc.id);
+    }
+    if (ids.length > 0) generatedSecrets.push({ id: sec.id, serviceIds: [...new Set(ids)] });
+  }
   // 3) 참조 변수와 필수 변수, 호스트 별칭(마지막으로 만든 서비스들에 대해)
   for (const s of [...created]) {
     const unit = result.units.find((u) => u.id === s.analysisGate?.unitId)!;
@@ -1718,7 +1770,7 @@ function applyToStack(a: MockAnalysis, result: AnalysisGateResultDto, picks: Ana
       variableIssues = failed.length ? failed : null;
     }
   }
-  return { services: created, databases, deployed, variableIssues, changes };
+  return { services: created, databases, deployed, variableIssues, changes, generatedSecrets };
 }
 
 /* --- 시드 -------------------------------------------------------- */

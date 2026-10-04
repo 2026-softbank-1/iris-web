@@ -304,9 +304,9 @@ export type AnalysisEvidenceDto = { path: string; line?: number | null };
 export type AnalysisReasonDto = { code: string; message: string; paths?: string[] };
 /** env 값이 다른 unit/의존성의 연결 정보에서 온다는 분석기의 추정. 확인하지 못했으면 null. */
 export type AnalysisBindingDto =
-  | { kind: 'dependency'; targetId: string; property: ReferenceProperty }
+  | { kind: 'dependency'; targetId: string; property: ReferenceProperty; /** url userinfo 의 사용자(문자열 리터럴일 때만). 있으면 DB 관리 자격증명 대신 이 사용자로 연결한다. */ user?: string | null; passwordSecretId?: string | null }
   | { kind: 'unit'; targetId: string; property: 'url' | 'host' | 'port' };
-export type AnalysisEnvDto = { key: string; stage: 'runtime' | 'build'; required: boolean; binding?: AnalysisBindingDto | null };
+export type AnalysisEnvDto = { key: string; stage: 'runtime' | 'build'; required: boolean; binding?: AnalysisBindingDto | null; secretId?: string | null };
 /** 코드가 호스트명으로 쓰는 다른 unit/의존성(예: `api:3000`). apply 가 같은 이름의 호스트 별칭을 만든다. */
 export type AnalysisHostAliasDto = { host: string; port?: number | null; targetId: string; evidence?: AnalysisEvidenceDto[] };
 export type AnalysisUnitDto = {
@@ -339,6 +339,16 @@ export type AnalysisDependencyDto = {
   /** compose 에 비밀번호가 하드코딩돼 있다는 표시뿐이다. 값은 오지 않는다. */
   passwordInSource?: boolean;
   initScripts?: AnalysisInitScriptDto[];
+  /** DB 컨테이너 env 중 초기화 스크립트 등이 쓰는 비관리 키. */
+  env?: { key: string; secretId?: string | null }[];
+  evidence?: AnalysisEvidenceDto[];
+};
+/** 자동 생성·공유할 비밀값. 값은 오지 않는다. generate=null 이면서 platformManaged 면 플랫폼 DB 비밀번호를 쓴다. */
+export type AnalysisSecretDto = {
+  id: string;
+  generate: 'random' | null;
+  consumers: { kind: 'unit' | 'dependency'; targetId: string; key: string; via: 'env' | 'url_password' }[];
+  platformManaged?: { dependencyId: string; property: string } | null;
   evidence?: AnalysisEvidenceDto[];
 };
 export type AnalysisQuestionDto = { code: string; unitId?: string | null; message: string };
@@ -354,6 +364,7 @@ export type AnalysisGateResultDto = {
   simpleBuild?: { builder: Builder; dockerfilePath?: string | null } | null;
   units: AnalysisUnitDto[];
   dependencies: AnalysisDependencyDto[];
+  secrets?: AnalysisSecretDto[];
   questions: AnalysisQuestionDto[];
   analysis?: { engine: string; durationMs?: number; modelCalls?: number };
 };
@@ -370,6 +381,8 @@ export type RepositoryAnalysisDto = {
   mode: AnalysisMode;
   /** SUCCEEDED·APPLIED 일 때 분석기 응답 원문. */
   result?: AnalysisGateResultDto | null;
+  /** 플랫폼이 실제로 띄울 DB 이미지(의존성 id 별). compose 이미지와 다를 수 있다. */
+  provisioning?: Record<string, { engine: string; image: string }> | null;
   errorCode?: string | null;
   errorMessage?: string | null;
   appliedServiceIds?: number[] | null;
@@ -416,6 +429,8 @@ export type RepositoryAnalysisApplyDto = {
   variableIssues?: (VariablesValidationDto & { serviceId: number })[] | null;
   /** 증분 apply 에서 이미 있는 DB 의 초기화 스크립트가 달라졌으면 DEPENDENCY_CHANGED. 다시 실행하지 않는다. */
   changes?: StackChangeDto[] | null;
+  /** 자동 생성한 비밀값(값은 오지 않는다)과 저장된 서비스 id. */
+  generatedSecrets?: { id: string; serviceIds: number[] }[] | null;
 };
 /** 서비스에 남은 분석 게이트 결과. */
 export type AnalysisGateDto = { analysisId: number; decision: AnalysisDecision; complexity?: AnalysisComplexity | null; unitId?: string | null };
