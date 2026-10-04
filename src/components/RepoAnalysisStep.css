@@ -46,10 +46,11 @@ label.gate-card-label{cursor:pointer}
 .gate-tips,.gate-dep-state{display:flex;align-items:center;gap:4px;margin:0;font-size:12px;color:var(--fg-subtle)}
 .gate-tip-list{margin:0;padding-left:14px;display:grid;gap:4px;text-align:left}
 .gate-init p{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.gate-unit-meta{display:grid;gap:6px;align-items:start}
+.gate-unit .gate-unit-meta{display:grid;gap:6px;align-items:start}
 .gate-unit-meta .gate-role{justify-self:start}
 .gate-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
 .gate-row.top{align-items:flex-start}
 .gate-row .gate-meta-label{flex:none;min-width:34px}
 .gate-keyitem{display:inline-flex;align-items:center;gap:4px}
 .gate-tag{padding:0 6px;border-radius:999px;background:var(--bg-3,var(--bg-4));color:var(--fg-subtle);font-size:11px;line-height:18px}
+.gate-row .gate-map{flex-basis:auto}
