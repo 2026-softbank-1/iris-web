@@ -14,7 +14,10 @@ export const withoutVariable = (list: VariableDto[], key: string): VariableDto[]
  * Raw Editor 를 채울 텍스트. 값은 JSON 문자열로 쓴다(줄바꿈·따옴표가 있어도 한 줄이 된다).
  * 서버가 큰따옴표 값을 JSON 이스케이프로 읽으니, 그대로 저장하면 같은 값이다.
  */
-export const toRaw = (list: VariableDto[]): string => list.map((v) => `${v.key}=${JSON.stringify(v.value)}`).join('\n');
+export const toRaw = (list: VariableDto[]): string => list.filter((v) => !v.reference).map((v) => `${v.key}=${JSON.stringify(v.value ?? '')}`).join('\n');
+
+/** 참조 변수만. Raw 텍스트로는 표현할 수 없어서 Raw 저장 뒤에 따로 되살린다. */
+export const referenceVariables = (list: VariableDto[]): VariableDto[] => list.filter((v) => v.reference);
 
 /**
  * 서버가 422 INVALID_INPUT 에 싣는 메시지(영문)와 그에 맞는 문구. 코드가 하나라 메시지로 가른다.

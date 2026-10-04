@@ -2774,3 +2774,40 @@ button.st-box {
 .details-strategy-note:lang(ko) {
   word-break: keep-all;
 }
+
+/* 레포 구성 확인(분석 게이트) 결과 배지 — 서비스 패널 제목 옆, 설정의 Source */
+.gate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 100%;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.gate-badge > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gate-badge.skip {
+  background: var(--green-bg);
+  border-color: var(--green-bg-border);
+  color: var(--green-text);
+}
+.gate-badge.analyze {
+  background: var(--primary-bg);
+  border-color: var(--primary-border);
+  color: var(--primary-text);
+}
+.st-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+}

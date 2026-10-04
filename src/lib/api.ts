@@ -13,12 +13,15 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details: ErrorDetail[];
-  constructor(status: number, code: string, message: string, details: ErrorDetail[] = []) {
+  /** 실패 응답이 싣는 추가 데이터(예: 422 VARIABLES_INVALID 의 issues). 없으면 undefined. */
+  readonly data?: unknown;
+  constructor(status: number, code: string, message: string, details: ErrorDetail[] = [], data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.details = details;
+    this.data = data;
   }
 }
 
@@ -52,7 +55,7 @@ export async function request<T>(path: string, { method = 'GET', query, json, he
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!res.ok || !body?.success) {
     if (res.status === 401 && !EXPECTS_UNAUTHORIZED.has(path)) onUnauthorized?.();
-    throw new ApiError(res.status, body?.code ?? 'UNKNOWN', body?.message ?? res.statusText, body?.details);
+    throw new ApiError(res.status, body?.code ?? 'UNKNOWN', body?.message ?? res.statusText, body?.details, body?.data);
   }
   return body.data as T;
 }
@@ -64,6 +67,7 @@ export function describeError(error: unknown): string {
     case 'PROJECT_NAME_CONFLICT': return 'A project with this name already exists.';
     case 'SERVICE_NAME_CONFLICT': return 'A service with this name already exists in this project.';
     case 'REPOSITORY_NOT_ACCESSIBLE': return 'This repository is not accessible. Install the GitHub App and grant it access.';
+    case 'VARIABLES_INVALID': return 'Environment variables are invalid. Fix them in the Variables tab before deploying.';
     case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
     case 'NO_SUCCEEDED_DEPLOYMENT': return 'This service has no running deployment. Deploy it successfully first.';
     case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';

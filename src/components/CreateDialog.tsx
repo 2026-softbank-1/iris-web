@@ -1,21 +1,30 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, FolderGit2, Lock, Plus, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Database, FolderGit2, Lock, Plus, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { isTargetSupported } from '../lib/endpoints';
 import { useI18n, type MessageKey } from '../i18n';
+import { networkingErrorKey } from '../data/networkingError';
+import { useRepositoryAnalysis } from '../data/useRepositoryAnalysis';
+import { RepoAnalysisStep, slugify, toApplyDependencies, toApplyUnits, toDepDrafts, toUnitDrafts, type DepDraft, type UnitDraft } from './RepoAnalysisStep';
+import { DataLossNotice, ENGINE_LABEL } from './DatabaseBits';
 import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
 const GITHUB: MessageKey = 'create.opt.github';
-const options: MessageKey[] = [GITHUB, 'create.opt.folder'];
+const DATABASE: MessageKey = 'create.opt.database';
+const STORAGE_OPTIONS = [1, 2, 5, 10, 20];
 // 붙여넣은 주소로 보는 입력. 서버(resolve)가 owner/repo, git@ 형식도 받지만 검색어와 구분하려고 주소 형태만 본다.
 const URL_LIKE = /^(https?:\/\/|github\.com\/)/i;
 // 서비스 이름은 도메인에 쓰이므로 DNS 레이블 규칙(소문자·숫자·하이픈)을 따른다. 서버와 같은 규칙이다.
 const SERVICE_NAME_PATTERN = '[a-z0-9]([a-z0-9\\-]{0,61}[a-z0-9])?';
-const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63).replace(/-+$/, '') || 'service';
+// 분석기는 레포 루트 기준 POSIX 상대경로를 쓴다. 입력의 앞뒤 '/' 를 떼고, 루트('/'·'.'·빈 값)면 보내지 않는다.
+const analysisRoot = (value: string) => {
+  const trimmed = value.trim().replace(/^\.?\/+|\/+$/g, '');
+  return trimmed && trimmed !== '.' ? trimmed : undefined;
+};
 
 type RepoList = { status: 'loading' | 'ready' | 'error'; items: api.RepositoryDto[]; error?: string };
 type UrlCheck = { status: 'idle' | 'validating' | 'invalid' | 'valid'; repo?: api.RepositoryDto };
@@ -24,8 +33,13 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const navigate = useNavigate();
   const { toast } = useUI();
   const { t } = useI18n();
-  const { targets, createProject, createService, removeProject, refreshService } = useProjects();
-  const [step, setStep] = useState<'create' | 'repos' | 'review'>('create');
+  const { targets, createProject, createService, removeProject, refreshService, refreshProject } = useProjects();
+  const [step, setStep] = useState<'create' | 'repos' | 'review' | 'analysis' | 'database'>('create');
+  const [dbEngine, setDbEngine] = useState<api.DatabaseEngine>('postgres');
+  const [dbName, setDbName] = useState('postgres');
+  const [dbStorage, setDbStorage] = useState(5);
+  // 데이터베이스는 프로젝트 안에서만 추가한다(새 프로젝트를 만드는 흐름에는 없다).
+  const options: MessageKey[] = [GITHUB, ...(projectId ? [DATABASE] : []), 'create.opt.folder'];
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const [installations, setInstallations] = useState<api.InstallationDto[] | null>(null);
@@ -42,6 +56,12 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [targetId, setTargetId] = useState<number>();
   const [submitting, setSubmitting] = useState(false);
+  const analysis = useRepositoryAnalysis();
+  const [drafts, setDrafts] = useState<UnitDraft[]>([]);
+  const [depDrafts, setDepDrafts] = useState<DepDraft[]>([]);
+  // 레포 구성 확인은 프로젝트 아래에서 돈다. 새 프로젝트로 만들 때는 확인을 시작하면서 프로젝트를 먼저 만들고,
+  // 서비스를 하나도 만들지 않은 채 창을 닫거나 검토로 돌아가면 그 빈 프로젝트를 지운다.
+  const draftProject = useRef<string | null>(null);
 
   const isUrl = URL_LIKE.test(query.trim());
   const selectedTarget = targets.find((target) => target.id === targetId && isTargetSupported(target));
@@ -54,7 +74,10 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setRepo(null);
     setInstallationId(undefined);
     setSubmitting(false);
-  }, [open]);
+    setDrafts([]);
+    setDepDrafts([]);
+    analysis.reset();
+  }, [open, analysis.reset]);
 
   // 저장소 선택 단계: GitHub App 을 설치한 계정 목록
   useEffect(() => {
@@ -138,17 +161,35 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
 
   const goInstall = () => window.location.assign(api.githubInstallUrl());
 
-  const deploy = async () => {
+  const discardDraftProject = useCallback(() => {
+    const id = draftProject.current;
+    draftProject.current = null;
+    if (id) void removeProject(id).catch(() => undefined);
+  }, [removeProject]);
+
+  const ensureProject = async () => {
+    if (projectId) return projectId;
+    if (draftProject.current) return draftProject.current;
+    const project = await createProject({ name: projectName.trim() });
+    draftProject.current = project.id;
+    return project.id;
+  };
+
+  const close = () => {
+    analysis.reset();
+    discardDraftProject();
+    onClose();
+  };
+
+  /** 서비스 하나를 만들고 첫 배포를 요청한다(기존 경로). skip 결과로 만들 때는 analysisId 를 함께 보낸다. */
+  const deploy = async (analysisId?: number) => {
     if (!repo || !serviceName.trim() || !branch.trim() || !selectedTarget || submitting) return;
     setSubmitting(true);
     setNotice('');
-    let createdProjectId: string | null = null;
+    // 이 호출에서 새로 만든 프로젝트만 실패 때 되돌린다(레포 구성 확인 중인 프로젝트는 분석이 쓰고 있다).
+    const reusing = draftProject.current !== null;
     try {
-      let targetProject = projectId;
-      if (!targetProject) {
-        const project = await createProject({ name: projectName.trim() });
-        targetProject = createdProjectId = project.id;
-      }
+      const targetProject = await ensureProject();
       const service = await createService(targetProject, {
         repositoryUrl: repo.url,
         name: serviceName.trim(),
@@ -156,7 +197,9 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         rootDirectory: root.trim() || undefined,
         isAutoDeploy: autoDeploy,
         targetIds: [selectedTarget.id],
+        ...(analysisId !== undefined && { analysisId }),
       });
+      draftProject.current = null; // 서비스가 생겼으니 프로젝트는 남긴다
       // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
       let deploymentId: number | null = null;
       try {
@@ -166,27 +209,134 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       } catch (e) {
         toast(t('create.firstDeployFailed', { error: describeError(e) }));
       }
+      analysis.reset();
       onClose();
       const base = `/project/${targetProject}/service/${service.id}`;
       navigate(deploymentId === null ? base : `${base}/deployment/${deploymentId}`);
     } catch (e) {
       // 서비스 만들기가 실패했으면 방금 만든 빈 프로젝트를 되돌린다.
-      if (createdProjectId) await removeProject(createdProjectId).catch(() => undefined);
+      if (!reusing) discardDraftProject();
       setNotice(describeError(e));
     } finally {
       setSubmitting(false);
     }
   };
 
+  /** 관리형 DB 서비스를 만들고(자동 배포 접수) 그 서비스의 연결 정보 화면으로 간다. */
+  const createDb = async () => {
+    if (!projectId || submitting) return;
+    setSubmitting(true);
+    setNotice('');
+    try {
+      const db = await api.createDatabase(projectId, { name: dbName.trim(), engine: dbEngine, storageGi: dbStorage, ...(selectedTarget && { targetIds: [selectedTarget.id] }) });
+      await refreshProject(projectId).catch(() => undefined);
+      toast(t('create.db.created', { name: db.name }));
+      onClose();
+      navigate(`/project/${projectId}/service/${db.id}`);
+    } catch (e) {
+      const key = networkingErrorKey(e);
+      setNotice(key ? t(key) : describeError(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /** 레포 구성 확인을 시작한다. force 는 트리아지 결과와 관계없이 배포 단위를 분석한다. */
+  const checkRepo = async (mode: api.AnalysisMode) => {
+    if (!repo || !branch.trim() || !selectedTarget || submitting) return;
+    setNotice('');
+    setDrafts([]);
+    setDepDrafts([]);
+    setStep('analysis');
+    let targetProject: string;
+    try {
+      targetProject = await ensureProject();
+    } catch (e) {
+      setStep('review');
+      setNotice(describeError(e));
+      return;
+    }
+    await analysis.start(targetProject, {
+      sourceRepositoryUrl: repo.url,
+      githubInstallationId: repo.installationId,
+      sourceBranch: branch.trim(),
+      rootDirectory: analysisRoot(root),
+      mode,
+    });
+  };
+
+  // 분석이 끝나 배포 단위가 나오면 편집할 초안을 만든다(분석 id 가 바뀔 때만).
+  const doneAnalysis = analysis.state.phase === 'done' ? analysis.state.analysis : null;
+  useEffect(() => {
+    if (doneAnalysis?.result.decision === 'analyze') {
+      setDrafts(toUnitDrafts(doneAnalysis.result.units));
+      setDepDrafts(toDepDrafts(doneAnalysis.result.dependencies));
+    }
+  }, [doneAnalysis?.id]);
+
+  /** 고른 배포 단위마다 서비스를 만들고 배포를 요청한 뒤 프로젝트 캔버스로 간다. */
+  const applyUnits = async () => {
+    if (!doneAnalysis || submitting) return;
+    const built = toApplyUnits(drafts);
+    if ('error' in built) { setNotice(t(built.error)); return; }
+    const deps = toApplyDependencies(selectedTarget?.kind === 'ONPREM' ? depDrafts.map((d) => ({ ...d, provision: false })) : depDrafts, built.units.map((u) => u.name));
+    if ('error' in deps) { setNotice(t(deps.error)); return; }
+    setSubmitting(true);
+    setNotice('');
+    const targetProject = String(doneAnalysis.projectId);
+    try {
+      const applied = await api.applyRepositoryAnalysis(targetProject, doneAnalysis.id, {
+        units: built.units,
+        ...(deps.dependencies.length > 0 && { dependencies: deps.dependencies }),
+        deploy: true,
+        targetIds: selectedTarget ? [selectedTarget.id] : undefined,
+      });
+      draftProject.current = null;
+      await refreshProject(targetProject).catch(() => undefined);
+      const blocked = applied.variableIssues?.some((v) => v.issues.some((i) => i.severity === 'error')) ? applied.variableIssues : null;
+      toast(blocked ? t('create.gate.appliedNoDeploy', { n: applied.services.length }) : applied.databases?.length ? t('create.gate.appliedWithDb', { n: applied.services.length, db: applied.databases.length }) : t('create.gate.applied', { n: applied.services.length }));
+      analysis.reset();
+      onClose();
+      navigate(`/project/${targetProject}`, blocked ? { state: { variableIssues: blocked } } : undefined);
+    } catch (e) {
+      const key = networkingErrorKey(e);
+      setNotice(key ? t(key) : describeError(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const backToReview = () => {
+    analysis.reset();
+    discardDraftProject();
+    setStep('review');
+    setNotice('');
+  };
+
   const noInstallation = installations !== null && installations.length === 0;
   const branchOptions = branches.includes(branch) ? branches : [branch, ...branches];
+  const reviewInvalid = submitting || !selectedTarget || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim());
 
-  return <Dialog open={open} onClose={onClose} className="create-dialog" label={t('create.title')}>
-    <header><h2>{t(step === 'review' ? 'create.reviewTitle' : 'create.title')}</h2><button className="create-icon" aria-label={t('create.dismiss')} onClick={onClose}><X size={18} /></button></header>
-    {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> {t('create.back')}</button>}
+  const title: MessageKey = step === 'review' ? 'create.reviewTitle' : step === 'analysis' ? 'create.gate.title' : step === 'database' ? 'create.db.title' : 'create.title';
+  const wide = step === 'analysis' && analysis.state.phase === 'done' && analysis.state.analysis.result.decision === 'analyze';
+  return <Dialog open={open} onClose={close} className={`create-dialog${wide ? ' wide' : ''}`} label={t('create.title')}>
+    <header><h2>{t(title)}</h2><button className="create-icon" aria-label={t('create.dismiss')} onClick={close}><X size={18} /></button></header>
+    {step !== 'create' && <button className="create-back" disabled={submitting} onClick={() => { if (step === 'analysis') { backToReview(); return; } setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> {t('create.back')}</button>}
     {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label={t('create.prompt')} placeholder={t('create.prompt')} value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => t(o).toLowerCase().includes(query.toLowerCase())).map(option => option === GITHUB
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{t(option)}</button>
+        : option === DATABASE
+        ? <button key={option} onClick={() => { setStep('database'); setQuery(''); setNotice(''); }}><Database size={17} />{t(option)}</button>
         : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div></>}
+    {step === 'database' && <form className="create-review" onSubmit={e => { e.preventDefault(); void createDb(); }}>
+      <fieldset className="create-engines"><legend>{t('create.db.engine')}</legend>
+        {api.DATABASE_ENGINES.map(engine => <label key={engine} className={dbEngine === engine ? 'on' : undefined}><input type="radio" name="create-db-engine" checked={dbEngine === engine} onChange={() => { if (dbName === dbEngine) setDbName(engine); setDbEngine(engine); }} /><Database size={16} aria-hidden />{ENGINE_LABEL[engine]}</label>)}
+      </fieldset>
+      <label>{t('create.serviceName')}<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title={t('create.serviceNameRule')} value={dbName} onChange={e => setDbName(e.target.value)} /></label>
+      <label>{t('create.db.storage')}<select value={dbStorage} onChange={e => setDbStorage(Number(e.target.value))}>{STORAGE_OPTIONS.map(n => <option key={n} value={n}>{n} GiB</option>)}</select></label>
+      <p className="create-hint">{t('create.db.hint')} {t('stack.db.sizeFixed')}</p>
+      <DataLossNotice />
+      <div className="create-submit"><button type="submit" className="btn btn-primary" disabled={submitting || !dbName.trim()}>{t(submitting ? 'create.db.creating' : 'create.db.create')}</button></div>
+    </form>}
     {step === 'repos' && <>
       <p className="diag-muted">{t('repair.authorizationNote')}</p>
       <div className="create-search"><Search size={17} /><input autoFocus aria-label={t('create.searchRepos')} placeholder={t('create.searchRepos')} value={query} onChange={e => setQuery(e.target.value)} /></div>
@@ -209,7 +359,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
               ? <div className="create-empty" role="status"><p>{t('create.loadingRepos')}</p></div>
               : <div className="create-options">{repos.items.map(r => <button key={r.fullName} onClick={() => select(r)}><FolderGit2 size={17} />{r.fullName}{r.isPrivate && <Lock size={13} />}</button>)}{repos.items.length === 0 && <p className="create-empty">{t('create.noRepos')}</p>}</div>}
     </>}
-    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void deploy(); }} className="create-review">
+    {step === 'review' && repo && <form onSubmit={e => { e.preventDefault(); void checkRepo('auto'); }} className="create-review">
       <div className="create-source"><FolderGit2 size={18} />{repo.fullName}</div>
       {!projectId && <label>{t('create.projectName')}<input required maxLength={100} value={projectName} onChange={e => setProjectName(e.target.value)} /></label>}
       <label>{t('create.serviceName')}<input required maxLength={63} pattern={SERVICE_NAME_PATTERN} title={t('create.serviceNameRule')} value={serviceName} onChange={e => setServiceName(e.target.value)} /></label>
@@ -220,8 +370,29 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="radio" name="create-target" disabled={!supported} checked={supported && targetId === tg.id} onChange={() => setTargetId(tg.id)} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />{t('create.autoDeploy')}</label>
       {!selectedTarget && <p className="create-notice" role="status">{t('create.targetsUnavailable')}</p>}
-      <button type="submit" className="btn btn-primary" disabled={submitting || !selectedTarget || !serviceName.trim() || !branch.trim() || (!projectId && !projectName.trim())}>{t(submitting ? 'create.deploying' : 'create.deploy')}</button>
+      <p className="create-hint">{t('create.checkRepoHint')}</p>
+      <div className="create-submit">
+        <button type="button" className="btn btn-ghost" disabled={reviewInvalid} onClick={e => { const form = e.currentTarget.form; if (form?.reportValidity()) void deploy(); }}>{t(submitting ? 'create.deploying' : 'create.skipCheck')}</button>
+        <button type="submit" className="btn btn-primary" disabled={reviewInvalid}>{t('create.checkRepo')}</button>
+      </div>
     </form>}
+    {step === 'analysis' && repo && <div className="create-review">
+      <div className="create-source"><FolderGit2 size={18} />{repo.fullName}<span className="create-source-branch mono">{branch}{analysisRoot(root) ? ` · ${analysisRoot(root)}` : ''}</span></div>
+      <RepoAnalysisStep
+        state={analysis.state}
+        busy={submitting}
+        drafts={drafts}
+        onDrafts={setDrafts}
+        onPrem={selectedTarget?.kind === 'ONPREM'}
+        depDrafts={depDrafts}
+        onDepDrafts={setDepDrafts}
+        onDeploySimple={(id) => void deploy(id)}
+        onFallback={() => void deploy()}
+        onForce={() => void checkRepo('force')}
+        onRetry={() => void checkRepo(analysis.state.phase === 'failed' && analysis.state.analysis?.mode === 'force' ? 'force' : 'auto')}
+        onApply={() => void applyUnits()}
+      />
+    </div>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
   </Dialog>;
 }

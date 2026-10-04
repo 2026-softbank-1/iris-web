@@ -20,11 +20,16 @@ import {
   Trash2,
   ChevronUp,
   Pencil,
+  Link2,
+  ShieldCheck,
+  Database,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
 import { useUI } from '../../components/ui';
+import { VariableIssueList, issueId } from '../../components/VariableIssues';
 import { useI18n, type MessageKey } from '../../i18n';
 import { canDiagnose, canDiagnoseApi } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration, renderMsg } from '../../data/deploymentModel';
@@ -32,13 +37,20 @@ import type { Deployment, Project, Service } from '../../data/mock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
 import { initialVariableValue, mergeUploadedEnvironment, toRaw } from '../../data/variablesModel';
-import { isDeploymentInProgress } from '../../lib/endpoints';
+import { useVariablesValidation } from '../../data/useVariablesValidation';
+import { ApiError } from '../../lib/api';
+import { isDeploymentInProgress, variablesInvalidIssues, type VariableDto, type VariableIssueDto } from '../../lib/endpoints';
+import { DatabaseTab } from './DatabasePane';
+import { DatabaseSettings } from './DatabaseSettings';
+import { ReferenceVariableForm } from './ReferenceVariableForm';
 import { DeploymentRow } from './DeploymentRow';
 import { DiagnosisBrief } from './DiagnosisBrief';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
 import { ServiceConsole } from './ServiceConsole';
 
+const DB_TAB = { id: 'database', label: 'stack.tab.database' as MessageKey };
+const DB_HIDDEN_TABS = ['console'];
 const TABS: { id: string; label: MessageKey }[] = [
   { id: 'deployments', label: 'service.tab.deployments' },
   { id: 'variables', label: 'service.tab.variables' },
@@ -76,6 +88,25 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const { t, lang } = useI18n();
   const navigate = useNavigate();
   const { busy, run } = useRunner();
+  // 배포 요청이 422 VARIABLES_INVALID 로 거절되면 이슈를 탭 위에 보여 준다(Variables 탭에서 고치도록).
+  const [invalid, setInvalid] = useState<VariableIssueDto[] | null>(null);
+  const onInvalid = (e: unknown) => {
+    if (!(e instanceof ApiError) || e.code !== 'VARIABLES_INVALID') return false;
+    setInvalid(variablesInvalidIssues(e));
+    return true;
+  };
+  // 거절되면 같은 요청을 검증 없이 다시 보낼 수 있게 skip 인자를 받는 형태로 기억한다.
+  const [retry, setRetry] = useState<(() => void) | null>(null);
+  const runChecked = (task: (skip: boolean) => Promise<unknown>, message: string, skip = false): Promise<void> => {
+    setInvalid(null);
+    setRetry(null);
+    return run(() => task(skip), message, (e) => {
+      const handled = onInvalid(e);
+      if (handled) setRetry(() => () => void runChecked(task, message, true));
+      return handled;
+    });
+  };
+  const database = service.remote?.kind === 'DATABASE';
   const active = deps.items.find((d) => d.status === 'ACTIVE');
   const building = deps.items.find((d) => d.isActive);
   const history = deps.items.filter((d) => d !== active && d !== building);
@@ -109,7 +140,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                 </span>
               )}
             </>
-          ) : service.domains && (
+          ) : service.domains && !database && (
             <>
               <div className="side-icon dim">
                 <EyeOffIcon size={16} />
@@ -121,7 +152,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-primary" disabled={busy || !!building} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
+          <button type="button" className="btn btn-primary" disabled={busy || !!building} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
             {t('service.deploy')}
           </button>
           {service.runtime && (
@@ -154,6 +185,18 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
       </div>
+
+      {invalid && (
+        <div className="deps-warning var-blocked" role="alert">
+          <div className="deps-warning-head">
+            <div className="deps-warning-icon"><TriangleAlert size={20} /></div>
+            <span>{t('stack.deploy.blocked')}</span>{' '}
+            <Link to={`${base}/variables`}>{t('stack.deploy.openVariables')}</Link>
+          </div>
+          {invalid.length > 0 && <VariableIssueList issues={invalid} services={project.services} />}
+          {retry && <div className="var-blocked-actions"><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={retry}>{t('stack.deploy.skip')}</button><span className="st-muted">{t('stack.deploy.skipHint')}</span></div>}
+        </div>
+      )}
 
       {service.crashedBanner && (
         <div className="deps-warning">
@@ -193,8 +236,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
               d={active}
               to={`${base}/deployment/${active.id}`}
               variant="active"
-              onRedeploy={() => void run(() => deps.redeploy(active.id), t('service.redeployRequested'))}
-              onRestart={canRestart(active, deps.items) ? () => void run(deps.restart, t('service.restartRequested')) : undefined}
+              onRedeploy={() => void runChecked((skip) => deps.redeploy(active.id, skip), t('service.redeployRequested'))}
+              onRestart={canRestart(active, deps.items) ? () => void runChecked((skip) => deps.restart(skip), t('service.restartRequested')) : undefined}
             />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
@@ -214,7 +257,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         <div className="deps-empty">
           <p>{deps.loading ? t('service.loadingDeployments') : (deps.error ?? t(deps.removed ? 'service.removedNoActive' : 'service.noActive'))}</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void run(deps.deploy, t('service.deployRequested'))}>
+            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
               <span>
                 <span>
                   {repoPre}
@@ -250,7 +293,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     variant="history"
                     serviceId={service.id}
                     onDiagnose={canDiagnose(d) ? () => navigate(diagnosisTo(d.id)) : undefined}
-                    onRedeploy={canRedeploy(d) ? () => void run(() => deps.redeploy(d.id), t('service.redeployRequested')) : undefined}
+                    onRedeploy={canRedeploy(d) ? () => void runChecked((skip) => deps.redeploy(d.id, skip), t('service.redeployRequested')) : undefined}
                     onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), t('service.rollbackRequested')) : undefined}
                   />
                 ))}
@@ -266,10 +309,17 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
 /* Variables tab                                                       */
 /* ------------------------------------------------------------------ */
 
-function VariablesTab({ service }: { service: Service }) {
+/** 참조 변수가 가리키는 곳: `postgres.url` (프로젝트에서 사라진 서비스는 #id). */
+const referenceLabel = (project: Project, ref: { serviceId: number; property: string }) =>
+  `← ${project.services.find((s) => s.id === String(ref.serviceId))?.name ?? `#${ref.serviceId}`}.${ref.property}`;
+
+function VariablesTab({ project, service }: { project: Project; service: Service }) {
   const { t } = useI18n();
   const { toast } = useUI();
   const vars = useServiceVariables(service.id);
+  const validation = useVariablesValidation(service.id, vars.variables);
+  const [refForm, setRefForm] = useState<string | null>(null);
+  const [applying, setApplying] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const uploadInput = useRef<HTMLInputElement>(null);
   const [defaultSuggested, setDefaultSuggested] = useState(false);
@@ -320,10 +370,25 @@ function VariablesTab({ service }: { service: Service }) {
     setAdding(false);
   };
 
-  const startEdit = (v: { key: string; value: string }) => {
+  const startEdit = (v: VariableDto) => {
     setProblem(null);
+    if (v.reference) {
+      setAdding(false);
+      setRefForm(v.key);
+      return;
+    }
     setEditing(v.key);
-    setEditValue(v.value);
+    setEditValue(v.value ?? '');
+  };
+
+  /** 검증 제안 한 번에 적용: 그 키를 제안한 서비스 연결 정보를 가리키는 참조 변수로 만든다(있던 값은 대체). */
+  const applySuggestion = async (issue: VariableIssueDto) => {
+    const reference = issue.suggestion?.reference;
+    if (!reference) return;
+    setApplying(issueId(issue));
+    const exists = vars.variables.some((v) => v.key === issue.key);
+    if (await attempt(() => vars.setReference(issue.key, reference, exists))) toast(t('stack.vars.referenced', { key: issue.key }));
+    setApplying(null);
   };
 
   const saveEdit = async () => {
@@ -338,7 +403,7 @@ function VariablesTab({ service }: { service: Service }) {
   const openAdd = (key = '') => {
     setProblem(null); setName(key); setAdding(true);
     const existing = vars.variables.find(v => v.key === key);
-    if (existing) { setAdding(false); setEditing(existing.key); setEditValue(existing.value); setDefaultSuggested(false); return; }
+    if (existing && !existing.reference) { setAdding(false); setEditing(existing.key); setEditValue(existing.value ?? ''); setDefaultSuggested(false); return; }
     setValue(initialVariableValue(key));
     setDefaultSuggested(key === 'SESSION_SECRET');
   };
@@ -369,7 +434,7 @@ function VariablesTab({ service }: { service: Service }) {
 
   // 형식이 틀린 줄이 있으면 서버가 아무것도 바꾸지 않고 422 를 준다.
   const saveRaw = async () => {
-    if (!(await attempt(() => vars.replaceAll(rawText), (e) => describeRawError(e, t)))) return;
+    if (!(await attempt(() => vars.replaceAll(rawText, vars.variables), (e) => describeRawError(e, t)))) return;
     setRaw(false);
     setRawText('');
     toast(t('service.vars.updated'));
@@ -432,7 +497,15 @@ function VariablesTab({ service }: { service: Service }) {
                 <span className="btn-label-muted">{t('service.vars.raw')}</span>
               </span>
             </button>
-            <button type="button" className="btn btn-primary-outline" disabled={!vars.ready} onClick={() => openAdd()}>
+            <button type="button" className="btn btn-ghost" disabled={!vars.ready} onClick={() => { setAdding(false); setProblem(null); setRefForm(''); }}>
+              <div className="btn-icon">
+                <Link2 size={16} />
+              </div>
+              <span>
+                <span className="btn-label-muted">{t('stack.vars.addReference')}</span>
+              </span>
+            </button>
+            <button type="button" className="btn btn-primary-outline" disabled={!vars.ready} onClick={() => { setRefForm(null); openAdd(); }}>
               <div className="btn-icon">
                 <Plus size={16} />
               </div>
@@ -453,6 +526,35 @@ function VariablesTab({ service }: { service: Service }) {
           </p>
         )}
 
+        {vars.ready && !validation.loading && !validation.failed && (
+          validation.issues.length > 0 ? (
+            <section className="var-validation" aria-label={t('stack.vars.validation')}>
+              <h3>{t('stack.vars.validation')} <span className="gate-code">{t('stack.vars.issueCount', { n: validation.issues.length })}</span></h3>
+              <p className="vars-note">{t('stack.vars.validationNote')}</p>
+              <VariableIssueList issues={validation.issues} services={project.services} onApply={(issue) => void applySuggestion(issue)} applying={applying} />
+            </section>
+          ) : (
+            <p className="var-validation-ok"><ShieldCheck size={16} aria-hidden /> {t('stack.vars.validationOk')}</p>
+          )
+        )}
+
+        {refForm !== null && (
+          <ReferenceVariableForm
+            project={project}
+            service={service}
+            existing={vars.variables}
+            initialKey={refForm}
+            busy={vars.busy}
+            onCancel={() => setRefForm(null)}
+            onSave={async (key, reference) => {
+              if (await attempt(() => vars.setReference(key, reference, vars.variables.some((v) => v.key === key)))) {
+                setRefForm(null);
+                toast(t('stack.vars.referenced', { key }));
+              }
+            }}
+          />
+        )}
+
         {adding && (
           <div className="vars-new">
             <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={onNameChange} onKeyDown={onAddKey} />
@@ -470,6 +572,7 @@ function VariablesTab({ service }: { service: Service }) {
           <div className="vars-raw">
             <p className="vars-note">{t('repair.environment.uploadNote')}</p>
             <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
+            {vars.variables.some((v) => v.reference) && <p className="vars-note">{t('stack.vars.rawRefs')}</p>}
             <p className="vars-note warn">{t('service.vars.rawWarn')}</p>
             <textarea className="vars-raw-text mono" autoComplete="off" spellCheck={false} value={rawText} onChange={(e) => setRawText(e.target.value)} onKeyDown={onRawKey} placeholder={'DATABASE_URL="postgres://..."\nLOG_LEVEL=info'} />
             <div className="vars-raw-actions">
@@ -531,22 +634,34 @@ function VariablesTab({ service }: { service: Service }) {
               ) : (
                 <div key={v.key} className="vars-row">
                   <span className="vars-key mono">{v.key}</span>
-                  <span className="vars-val mono">{revealed.includes(v.key) ? v.value || '""' : '*******'}</span>
+                  {v.reference ? (
+                    <span className="vars-val vars-ref" title={v.resolved}>
+                      <Link2 size={13} aria-hidden />
+                      <span className="mono">{referenceLabel(project, v.reference)}</span>
+                      {v.resolved && <span className="vars-ref-preview mono">{v.resolved}</span>}
+                    </span>
+                  ) : (
+                    <span className="vars-val mono">{revealed.includes(v.key) ? v.value || '""' : '*******'}</span>
+                  )}
                   <div className="vars-row-actions">
-                    <button type="button" className="icon-btn" aria-label={t('service.vars.reveal')} onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
-                      {revealed.includes(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label={t('service.vars.copy')}
-                      onClick={() => {
-                        navigator.clipboard?.writeText(v.value);
-                        toast(t('service.vars.copied', { key: v.key }));
-                      }}
-                    >
-                      <Copy size={14} />
-                    </button>
+                    {!v.reference && (
+                      <button type="button" className="icon-btn" aria-label={t('service.vars.reveal')} onClick={() => setRevealed((r) => (r.includes(v.key) ? r.filter((k) => k !== v.key) : [...r, v.key]))}>
+                        {revealed.includes(v.key) ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    )}
+                    {!v.reference && (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={t('service.vars.copy')}
+                        onClick={() => {
+                          navigator.clipboard?.writeText(v.value ?? '');
+                          toast(t('service.vars.copied', { key: v.key }));
+                        }}
+                      >
+                        <Copy size={14} />
+                      </button>
+                    )}
                     <button type="button" className="icon-btn" aria-label={t('service.vars.edit')} disabled={vars.busy} onClick={() => startEdit(v)}>
                       <Pencil size={14} />
                     </button>
@@ -593,11 +708,14 @@ function VariablesTab({ service }: { service: Service }) {
 export function ServicePane({ project, service, tab, stacked, deps }: { project: Project; service: Service; tab?: string; stacked: boolean; deps: DeploymentsApi }) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const current = TABS.some((x) => x.id === tab) ? tab! : 'deployments';
+  const database = service.remote?.kind === 'DATABASE';
+  // 관리형 DB 는 연결 정보 탭이 첫 탭이고, 접속할 콘솔(앱 셸)은 없다.
+  const tabs = database ? [DB_TAB, ...TABS.filter((x) => !DB_HIDDEN_TABS.includes(x.id))] : TABS;
+  const current = tabs.some((x) => x.id === tab) ? tab! : database ? 'database' : 'deployments';
   const base = `/project/${project.id}/service/${service.id}`;
 
   return (
-    <div className={`pane service-pane${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === 'deployments' ? '' : `/${current}`))}>
+    <div className={`pane service-pane${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === (database ? 'database' : 'deployments') ? '' : `/${current}`))}>
       <div className="pane-inner">
         <div className="pane-head">
           <div className="pane-title-row">
@@ -605,7 +723,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
               <div className="pane-title-group">
                 <button type="button" className="pane-svc-icon" aria-label={t('service.icon')}>
                   <div>
-                    <RepoIcon size={32} />
+                    {database ? <Database size={32} aria-hidden /> : <RepoIcon size={32} />}
                   </div>
                 </button>
                 <h1 className="pane-title">
@@ -613,6 +731,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
                     <span title={service.name}>{service.name}</span>
                   </button>
                 </h1>
+                <AnalysisGateBadge gate={service.remote?.analysisGate} />
               </div>
             </div>
             <div className="pane-title-right">
@@ -624,8 +743,8 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
             </div>
           </div>
           <div className="pane-tabs">
-            {TABS.map((x) => (
-              <Link key={x.id} to={x.id === 'deployments' ? base : `${base}/${x.id}`} className={`pane-tab${current === x.id ? ' active' : ''}`}>
+            {tabs.map((x) => (
+              <Link key={x.id} to={x.id === (database ? 'database' : 'deployments') ? base : `${base}/${x.id}`} className={`pane-tab${current === x.id ? ' active' : ''}`}>
                 <div>{t(x.label)}</div>
                 {current === x.id && <div className="pane-tab-line" />}
               </Link>
@@ -633,12 +752,13 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
           </div>
         </div>
         <div className="pane-content">
-          <div className={`pane-content-inner${current === 'settings' ? ' flush' : ''}`}>
+          <div className={`pane-content-inner${current === 'settings' && !database ? ' flush' : ''}`}>
+            {current === 'database' && <DatabaseTab project={project} service={service} />}
             {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
-            {current === 'variables' && <VariablesTab key={service.id} service={service} />}
+            {current === 'variables' && <VariablesTab key={service.id} project={project} service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
             {current === 'console' && <ServiceConsole service={service} />}
-            {current === 'settings' && <ServiceSettings project={project} service={service} onScaled={() => void deps.reload()} />}
+            {current === 'settings' && (database ? <DatabaseSettings project={project} service={service} /> : <ServiceSettings project={project} service={service} onScaled={() => void deps.reload()} />)}
           </div>
         </div>
       </div>

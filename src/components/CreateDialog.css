@@ -3,3 +3,82 @@
 .create-review select{height:48px}
 .create-notice{margin-top:12px}
 .create-review .create-checks label.create-unsupported{opacity:.6;cursor:not-allowed}
+
+/* 검토 단계 하단: 레포 구성 확인(기본) + 확인 없이 배포 */
+.create-hint{margin:0;font-size:12px;line-height:1.5;color:var(--fg-subtle)}
+.create-submit{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.create-submit .btn-primary{min-width:140px}
+.create-back:disabled{opacity:.5;cursor:not-allowed}
+.create-source-branch{margin-left:auto;font-size:12px;color:var(--fg-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.create-dialog.wide{width:min(980px,calc(100vw - 32px))}
+
+/* 레포 구성 확인(분석 게이트) */
+.gate-pending{display:flex;align-items:center;gap:14px;padding:20px;border:1px solid var(--border);border-radius:10px;background:var(--bg-2)}
+.gate-pending h3{margin:0 0 4px;font-size:15px}
+.gate-pending p{margin:0;font-size:13px;color:var(--fg-subtle)}
+.gate-spinner{flex:none;width:22px;height:22px;border-radius:50%;border:2.5px solid var(--border-strong);border-top-color:var(--primary);animation:gate-spin .9s linear infinite}
+@keyframes gate-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.gate-spinner{animation-duration:2.4s}}
+.gate-result{display:grid;gap:14px}
+.gate-banner{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:10px;border:1px solid var(--border)}
+.gate-banner svg{flex:none;margin-top:2px}
+.gate-banner h3{margin:0 0 4px;font-size:15px;line-height:1.4}
+.gate-banner p{margin:0;font-size:13px;line-height:1.5;color:var(--fg-muted)}
+.gate-banner.skip{background:var(--green-bg);border-color:var(--green-bg-border)}
+.gate-banner.skip svg,.gate-banner.skip h3{color:var(--green-text)}
+.gate-banner.analyze{background:var(--primary-bg);border-color:var(--primary-border)}
+.gate-banner.analyze svg,.gate-banner.analyze h3{color:var(--primary-text)}
+.gate-banner.failed{background:var(--red-bg);border-color:var(--red-line)}
+.gate-banner.failed svg,.gate-banner.failed h3{color:var(--red-text)}
+.gate-detail{margin-top:6px!important;font-size:12px!important;color:var(--fg-subtle)!important;word-break:break-word}
+.gate-muted{margin:0;font-size:12px;color:var(--fg-subtle)}
+.gate-facts{display:flex;flex-wrap:wrap;gap:8px 24px;margin:0;font-size:13px}
+.gate-facts div{display:flex;gap:8px}
+.gate-facts dt{color:var(--fg-subtle)}
+.gate-facts dd{margin:0}
+.gate-reasons{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px;line-height:1.5}
+.gate-reasons li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.gate-code{display:inline-block;padding:0 7px;border-radius:999px;background:var(--bg-4);color:var(--fg-muted);font-family:var(--font-mono);font-size:11px;line-height:18px}
+.gate-paths{font-size:12px;color:var(--fg-faint);word-break:break-all}
+.gate-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.gate-actions .btn{height:auto;min-height:34px;white-space:normal}
+
+/* 배포 단위 표: 넓으면 한 줄짜리 행, 좁으면 칸이 2열로 접힌다 */
+.gate-units{display:grid;gap:8px}
+.gate-unit-head{display:none}
+.gate-unit{display:grid;grid-template-columns:20px minmax(0,1fr) minmax(0,1fr);grid-template-areas:"check name name" ". root builder" ". dockerfile port" ". meta meta";gap:8px 10px;align-items:end;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)}
+.gate-unit.off{background:var(--bg-2)}
+.gate-unit.off .gate-cell{opacity:.55}
+.gate-unit-check{grid-area:check;align-self:center;padding-top:18px}
+.create-dialog .gate-unit-check input{width:16px;height:16px;margin:0;padding:0;accent-color:var(--primary)}
+.gate-cell{display:grid;gap:4px;min-width:0;font-size:12px}
+.gate-cell-name{grid-area:name}
+.gate-cell-root{grid-area:root}
+.gate-cell-builder{grid-area:builder}
+.gate-cell-dockerfile{grid-area:dockerfile}
+.gate-cell-port{grid-area:port}
+.gate-cell-label{color:var(--fg-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.create-dialog .gate-unit input,.create-dialog .gate-unit select{padding:7px 9px;font-size:13px;height:34px;min-width:0}
+.create-dialog .gate-unit input[aria-invalid=true]{border-color:var(--red)}
+.gate-unit-meta{grid-area:meta;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:12px;color:var(--fg-muted)}
+.gate-meta-label{color:var(--fg-faint)}
+.gate-role{padding:0 8px;border-radius:999px;background:var(--bg-4);font-size:11px;line-height:18px;color:var(--fg-muted)}
+.gate-role.role-web{background:var(--primary-bg);color:var(--primary-text)}
+.gate-role.role-api{background:var(--green-bg);color:var(--green-text)}
+@media (min-width:820px){
+  .gate-unit-head,.gate-unit{grid-template-columns:20px minmax(130px,1.3fr) minmax(110px,1fr) 120px minmax(110px,1fr) 84px}
+  .gate-unit-head{display:grid;gap:10px;padding:0 13px;font-size:12px;color:var(--fg-subtle)}
+  .gate-unit{grid-template-areas:"check name root builder dockerfile port" ". meta meta meta meta meta";align-items:center}
+  .gate-unit-check{padding-top:0}
+  .gate-unit .gate-cell-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+}
+.gate-questions h4{margin:0 0 6px;font-size:13px}
+.gate-questions ul{margin:0;padding-left:16px;display:grid;gap:4px;font-size:13px;line-height:1.5;color:var(--fg-muted)}
+.gate-questions .gate-code{margin-right:6px}
+
+/* 데이터베이스 추가 */
+.create-engines{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:0;border:0;font-size:13px}
+.create-engines legend{padding:0;margin-bottom:8px}
+.create-review .create-engines label{display:flex;align-items:center;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;cursor:pointer;background:var(--bg)}
+.create-review .create-engines label.on{border-color:var(--primary);background:var(--primary-bg)}
+.create-dialog .create-engines input{width:auto;padding:0;margin:0;accent-color:var(--primary)}

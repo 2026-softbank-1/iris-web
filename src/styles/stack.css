@@ -1,0 +1,634 @@
+/* ------------------------------------------------------------------
+   멀티 이미지 스택: 캔버스 그룹·단계 진행, 관리형 DB, 참조 변수, 검증
+------------------------------------------------------------------- */
+
+/* 캔버스 그룹 상자 ------------------------------------------------- */
+.stack-group {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 16px 20px 0;
+  background: var(--bg-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: 16px;
+  pointer-events: none;
+}
+.stack-head,
+.stack-phases,
+.stack-pending {
+  pointer-events: auto;
+}
+.stack-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stack-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.stack-repo {
+  min-width: 0;
+}
+.stack-count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-subtle);
+}
+.stack-redeploy {
+  flex: none;
+  gap: 6px;
+}
+.spin {
+  animation: gate-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 2.4s;
+  }
+}
+.stack-phases {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.stack-phase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+.stack-phase-arrow {
+  flex: none;
+  color: var(--fg-faint);
+}
+.stack-phase-no {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg-5);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.stack-phase-names {
+  max-width: 180px;
+}
+.stack-phase.done .stack-phase-no {
+  background: var(--green-bg);
+  color: var(--green-text);
+}
+.stack-phase.active .stack-phase-no {
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  box-shadow: 0 0 0 2px var(--primary-border);
+}
+.stack-phase.active {
+  color: var(--fg);
+}
+.stack-phase.failed .stack-phase-no {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+.stack-phase.failed {
+  color: var(--red-text);
+}
+.stack-phase.held .stack-phase-no {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+.stack-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--primary-border);
+  border-radius: 10px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font-size: 13px;
+}
+.stack-pending span {
+  flex: 1;
+  min-width: 0;
+}
+.stack-pending svg {
+  flex: none;
+}
+
+/* 서비스 노드: 배포 순서·보류 사유 */
+.svc-node-top {
+  position: relative;
+}
+.svc-step-no {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-5);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.svc-node-held,
+.svc-node-waiting {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+.svc-node-held {
+  color: var(--yellow);
+}
+.svc-node-waiting {
+  color: var(--fg-subtle);
+}
+.react-flow__edge-path {
+  stroke: var(--fg-subtle);
+}
+
+/* 관리형 DB 탭 ----------------------------------------------------- */
+.db-tab,
+.db-settings {
+  display: grid;
+  gap: 24px;
+  padding: 8px 0 24px;
+}
+.db-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.db-head > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.db-head h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+.db-head p {
+  margin: 0;
+}
+.db-head-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+.db-facts {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+.db-facts dt {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+.db-facts dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.db-copy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-3);
+}
+.db-copy span {
+  flex: 1;
+  min-width: 0;
+}
+.db-facts .db-note {
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.db-connect h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.db-connect p {
+  margin: 0 0 8px;
+}
+.db-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.db-props li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.db-warning {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--yellow-bar);
+  border-radius: 10px;
+  background: var(--yellow-bg);
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.db-warning > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--yellow);
+}
+.db-warning h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.db-warning ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* 참조 변수 · 검증 -------------------------------------------------- */
+.vars-ref {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.vars-ref svg {
+  flex: none;
+  color: var(--primary-text);
+}
+.vars-ref > .mono {
+  flex: none;
+  color: var(--fg);
+}
+.vars-ref-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-faint);
+}
+.vars-ref-form {
+  grid-template-columns: 1.2fr 1.2fr 0.8fr auto 34px;
+}
+.vars-ref-form .ref-form-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.var-validation {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.var-validation h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.var-validation .vars-note {
+  margin-bottom: 10px;
+}
+.var-validation-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--green-text);
+}
+.var-issues {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.var-issue {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.var-issue.error {
+  border-color: var(--red-line);
+  background: var(--red-bg);
+}
+.var-issue.warning {
+  border-color: var(--yellow-bar);
+  background: var(--yellow-bg);
+}
+.var-issue-icon {
+  flex: none;
+  margin-top: 1px;
+}
+.var-issue.error .var-issue-icon {
+  color: var(--red-text);
+}
+.var-issue.warning .var-issue-icon {
+  color: var(--yellow);
+}
+.var-issue-body {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.var-issue-body p {
+  margin: 0;
+}
+.var-issue-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.var-issue-key {
+  font-weight: 600;
+}
+.var-issue-msg {
+  color: var(--fg-subtle);
+  overflow-wrap: anywhere;
+}
+.var-issue-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  color: var(--primary-text);
+}
+.var-blocked .var-issues {
+  margin-top: 10px;
+}
+
+/* 변경 감지 diff 다이얼로그 ------------------------------------------ */
+.pending-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.pending-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pending-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+}
+.pending-changes {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 16px;
+  padding: 0;
+  list-style: none;
+}
+.pending-change {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pending-change > svg {
+  flex: none;
+  margin-top: 4px;
+}
+.pending-change p {
+  margin: 0;
+}
+.pending-change.add > svg {
+  color: var(--green-text);
+}
+.pending-change.remove > svg {
+  color: var(--red-text);
+}
+.pending-change.change > svg {
+  color: var(--primary-text);
+}
+.pending-diff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.pending-diff del {
+  color: var(--red-text);
+}
+.pending-diff ins {
+  color: var(--green-text);
+  text-decoration: none;
+}
+
+/* apply 단계: DB 자동 생성·환경 연결·별칭 ------------------------------- */
+.gate-deps {
+  display: grid;
+  gap: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--fg-2);
+}
+.gate-deps h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+.gate-deps svg {
+  color: var(--primary-text);
+}
+.gate-dep-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gate-dep {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.gate-dep.on {
+  border-color: var(--primary-border);
+}
+.gate-dep-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.create-dialog .gate-dep-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--primary);
+}
+.gate-dep-state {
+  margin: 4px 0 0 26px !important;
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+.gate-dep-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  margin: 8px 0 0 26px;
+}
+.gate-dep-fields .gate-cell {
+  flex: 1;
+  min-width: 160px;
+}
+.gate-dep-spec {
+  font-size: 12px;
+}
+.gate-map {
+  display: grid;
+  gap: 4px;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.gate-map li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.gate-map svg {
+  flex: none;
+  color: var(--fg-faint);
+}
+.gate-map-arrow {
+  color: var(--fg-subtle);
+}
+.gate-code.auto {
+  background: var(--green-bg);
+  color: var(--green-text);
+}
+.gate-code.manual {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+@media (max-width: 640px) {
+  .vars-ref-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .vars-ref-form > input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.var-blocked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.gate-init {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0 26px;
+  font-size: 12px;
+}
+.gate-init p {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.gate-init svg {
+  flex: none;
+  margin-top: 3px;
+}
+.gate-init .warn {
+  color: var(--yellow);
+}
+.db-init h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.db-init p {
+  margin: 0 0 8px;
+}
+.db-init ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.db-init li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-3);
+}
+.db-init li .st-muted {
+  font-size: 12px;
+}
