@@ -105,9 +105,8 @@ function Reasons({ reasons }: { reasons: api.AnalysisReasonDto[] }) {
         const key = REASON_KEYS[r.code];
         return (
           <li key={`${r.code}-${i}`}>
-            <span>{key ? t(key, { n: r.paths?.length ?? 0 }) : r.code}</span>
+            <span>{key ? t(key, { n: r.paths?.length ?? 0 }) : r.message}</span>
             {r.paths && r.paths.length > 0 && <span className="gate-paths mono">{r.paths.join(', ')}</span>}
-            {key && <span className="gate-code-faint mono">{r.code}</span>}
           </li>
         );
       })}
@@ -273,8 +272,8 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
   const autoKeys = [...new Set(selectedUnits.flatMap((u) => u.env.filter((e) => e.binding && targetOf(e.binding.targetId)?.auto).map((e) => e.key)))];
   const needInput = [...new Set(selectedUnits.flatMap((u) => u.env.filter((e) => e.required && !e.secretId && !(e.binding && targetOf(e.binding.targetId)?.auto)).map((e) => e.key)))];
   const autoParts = [
-    secrets.length > 0 && t('create.gate.autoSecrets', { n: secrets.length }),
-    autoKeys.length > 0 && t('create.gate.autoLinked', { n: autoKeys.length }),
+    secrets.length > 0 && t(secrets.length === 1 ? 'create.gate.autoSecretsOne' : 'create.gate.autoSecrets', { n: secrets.length }),
+    autoKeys.length > 0 && t(autoKeys.length === 1 ? 'create.gate.autoLinkedOne' : 'create.gate.autoLinked', { n: autoKeys.length }),
   ].filter(Boolean);
   const portLabel = (d: UnitDraft) => (d.port ? `:${d.port}` : '');
   const builderLabel = (b: api.Builder) => (b === 'dockerfile' ? 'Dockerfile' : 'Railpack');
@@ -284,7 +283,7 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
       <div className="gate-banner analyze">
         <Layers size={18} />
         <div>
-          <h3>{unsupported ? t('create.gate.unsupportedTitle') : provisioned.length > 0 ? t('create.gate.summary', { n: chosen, db: provisioned.length }) : t('create.gate.summaryNoDb', { n: chosen })}</h3>
+          <h3>{unsupported ? t('create.gate.unsupportedTitle') : provisioned.length > 0 ? t('create.gate.summary', { svc: t(chosen === 1 ? 'create.gate.nSvcOne' : 'create.gate.nSvc', { n: chosen }), db: t(provisioned.length === 1 ? 'create.gate.nDbOne' : 'create.gate.nDb', { n: provisioned.length }) }) : t('create.gate.summaryNoDb', { svc: t(chosen === 1 ? 'create.gate.nSvcOne' : 'create.gate.nSvc', { n: chosen }) })}</h3>
         </div>
         {unsupported && <InfoTip text={t('create.gate.unsupportedBody')} />}
       </div>
@@ -514,7 +513,7 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
         <button type="button" className={drafts.length > 0 ? 'gate-link' : 'btn btn-primary'} disabled={busy} onClick={onFallback}>{t('create.gate.fallback')}</button>
         {drafts.length > 0 && (
           <button type="button" className="btn btn-primary" disabled={busy || chosen === 0} onClick={onApply}>
-            {t(busy ? 'create.gate.applying' : 'create.gate.apply', { n: chosen })}
+            {t(busy ? 'create.gate.applying' : chosen === 1 ? 'create.gate.applyOne' : 'create.gate.apply', { n: chosen })}
           </button>
         )}
       </div>
