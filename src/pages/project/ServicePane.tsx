@@ -6,13 +6,12 @@ import {
   CircleCheck,
   CircleCheckBig,
   Copy,
-  MapPin,
   Globe,
   EyeOff as EyeOffIcon,
   GalleryHorizontalEnd,
+  Minus,
   Plus,
   Braces,
-  CornerRightDown,
   TriangleAlert,
   X,
   Eye,
@@ -33,14 +32,14 @@ import { VariableIssueList, issueId } from '../../components/VariableIssues';
 import { useI18n, type MessageKey } from '../../i18n';
 import { canDiagnose, canDiagnoseApi } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration, renderMsg } from '../../data/deploymentModel';
-import type { Deployment, Project, Service } from '../../data/mock';
+import type { Project, Service } from '../../data/mock';
 import { useDeployBlock } from '../../data/useDeployBlock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
 import { initialVariableValue, mergeUploadedEnvironment, toRaw } from '../../data/variablesModel';
 import { useVariablesValidation } from '../../data/useVariablesValidation';
 import { ApiError } from '../../lib/api';
-import { isDeploymentInProgress, variablesInvalidIssues, type VariableDto, type VariableIssueDto } from '../../lib/endpoints';
+import { isDeploymentInProgress, variablesInvalidIssues, type DeploymentDetailDto, type VariableDto, type VariableIssueDto } from '../../lib/endpoints';
 import { DatabaseTab } from './DatabasePane';
 import { DatabaseSettings } from './DatabaseSettings';
 import { ReferenceVariableForm } from './ReferenceVariableForm';
@@ -66,11 +65,18 @@ const TABS: { id: string; label: MessageKey }[] = [
 /* ------------------------------------------------------------------ */
 
 /** 배포 요청의 단계(대기·빌드·배포)와 단계별 소요 시간. 상세 API 에서 받는다. */
-function SuccessSteps({ service, deployment }: { service: Service; deployment: Deployment }) {
-  const { t } = useI18n();
-  const { detail, error } = useDeploymentDetail(service.id, deployment.id);
+/** 배포 단계별 소요 시간. 상세는 탭을 열 때 미리 받아 두고, 그래도 아직이면 같은 높이의 자리만 잡아 둔다(펼칠 때 깜빡이거나 밀리지 않게). */
+function SuccessSteps({ detail, error }: { detail: DeploymentDetailDto | null; error: string | null }) {
   if (error) return <p className="st-muted">{error}</p>;
-  if (!detail) return <p className="st-muted">{t('service.loading')}</p>;
+  if (!detail) {
+    return (
+      <div className="dep-steps" aria-busy="true">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="dep-step skeleton" />
+        ))}
+      </div>
+    );
+  }
   // 마지막 단계(성공·실패 등)는 끝난 상태라서 소요 시간이 없다. 진행하는 단계만 보여준다.
   const stages = detail.stages.filter((stage) => isDeploymentInProgress(stage.status));
   return (
@@ -113,8 +119,9 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const building = deps.items.find((d) => d.isActive);
   const history = deps.items.filter((d) => d !== active && d !== building);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [hideSkipped, setHideSkipped] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
+  // 펼치기 전에 미리 받아 둔다.
+  const activeDetail = useDeploymentDetail(service.id, active?.id);
   const base = `/project/${project.id}/service/${service.id}`;
   const [repoPre, repoPost] = t('service.deployRepo').split('{repo}');
   // 접속되는 주소가 없으면(처음 배포하기 전, 서비스를 내린 뒤) 주소는 있어도 앱이 응답하지 않아서 링크로 열지 않는다.
@@ -156,25 +163,12 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className={`btn btn-primary${deployBlock.blocked ? ' deploy-blocked' : ''}`} disabled={busy || !!building || deployBlock.blocked} title={deployBlock.reason} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
-            {t('service.deploy')}
-          </button>
           {service.runtime && (
             <div className="deps-meta">
               <span className="deps-runtime">
                 <RuntimeIcon size={16} />
                 {service.runtime}
               </span>
-            </div>
-          )}
-          {service.region && (
-            <div className="deps-meta">
-              <div className="side-icon">
-                <MapPin size={16} />
-              </div>
-              <Link to={`${base}/settings`} title={service.region}>
-                {service.region}
-              </Link>
             </div>
           )}
           {service.replicas > 0 && (
@@ -260,7 +254,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                 </div>
                 <div className="side-icon deps-success-chev">{stepsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
               </button>
-              {stepsOpen && <SuccessSteps service={service} deployment={active} />}
+              {stepsOpen && <SuccessSteps detail={activeDetail.detail} error={activeDetail.error} />}
             </div>
           </div>
         </div>
@@ -288,21 +282,16 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
               <div className="tool-icon">{historyOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}</div>
               <p>{t('service.history')}</p>
             </button>
-            <button type="button" className="deps-hide-skipped" onClick={() => setHideSkipped((v) => !v)}>
-              {hideSkipped ? t('service.showSkipped') : t('service.hideSkipped')}
-            </button>
           </div>
           {historyOpen && (
             <div role="region" aria-label={t('service.history')} className="deps-history-list">
               {history
-                .filter((d) => !hideSkipped || d.status !== 'SKIPPED')
                 .map((d) => (
                   <DeploymentRow
                     key={d.id}
                     d={d}
                     to={`${base}/deployment/${d.id}`}
                     variant="history"
-                    serviceId={service.id}
                     onDiagnose={canDiagnose(d) ? () => navigate(diagnosisTo(d.id)) : undefined}
                     onRedeploy={canRedeploy(d) ? () => void runChecked((skip) => deps.redeploy(d.id, skip), t('service.redeployRequested')) : undefined}
                     onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), t('service.rollbackRequested')) : undefined}
@@ -428,17 +417,19 @@ function VariablesTab({ project, service }: { project: Project; service: Service
     else { setRaw(true); setRawText(toRaw(vars.variables)); }
     const next = new URLSearchParams(searchParams); next.delete('action'); next.delete('keys'); setSearchParams(next, { replace: true });
   }, [vars.ready, searchParams]);
+  const [fromUpload, setFromUpload] = useState(false);
   const uploadEnvironment = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = '';
     if (!file) return;
     try {
       if (file.size > 64 * 1024) throw new Error('large');
       const text = await file.text();
-      setRawText(mergeUploadedEnvironment(vars.variables, text)); setRaw(true); setProblem(null);
+      setRawText(mergeUploadedEnvironment(vars.variables, text)); setFromUpload(true); setRaw(true); setProblem(null);
     } catch { setProblem(t('repair.environment.fileError')); }
   };
 
   const openRaw = () => {
+    setFromUpload(false);
     setProblem(null);
     setRawText(toRaw(vars.variables));
     setRaw(true);
@@ -493,15 +484,7 @@ function VariablesTab({ project, service }: { project: Project; service: Service
             <div>{t('service.vars.title')}</div>
           </div>
           <div className="vars-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => toast(t('service.vars.sharedToast'))}>
-              <div className="btn-icon">
-                <CornerRightDown size={16} />
-              </div>
-              <span>
-                <span className="btn-label-muted">{t('service.vars.shared')}</span>
-              </span>
-            </button>
-            <button type="button" className="btn btn-ghost" disabled={!vars.ready} onClick={openRaw}>
+            <button type="button" className={`btn btn-ghost${raw ? ' on' : ''}`} aria-pressed={raw} disabled={!vars.ready} onClick={raw ? closeRaw : openRaw}>
               <div className="btn-icon">
                 <Braces size={16} />
               </div>
@@ -530,7 +513,7 @@ function VariablesTab({ project, service }: { project: Project; service: Service
       <div className="vars-body">
         <p className="vars-note">{t('service.vars.note')}</p>
         <input ref={uploadInput} type="file" hidden aria-label={t('repair.environment.upload')} onChange={e => void uploadEnvironment(e)} />
-        <button className="btn btn-outline btn-sm" disabled={!vars.ready || vars.busy} onClick={() => uploadInput.current?.click()}>{t('repair.environment.upload')}</button>
+        <button className="btn btn-outline btn-sm vars-upload" disabled={!vars.ready || vars.busy} onClick={() => uploadInput.current?.click()}>{t('repair.environment.upload')}</button>
         {adding && defaultSuggested && <p className="vars-note">{t('repair.environment.defaultNote')}</p>}
         {problem && (
           <p className="vars-note error" role="alert">
@@ -571,18 +554,19 @@ function VariablesTab({ project, service }: { project: Project; service: Service
           <div className="vars-new">
             <input className="input mono" autoFocus placeholder="VARIABLE_NAME" value={name} onChange={onNameChange} onKeyDown={onAddKey} />
             <input type="password" className="input mono" placeholder={t('service.vars.valuePh')} autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onAddKey} />
-            <button type="button" className="btn btn-primary" onClick={() => void add()} disabled={!name.trim() || vars.busy}>
-              {t('service.vars.add')}
+            <button type="button" className="btn btn-primary btn-icon-only" aria-label={t('service.vars.add')} title={t('service.vars.add')} onClick={() => void add()} disabled={!name.trim() || vars.busy}>
+              <Plus size={16} />
             </button>
-            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} onClick={closeAdd}>
-              <X size={16} />
+            <button type="button" className="btn btn-outline btn-icon-only" aria-label={t('service.vars.cancel')} title={t('service.vars.cancel')} onClick={closeAdd}>
+              <Minus size={16} />
             </button>
           </div>
         )}
 
         {raw ? (
           <div className="vars-raw">
-            <p className="vars-note">{t('repair.environment.uploadNote')}</p>
+            {/* 파일에서 불러왔을 때만: 기존 변수와 합친 내용이라는 안내 */}
+            {fromUpload && <p className="vars-note">{t('repair.environment.uploadNote')}</p>}
             <p className="vars-raw-hint">{t('service.vars.rawHint')}</p>
             {vars.variables.some((v) => v.reference) && <p className="vars-note">{t('stack.vars.rawRefs')}</p>}
             <p className="vars-note warn">{t('service.vars.rawWarn')}</p>
@@ -717,9 +701,8 @@ function VariablesTab({ project, service }: { project: Project; service: Service
 /* Pane                                                                */
 /* ------------------------------------------------------------------ */
 
-export function ServicePane({ project, service, tab, stacked, deps }: { project: Project; service: Service; tab?: string; stacked: boolean; deps: DeploymentsApi }) {
+export function ServicePane({ project, service, tab, deps }: { project: Project; service: Service; tab?: string; deps: DeploymentsApi }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const database = service.remote?.kind === 'DATABASE';
   // 관리형 DB 는 연결 정보 탭이 첫 탭이고, 접속할 콘솔(앱 셸)은 없다.
   const tabs = database ? [DB_TAB, ...TABS.filter((x) => !DB_HIDDEN_TABS.includes(x.id))] : TABS;
@@ -727,7 +710,7 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
   const base = `/project/${project.id}/service/${service.id}`;
 
   return (
-    <div className={`pane service-pane${stacked ? ' stacked' : ''}`} onClick={() => stacked && navigate(base + (current === (database ? 'database' : 'deployments') ? '' : `/${current}`))}>
+    <div className="pane service-pane">
       <div className="pane-inner">
         <div className="pane-head">
           <div className="pane-title-row">

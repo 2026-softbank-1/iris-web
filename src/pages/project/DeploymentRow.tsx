@@ -1,13 +1,11 @@
-import { Ellipsis, EllipsisVertical, Copy, RefreshCw, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
+import { Ellipsis, EllipsisVertical, RefreshCw, RotateCcw, Sparkles, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SourceBadge } from '../../components/brand';
-import { Avatar, Popover, usePopover, useUI } from '../../components/ui';
+import { Avatar, Popover, usePopover } from '../../components/ui';
 import { deploymentLabel } from '../../data/deploymentModel';
 import { strategyLabel } from '../../data/deploymentStrategyModel';
 import { fmtKstFull, type Deployment } from '../../data/mock';
 import { formatAgo, useI18n } from '../../i18n';
-import { canDiagnose } from '../../data/diagnosisModel';
-import { FailedRepairButton } from './FailedRepairButton';
 
 export function AuthorAvatar({ d }: { d: Deployment }) {
   return (
@@ -24,7 +22,6 @@ export function DeploymentActions({
   size = 20,
   className = 'dep-menu-btn',
   horizontal = false,
-  deployment,
   onDiagnose,
   onRedeploy,
   onRestart,
@@ -34,7 +31,6 @@ export function DeploymentActions({
   size?: number;
   className?: string;
   horizontal?: boolean;
-  deployment: Deployment;
   /** 실패한 배포의 AI 진단 화면을 연다. 진단할 수 있는 배포(canDiagnose)에서만 준다. */
   onDiagnose?: () => void;
   onRedeploy?: () => void;
@@ -46,8 +42,9 @@ export function DeploymentActions({
   deployBlockedReason?: string;
 }) {
   const pop = usePopover();
-  const { toast } = useUI();
   const { t } = useI18n();
+  // 고를 수 있는 동작이 없으면 빈 메뉴가 열리지 않게 ⋮ 버튼도 숨긴다.
+  if (!onDiagnose && !onRedeploy && !onRestart && !onRollback) return null;
   return (
     <>
       <button
@@ -125,24 +122,12 @@ export function DeploymentActions({
             <Undo2 size={16} className="menu-icon" /> {t('service.row.rollback')}
           </button>
         )}
-        <button
-          type="button"
-          className="menu-item"
-          onClick={(e) => {
-            e.stopPropagation();
-            pop.close();
-            navigator.clipboard?.writeText(deployment.id);
-            toast(t('service.dp.idCopied'));
-          }}
-        >
-          <Copy size={16} className="menu-icon" /> {t('service.row.copyId')}
-        </button>
       </Popover>
     </>
   );
 }
 
-export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeploy, onRestart, onRollback, deployBlockedReason }: { d: Deployment; to: string; variant: 'active' | 'history'; serviceId?: string; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void; deployBlockedReason?: string }) {
+export function DeploymentRow({ d, to, variant, onDiagnose, onRedeploy, onRestart, onRollback, deployBlockedReason }: { d: Deployment; to: string; variant: 'active' | 'history'; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void; deployBlockedReason?: string }) {
   const { t, lang } = useI18n();
   const status = d.status.toLowerCase();
   return (
@@ -166,13 +151,7 @@ export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeplo
             </div>
           </div>
           <div className="dep-actions">
-            {serviceId && canDiagnose(d) && <FailedRepairButton serviceId={serviceId} deploymentId={d.id} to={`${to}/diagnosis`} />}
-            <DeploymentActions deployment={d} onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} deployBlockedReason={deployBlockedReason} />
-            <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
-              <span className={`dep-viewlogs ${variant}`}>
-                <span>{t('service.row.viewDetails')}</span>
-              </span>
-            </div>
+            <DeploymentActions onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} deployBlockedReason={deployBlockedReason} />
           </div>
         </div>
       </div>

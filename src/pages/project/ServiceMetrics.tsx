@@ -1,4 +1,4 @@
-import { Clock, LayoutGrid, Pause, Play, StretchHorizontal } from 'lucide-react';
+import { Clock, LayoutGrid, StretchHorizontal } from 'lucide-react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Popover, usePopover } from '../../components/ui';
 import {
@@ -401,15 +401,14 @@ export function ServiceMetrics({ service }: { service: Service }) {
   const [layout, setLayout] = useState<'grid' | 'rows'>('grid');
   const rangeLabel = (label: string) => (RANGE_KEYS[label] ? t(RANGE_KEYS[label]) : label);
   const [range, setRange] = useState(DEFAULT_RANGE);
-  const [live, setLive] = useState(true);
   const [sum, setSum] = useState({ cpu: true, memory: true });
   const [replicas, setReplicas] = useState({ cpu: false, memory: false });
   const rangePop = usePopover();
 
   // Pod 별 조회는 Replicas 가 켜진 카드가 있을 때만 한다.
-  const view = useServiceMetrics(service, { range, live, replicas: replicas.cpu || replicas.memory });
+  const view = useServiceMetrics(service, { range, live: true, replicas: replicas.cpu || replicas.memory });
   // 트래픽 지표는 요청·로딩·오류가 따로라서 이쪽이 실패해도 CPU·Memory 차트는 그대로다.
-  const traffic = useServiceTrafficMetrics(service, { range, live });
+  const traffic = useServiceTrafficMetrics(service, { range, live: true });
   const toggle = (set: typeof setSum, name: 'cpu' | 'memory') => set((prev) => ({ ...prev, [name]: !prev[name] }));
 
   return (
@@ -450,9 +449,6 @@ export function ServiceMetrics({ service }: { service: Service }) {
               </button>
             ))}
           </Popover>
-          <button type="button" title={live ? t('service.metrics.pause') : t('service.metrics.resume')} className={`btn btn-icon-only live-btn${live ? '' : ' paused'}`} onClick={() => setLive((v) => !v)}>
-            <div className="tool-icon">{live ? <Pause size={16} /> : <Play size={16} />}</div>
-          </button>
         </div>
       </div>
       <div className={`metrics-grid${layout === 'rows' ? ' rows' : ''}`}>

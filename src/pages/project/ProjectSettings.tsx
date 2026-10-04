@@ -1,4 +1,5 @@
 import {
+  Hourglass,
   ChartNoAxesColumn,
   Copy,
   Server,
@@ -14,6 +15,12 @@ import { useProject, useProjects } from '../../data/ProjectsContext';
 import { ApiError, describeError } from '../../lib/api';
 import type { ProjectUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
+
+const SOON: Record<string, MessageKey> = {
+  usage: 'project.soon.usage',
+  environments: 'project.soon.environments',
+  webhooks: 'project.soon.webhooks',
+};
 
 const NAV: { id: string; label: MessageKey; icon: LucideIcon }[] = [
   { id: '', label: 'project.settings.general', icon: Settings },
@@ -146,10 +153,17 @@ export function ProjectSettings() {
                   </button>
                 </section>
               )}
-              {section !== '' && section !== 'danger' && (
+              {/* 사용량·환경·웹훅은 아직 서버 기능이 없어서 워크스페이스 설정과 같은 '준비 중' 화면을 보여준다. */}
+              {SOON[section] && (
                 <section className="ps-section">
                   <h4>{t(NAV.find((n) => n.id === section)!.label)}</h4>
-                  <p className="ps-p">{t('project.settings.nothingHere')}</p>
+                  <div className="soon">
+                    <div className="soon-icon">
+                      <Hourglass size={22} />
+                    </div>
+                    <p className="soon-title">{t('create.soon.title')}</p>
+                    <p className="soon-desc">{t(SOON[section])}</p>
+                  </div>
                 </section>
               )}
             </div>
