@@ -189,50 +189,66 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     onClose();
   };
 
-  /** 서비스 하나를 만들고 첫 배포를 요청한다(기존 경로). skip 결과로 만들 때는 analysisId 를 함께 보낸다. */
-  const deploy = async (analysisId?: number) => {
+  /**
+   * 서비스 하나를 만들고 첫 배포를 요청한다. 누르는 즉시 창을 닫고 뒤에서 진행한다. 끝나면 배포 상세로 가고,
+   * 실패하면 토스트로 알린다(창을 닫았으니 입력은 사라진다). skip 결과로 만들 때는 analysisId 를 함께 보낸다.
+   */
+  const deploy = (analysisId?: number) => {
     if (!repo || !serviceName.trim() || !branch.trim() || !selectedTarget || submitting) return;
-    setSubmitting(true);
-    setNotice('');
-    // 이 호출에서 새로 만든 프로젝트만 실패 때 되돌린다(레포 구성 확인 중인 프로젝트는 분석이 쓰고 있다).
-    const reusing = draftProject.current !== null;
-    try {
-      const targetProject = await ensureProject();
-      const service = await createService(targetProject, {
-        repositoryUrl: repo.url,
-        name: serviceName.trim(),
-        branch: branch.trim(),
-        rootDirectory: root.trim() || undefined,
-        isAutoDeploy: autoDeploy,
-        targetIds: [selectedTarget.id],
-        ...(analysisId !== undefined && { analysisId }),
-      });
-      draftProject.current = null; // 서비스가 생겼으니 프로젝트는 남긴다
-      // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
-      // 연결되지 않은 내 서버에는 아직 배포할 수 없어서 서비스만 만든다.
-      let deploymentId: number | null = null;
-      if (!canDeployNow) {
-        toast(t('servers.createdWaiting'));
-      } else {
-        try {
-          const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
-          deploymentId = deployment.id;
-          void refreshService(targetProject, service.id).catch(() => undefined);
-        } catch (e) {
-          toast(t('create.firstDeployFailed', { error: describeError(e) }));
+    // 창을 닫으면 상태가 초기화되므로 지금 값을 붙잡아 둔다.
+    const name = serviceName.trim();
+    const body: api.ServiceCreate = {
+      repositoryUrl: repo.url,
+      name,
+      branch: branch.trim(),
+      rootDirectory: root.trim() || undefined,
+      isAutoDeploy: autoDeploy,
+      targetIds: [selectedTarget.id],
+      ...(analysisId !== undefined && { analysisId }),
+    };
+    const newProjectName = projectName.trim();
+    const deployNow = canDeployNow;
+    // 레포 구성 확인 중에 만든 빈 프로젝트가 있으면 이 호출이 넘겨받는다(창을 닫아도 지워지지 않게).
+    const draft = draftProject.current;
+    draftProject.current = null;
+    const startPath = window.location.pathname;
+    analysis.reset();
+    onClose();
+    const dismissProgress = toast(t('create.background.start', { name }), 60_000);
+
+    void (async () => {
+      let created: string | null = null; // 이 호출에서 새로 만든 프로젝트
+      try {
+        const targetProject = projectId ?? draft ?? (created = (await createProject({ name: newProjectName })).id);
+        const service = await createService(targetProject, body);
+        created = null; // 서비스가 생겼으니 프로젝트는 남긴다
+        // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
+        // 연결되지 않은 내 서버에는 아직 배포할 수 없어서 서비스만 만든다.
+        let deploymentId: number | null = null;
+        dismissProgress();
+        if (!deployNow) {
+          toast(t('servers.createdWaiting'));
+        } else {
+          try {
+            const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
+            deploymentId = deployment.id;
+            void refreshService(targetProject, service.id).catch(() => undefined);
+          } catch (e) {
+            toast(t('create.firstDeployFailed', { error: describeError(e) }));
+          }
         }
+        const base = `/project/${targetProject}/service/${service.id}`;
+        // 그사이 다른 화면으로 옮겼으면 끌고 오지 않고 결과만 알린다.
+        if (window.location.pathname === startPath) navigate(deploymentId === null ? base : `${base}/deployment/${deploymentId}`);
+        else if (deployNow && deploymentId !== null) toast(t('create.background.done', { name }));
+      } catch (e) {
+        dismissProgress();
+        // 서비스 만들기가 실패했으면 방금 만들었거나 넘겨받은 빈 프로젝트를 되돌린다. 기존 프로젝트는 건드리지 않는다.
+        const orphan = projectId ? null : created ?? draft;
+        if (orphan) void removeProject(orphan).catch(() => undefined);
+        toast(t('create.background.failed', { error: describeError(e) }));
       }
-      analysis.reset();
-      onClose();
-      const base = `/project/${targetProject}/service/${service.id}`;
-      navigate(deploymentId === null ? base : `${base}/deployment/${deploymentId}`);
-    } catch (e) {
-      // 서비스 만들기가 실패했으면 방금 만든 빈 프로젝트를 되돌린다.
-      if (!reusing) discardDraftProject();
-      setNotice(describeError(e));
-    } finally {
-      setSubmitting(false);
-    }
+    })();
   };
 
   /** 관리형 DB 서비스를 만들고(자동 배포 접수) 그 서비스의 연결 정보 화면으로 간다. */
