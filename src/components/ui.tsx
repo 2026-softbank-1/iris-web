@@ -267,7 +267,8 @@ export function ConfirmDialog({
 interface UIState {
   paletteOpen: boolean;
   setPaletteOpen: (v: boolean) => void;
-  toast: (msg: string) => void;
+  /** ms 동안 보여 주고(기본 2.6초), 돌려받은 함수로 먼저 지울 수 있다. */
+  toast: (msg: string, ms?: number) => () => void;
 }
 
 const UICtx = createContext<UIState | null>(null);
@@ -275,10 +276,12 @@ const UICtx = createContext<UIState | null>(null);
 export function UIProvider({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
-  const toast = useCallback((msg: string) => {
+  const toast = useCallback((msg: string, ms = 2600) => {
     const id = Date.now() + Math.random();
+    const remove = () => setToasts((t) => t.filter((x) => x.id !== id));
     setToasts((t) => [...t, { id, msg }]);
-    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
+    window.setTimeout(remove, ms);
+    return remove;
   }, []);
   return (
     <UICtx.Provider value={{ paletteOpen, setPaletteOpen, toast }}>

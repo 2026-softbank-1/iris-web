@@ -38,6 +38,9 @@ export const ko = {
   'create.deploying': '배포 중…',
   'create.deploy': '배포',
   'create.firstDeployFailed': '서비스를 만들었지만 첫 배포를 시작하지 못했어요. {error}',
+  'create.background.start': '{name} 서비스를 만들고 있어요…',
+  'create.background.failed': '서비스를 만들지 못했어요. {error}',
+  'create.background.done': '{name} 서비스를 만들고 배포를 요청했어요',
 
   'create.checkRepo': '레포 구성 확인',
   'create.checkRepoHint': '먼저 배포 단위를 확인해요. 단순한 레포는 AI 분석 없이 바로 빌드해요.',
@@ -185,6 +188,9 @@ export const ja: Record<keyof typeof ko, string> = {
   'create.deploying': 'デプロイ中…',
   'create.deploy': 'デプロイ',
   'create.firstDeployFailed': 'サービスを作成しましたが、最初のデプロイを開始できませんでした。{error}',
+  'create.background.start': '{name} を作成しています…',
+  'create.background.failed': 'サービスを作成できませんでした。{error}',
+  'create.background.done': '{name} を作成し、デプロイをリクエストしました',
 
   'create.checkRepo': 'リポジトリ構成を確認',
   'create.checkRepoHint': 'まずデプロイ単位を確認します。シンプルなリポジトリは AI 分析なしですぐビルドします。',
@@ -332,6 +338,9 @@ export const en: Record<keyof typeof ko, string> = {
   'create.deploying': 'Deploying…',
   'create.deploy': 'Deploy',
   'create.firstDeployFailed': 'Service created, but the first deployment couldn\'t start. {error}',
+  'create.background.start': 'Creating {name}…',
+  'create.background.failed': "Couldn't create the service. {error}",
+  'create.background.done': 'Created {name} and requested a deploy',
 
   'create.checkRepo': 'Check repository',
   'create.checkRepoHint': 'We check the deployable units first. Simple repositories build right away without AI analysis.',
