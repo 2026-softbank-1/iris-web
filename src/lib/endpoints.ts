@@ -779,10 +779,11 @@ export const logStreamUrl = (serviceId: number | string, targetId: number, curso
 
 /* console */
 /**
- * 콘솔을 열 수 없는 이유. NO_RUNNING_DEPLOYMENT 는 그 타깃에 떠 있는 배포가 없는 것, TARGET_NOT_SUPPORTED 는 온프레미스 타깃,
+ * 콘솔을 열 수 없는 이유. NO_RUNNING_DEPLOYMENT 는 그 타깃에 떠 있는 배포가 없는 것, TARGET_NOT_CONNECTED 는 내 서버가 연결되어 있지 않은 것
+ * (DISCONNECTED·PENDING·REGISTERING·FAILED), TARGET_NOT_SUPPORTED 는 콘솔을 지원하지 않는 종류의 타깃,
  * NOT_CONFIGURED 는 서버에 콘솔(Console Gateway)이 설정되지 않은 것이다. 서버가 값을 늘려도 화면이 죽지 않아야 한다.
  */
-export type ConsoleUnavailableReason = 'NO_RUNNING_DEPLOYMENT' | 'TARGET_NOT_SUPPORTED' | 'NOT_CONFIGURED';
+export type ConsoleUnavailableReason = 'NO_RUNNING_DEPLOYMENT' | 'TARGET_NOT_CONNECTED' | 'TARGET_NOT_SUPPORTED' | 'NOT_CONFIGURED';
 export type ConsoleAvailabilityDto = { available: boolean; reason?: ConsoleUnavailableReason };
 /**
  * 콘솔 세션 발급 결과. token 은 60초 안에 쓰는 ticket 이고 WebSocket 연결(첫 auth 프레임)에는 한 번만 쓸 수 있다.
@@ -794,8 +795,8 @@ export type ConsolePodDto = { name: string; phase: string; ready: boolean; start
 export const getConsoleAvailability = (serviceId: number | string, targetId: number, signal?: AbortSignal) =>
   request<ConsoleAvailabilityDto>(`/services/${serviceId}/console`, { query: { targetId }, signal });
 /**
- * 콘솔 세션(ticket)을 발급한다. 실행 중인 배포가 없으면 409 NO_RUNNING_DEPLOYMENT, 온프레미스 타깃이면 409 CONSOLE_TARGET_NOT_SUPPORTED,
- * 콘솔이 설정되지 않았으면 503 NOT_CONFIGURED 다.
+ * 콘솔 세션(ticket)을 발급한다. 실행 중인 배포가 없으면 409 NO_RUNNING_DEPLOYMENT, 내 서버가 연결되어 있지 않으면 409 TARGET_NOT_CONNECTED,
+ * 지원하지 않는 타깃이면 409 CONSOLE_TARGET_NOT_SUPPORTED, 콘솔이 설정되지 않았으면 503 NOT_CONFIGURED 다.
  */
 export const createConsoleSession = (serviceId: number | string, targetId: number, signal?: AbortSignal) =>
   request<ConsoleSessionDto>(`/services/${serviceId}/console/sessions`, { method: 'POST', json: { targetId }, signal });

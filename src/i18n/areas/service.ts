@@ -148,7 +148,8 @@ export const ko = {
 
   'service.console.unavailable': '콘솔을 사용할 수 없어요',
   'service.console.unavailableSub': '배포를 시작하면 실행 중인 레플리카에서 셸을 열 수 있어요.',
-  'service.console.unavailableOnprem': '온프레미스 타깃은 아직 콘솔을 지원하지 않아요.',
+  'service.console.unavailableNotConnected': '서버가 연결되어 있지 않아요. 서버가 다시 연결되면 콘솔을 열 수 있어요.',
+  'service.console.unavailableTarget': '이 배포 대상에서는 콘솔을 사용할 수 없어요.',
   'service.console.unavailableNotConfigured': '이 서버에는 콘솔이 설정돼 있지 않아요. 운영자에게 문의해 주세요.',
   'service.console.unavailableUnknown': '지금은 콘솔을 열 수 없어요. 잠시 뒤 다시 확인해 주세요.',
   'service.console.retry': '다시 시도',
@@ -390,7 +391,8 @@ export const ja: Record<keyof typeof ko, string> = {
 
   'service.console.unavailable': 'コンソールは利用できません',
   'service.console.unavailableSub': 'デプロイを開始すると、実行中のレプリカでシェルを開けます。',
-  'service.console.unavailableOnprem': 'オンプレミスのターゲットはまだコンソールに対応していません。',
+  'service.console.unavailableNotConnected': 'サーバーが接続されていません。サーバーが再接続されるとコンソールを開けます。',
+  'service.console.unavailableTarget': 'このデプロイ先ではコンソールを利用できません。',
   'service.console.unavailableNotConfigured': 'このサーバーにはコンソールが設定されていません。運用担当者にお問い合わせください。',
   'service.console.unavailableUnknown': '現在コンソールを開けません。しばらくしてからもう一度お試しください。',
   'service.console.retry': '再試行',
@@ -632,7 +634,8 @@ export const en: Record<keyof typeof ko, string> = {
 
   'service.console.unavailable': 'Console is unavailable',
   'service.console.unavailableSub': 'Start a deployment to open a shell into a running replica.',
-  'service.console.unavailableOnprem': 'On-prem targets do not support the console yet.',
+  'service.console.unavailableNotConnected': 'The server is not connected. You can open the console once it reconnects.',
+  'service.console.unavailableTarget': 'The console is not available for this target.',
   'service.console.unavailableNotConfigured': 'The console is not set up on this server. Contact your operator.',
   'service.console.unavailableUnknown': 'The console cannot be opened right now. Check again in a moment.',
   'service.console.retry': 'Try again',
