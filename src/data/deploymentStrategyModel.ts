@@ -29,8 +29,8 @@ export const strategyDescKey = (strategy: DeploymentStrategy): MessageKey => DES
 /** 서비스에 저장된 방식. 배포 방식을 모르는 서버(구버전)는 값을 보내지 않으니 롤링으로 본다. */
 export const strategyOf = (service: { deploymentStrategy?: DeploymentStrategy } | undefined): DeploymentStrategy => service?.deploymentStrategy ?? 'ROLLING';
 
-/** 온프레미스 타깃은 롤링만 지원한다. 서버도 카나리·블루그린 저장을 422 로 거절한다. */
-export const isRollingOnlyTarget = (target: { kind: string } | undefined) => target?.kind === 'ONPREM';
+/** 온프레미스·GCP 타깃은 롤링만 지원한다. 서버도 카나리·블루그린 저장을 422 로 거절한다. */
+export const isRollingOnlyTarget = (target: { kind: string } | undefined) => target?.kind === 'ONPREM' || target?.kind === 'GCP';
 
 /** 레플리카가 2개 이상이어야 하는 방식인가. */
 export const needsReplicas = (strategy: DeploymentStrategy) => strategy !== 'ROLLING';

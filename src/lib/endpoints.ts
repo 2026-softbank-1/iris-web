@@ -194,13 +194,13 @@ export type OnpremServerStatus = 'PENDING' | 'REGISTERING' | 'CONNECTED' | 'FAIL
 export type OnpremServerFailureCode = 'CONNECT_TIMED_OUT' | 'GITOPS_COMMIT_FAILED';
 
 /**
- * 공용 타깃(AWS·기존 onprem)과 내 서버 타깃. 내 서버 타깃은 onpremServerId·connectionStatus 가 있고 이름이 `onprem-{serverKey}` 다.
+ * 공용 타깃(AWS·GCP·기존 onprem)과 내 서버 타깃. 내 서버 타깃은 onpremServerId·connectionStatus 가 있고 이름이 `onprem-{serverKey}` 다.
  * 공용 타깃은 둘 다 없고 항상 배포할 수 있다.
  */
 export type TargetDto = {
   id: number;
   name: string;
-  kind: 'AWS' | 'ONPREM';
+  kind: 'AWS' | 'GCP' | 'ONPREM';
   region?: string;
   domainSuffix?: string;
   onpremServerId?: number;
@@ -208,8 +208,10 @@ export type TargetDto = {
   onpremServerName?: string;
   connectionStatus?: OnpremServerStatus;
 };
-/** 서버가 제공하는 AWS·온프레미스 타깃을 서비스 생성과 설정에서 선택할 수 있다. */
-export const isTargetSupported = (target: TargetDto) => target.kind === 'AWS' || target.kind === 'ONPREM';
+/** 서버가 제공하는 AWS·GCP·온프레미스 타깃을 서비스 생성과 설정에서 선택할 수 있다. */
+export const isTargetSupported = (target: TargetDto) => target.kind === 'AWS' || target.kind === 'GCP' || target.kind === 'ONPREM';
+/** 관리형 DB 자동 생성·호스트 별칭을 쓸 수 없는 타깃. 이 기능은 AWS 타깃에만 있다. */
+export const isAwsOnlyFeatureUnavailable = (target: { kind: string } | undefined) => target?.kind === 'ONPREM' || target?.kind === 'GCP';
 /** 지금 이 타깃으로 배포할 수 있는지. 내 서버 타깃은 연결(CONNECTED)된 뒤에만 된다(아니면 서버가 409 TARGET_NOT_CONNECTED). */
 export const isTargetDeployable = (target: TargetDto) => target.connectionStatus == null || target.connectionStatus === 'CONNECTED';
 

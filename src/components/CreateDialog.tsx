@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { isTargetDeployable, isTargetSupported } from '../lib/endpoints';
+import { isAwsOnlyFeatureUnavailable, isTargetDeployable, isTargetSupported } from '../lib/endpoints';
 import { targetLabel } from '../data/targetModel';
 import { useI18n, type MessageKey } from '../i18n';
 import { networkingErrorKey } from '../data/networkingError';
@@ -308,7 +308,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     if (!doneAnalysis || submitting) return;
     const built = toApplyUnits(drafts);
     if ('error' in built) { setNotice(t(built.error)); return; }
-    const deps = toApplyDependencies(selectedTarget?.kind === 'ONPREM' ? depDrafts.map((d) => ({ ...d, provision: false })) : depDrafts, built.units.map((u) => u.name));
+    const deps = toApplyDependencies(isAwsOnlyFeatureUnavailable(selectedTarget) ? depDrafts.map((d) => ({ ...d, provision: false })) : depDrafts, built.units.map((u) => u.name));
     if ('error' in deps) { setNotice(t(deps.error)); return; }
     setSubmitting(true);
     setNotice('');
@@ -421,7 +421,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         busy={submitting}
         drafts={drafts}
         onDrafts={setDrafts}
-        onPrem={selectedTarget?.kind === 'ONPREM'}
+        onPrem={isAwsOnlyFeatureUnavailable(selectedTarget)}
         depDrafts={depDrafts}
         onDepDrafts={setDepDrafts}
         onDeploySimple={(id) => void deploy(id)}
