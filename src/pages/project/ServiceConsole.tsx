@@ -1,6 +1,5 @@
-import { ChevronDown, Copy, FolderOpen, Maximize2, Minimize2, TerminalSquare } from 'lucide-react';
+import { ChevronDown, FolderOpen, TerminalSquare } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useUI } from '../../components/ui';
 import type { Service } from '../../data/mock';
 import { useI18n } from '../../i18n';
 
@@ -41,11 +40,9 @@ function respond(cmd: string, service: Service): string[] {
 }
 
 export function ServiceConsole({ service }: { service: Service }) {
-  const { toast } = useUI();
   const { t } = useI18n();
   const [lines, setLines] = useState<string[]>([]);
   const [input, setInput] = useState('');
-  const [full, setFull] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -77,28 +74,13 @@ export function ServiceConsole({ service }: { service: Service }) {
   };
 
   return (
-    <div className={`console${full ? ' full' : ''}`}>
+    <div className="console">
       <div className="console-bar">
         <button type="button" className="console-replica">
           <span className="mono">6521d164</span>
           <ChevronDown size={14} />
         </button>
         <div className="console-bar-right">
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={() => {
-              navigator.clipboard?.writeText(`likelion ssh --service ${service.name}`);
-              toast(t('service.console.sshCopied'));
-            }}
-          >
-            <Copy size={14} />
-            {t('service.console.copySsh')}
-          </button>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setFull((v) => !v)}>
-            {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            {full ? t('service.console.exitFull') : t('service.console.full')}
-          </button>
           <span className="console-status">
             <span className="pc-dot" /> {t('service.console.connected')}
           </span>

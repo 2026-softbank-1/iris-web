@@ -4,13 +4,13 @@ import {
   // LogOut, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   // PencilLine, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   // RefreshCw, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
-  ArrowRight,
   // CircleCheck, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Globe,
   // Zap, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   // ShieldAlert, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Copy,
   Earth,
+  ExternalLink,
   // FileCode2, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   // Flag, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Hammer,
@@ -154,6 +154,21 @@ function LimitSlider({ name, ready, stops, value, parse, format, disabled, onCha
         style={{ '--ratio': ratio } as CSSProperties}
         onChange={(e) => onChange(stops[Number(e.target.value)].qty)}
       />
+      {ready && (
+        // 칸마다의 값. 슬라이더 thumb 중심 아래에 놓이고, 눌러서 바로 고를 수도 있다.
+        <div className="st-range-ticks" aria-hidden>
+          {stops.map((stop, i) => {
+            const tick = format(stop.amount);
+            return (
+              <button key={stop.qty} type="button" tabIndex={-1} className={i === index ? 'on' : undefined} disabled={disabled} onClick={() => onChange(stop.qty)}>
+                <span>
+                  {tick.value} {tick.unit}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -397,7 +412,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </Item>
               )}
               <Item title={t('svcSettings.sourceRepo')} id="source-repo">
-                <div className="st-repo error">
+                <div className="st-repo">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link tall">
                     <RepoIcon size={20} />
                     <p>
@@ -504,28 +519,19 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   service.domains.map((d) => (
                     <div key={d.host} className="st-card st-domain-card">
                       <div className="st-card-row">
-                        <div className="st-card-icon">
-                          <Globe size={20} />
+                        <div className={`st-card-icon${d.isConnected ? ' on' : ''}`}>
+                          <Globe size={18} />
                         </div>
                         <div className="st-domain-text">
                           <a href={`https://${d.host}`} target="_blank" rel="noreferrer">
-                            <span>{d.host}</span>
-                            <span className="st-ext">↗</span>
+                            {d.host}
+                            <ExternalLink size={14} />
                           </a>
                           <p>
-                            {service.port !== undefined && (
-                              <span className="st-port">
-                                <ArrowRight size={16} />
-                                <span>
-                                  {t('svcSettings.port.title')} <span className="mono">{service.port}</span>
-                                </span>
-                              </span>
-                            )}
-                            <span>
-                              {service.port !== undefined && ' · '}
-                              {d.targetName}
-                              {!d.isConnected && ` · ${t('svcSettings.reachableAfter')}`}
-                            </span>
+                            {/* 포트 · 타깃 · (아직 접속 불가) 를 한 줄에 */}
+                            {[service.port !== undefined && `${t('svcSettings.port.title')} ${service.port}`, d.targetName, !d.isConnected && t('svcSettings.reachableAfter')]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </p>
                         </div>
                         <div className="st-card-actions">
@@ -533,6 +539,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                             type="button"
                             className="st-sq-btn"
                             aria-label={t('svcSettings.copy')}
+                            title={t('svcSettings.copy')}
                             onClick={() => {
                               navigator.clipboard?.writeText(d.host);
                               toast(t('svcSettings.domainCopied'));

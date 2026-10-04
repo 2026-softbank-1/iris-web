@@ -93,6 +93,9 @@ export const en: Record<keyof typeof ko, string> = {
 
   'nav.projects': 'Projects',
   'nav.settings': 'Settings',
+  'nav.domains': 'Domains',
+  'nav.auditLogs': 'Audit Logs',
+  'nav.developer': 'Developer',
   'nav.servers': 'My servers',
   'nav.collapse': 'Collapse sidebar',
   'menu.account': 'Account Settings',

@@ -81,7 +81,8 @@ export function DiagnosisBrief({ service, deploymentId, updatedAt, to }: { servi
           {t('diag.brief.detail')}
           <ChevronRight size={16} />
         </Link>
-        {!needsEnvironment && <button type="button" onClick={() => void fix()} disabled={repairBusy} className="btn btn-primary">
+        {/* 진단 결과(제안된 해결책)가 없으면 고칠 근거가 없어서 누를 수 없다. */}
+        {!needsEnvironment && <button type="button" onClick={() => void fix()} disabled={repairBusy || !analysis} title={analysis ? undefined : t('diag.brief.fixNeedsDiagnosis')} className="btn btn-primary">
           <Sparkles size={16} />
           {t(repairBusy ? 'repair.loading' : 'diag.brief.fix')}
         </button>}
