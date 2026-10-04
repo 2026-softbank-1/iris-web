@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CircleAlert, Database, Layers, Link2, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, CircleAlert, Database, KeyRound, Layers, Link2, Sparkles, Zap } from 'lucide-react';
 import type { AnalysisState } from '../data/useRepositoryAnalysis';
 import type * as api from '../lib/endpoints';
 import { useI18n, type MessageKey } from '../i18n';
@@ -217,6 +217,10 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
     if (dep) return { name: dep.provision ? dep.name : dep.id, kind: 'db', auto: dep.provision };
     return null;
   };
+  /** 플랫폼이 실제로 띄울 이미지가 있으면 그것을, 없으면 분석기가 본 compose 이미지를 보인다. */
+  const imageOf = (dep: api.AnalysisDependencyDto) => (!onPrem && analysis.provisioning?.[dep.id]?.image) || dep.image;
+  const secrets = (result.secrets ?? []).filter((x) => x.generate === 'random' || x.platformManaged);
+  const consumerNames = (x: api.AnalysisSecretDto) => [...new Set(x.consumers.map((c) => targetOf(c.targetId)?.name ?? c.targetId))].join(', ');
   const provisioned = onPrem ? [] : depDrafts.filter((d) => d.provision);
 
   return (
@@ -289,6 +293,7 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
                             <ArrowRight size={12} aria-hidden className="gate-map-arrow" />
                             <span className="mono">{target?.name ?? b.targetId}.{b.property}</span>
                             <span className={`gate-code ${auto ? 'auto' : 'manual'}`}>{t(auto ? 'stack.apply.autoLinked' : 'stack.apply.manual')}</span>
+                            {b.kind === 'dependency' && b.user && <span className="gate-muted">{t('stack.apply.connectAs', { user: b.user })}</span>}
                           </li>
                         );
                       })}
@@ -332,9 +337,12 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
                     <input type="checkbox" checked={draft.provision && !onPrem} disabled={!supported} onChange={(e) => updateDep(dep.id, { provision: e.target.checked })} />
                     <span>
                       <b className="mono">{dep.id}</b>
-                      <span className="gate-muted"> · {dep.engine === 'other' ? dep.engine : ENGINE_LABEL[dep.engine]}{dep.image ? ` · ${dep.image}` : ''}</span>
+                      <span className="gate-muted"> · {dep.engine === 'other' ? dep.engine : ENGINE_LABEL[dep.engine]}{imageOf(dep) ? ` · ${imageOf(dep)}` : ''}</span>
                     </span>
                   </label>
+                  {draft.provision && !onPrem && analysis.provisioning?.[dep.id]?.image && dep.image && dep.image !== analysis.provisioning[dep.id].image && (
+                    <p className="gate-muted">{t('stack.apply.platformImage', { image: analysis.provisioning[dep.id].image })}</p>
+                  )}
                   <p className="gate-dep-state">
                     {onPrem ? t('stack.apply.onPrem') : supported ? t(draft.provision ? 'stack.apply.provisionOn' : 'stack.apply.provisionOff') : t('stack.apply.unsupported')}
                     {dep.passwordInSource && <> {t('stack.apply.passwordInSource')}</>}
@@ -363,6 +371,21 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDra
             })}
           </ul>
           {provisioned.length > 0 && <DataLossNotice />}
+        </section>
+      )}
+
+      {secrets.length > 0 && (
+        <section className="gate-deps" aria-label={t('stack.apply.secretsTitle', { n: secrets.length })}>
+          <h4><KeyRound size={16} aria-hidden /> {t('stack.apply.secretsTitle', { n: secrets.length })}</h4>
+          <p className="gate-muted">{t('stack.apply.secretsNote')}</p>
+          <ul className="gate-map">
+            {secrets.map((x) => (
+              <li key={x.id}>
+                <span className="mono">{x.id}</span>
+                <span className="gate-muted">{t(x.generate === 'random' ? 'stack.apply.secretRandom' : 'stack.apply.secretPlatform', { to: consumerNames(x) })}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

@@ -308,7 +308,14 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       draftProject.current = null;
       await refreshProject(targetProject).catch(() => undefined);
       const blocked = applied.variableIssues?.some((v) => v.issues.some((i) => i.severity === 'error')) ? applied.variableIssues : null;
-      toast(!canDeployNow ? t('servers.appliedWaiting', { n: applied.services.length }) : blocked ? t('create.gate.appliedNoDeploy', { n: applied.services.length }) : applied.databases?.length ? t('create.gate.appliedWithDb', { n: applied.services.length, db: applied.databases.length }) : t('create.gate.applied', { n: applied.services.length }));
+      const base = !canDeployNow ? t('servers.appliedWaiting', { n: applied.services.length }) : blocked ? t('create.gate.appliedNoDeploy', { n: applied.services.length }) : applied.databases?.length ? t('create.gate.appliedWithDb', { n: applied.services.length, db: applied.databases.length }) : t('create.gate.applied', { n: applied.services.length });
+      let secretsNote = '';
+      const generated = applied.generatedSecrets ?? [];
+      if (generated.length > 0) {
+        const nameOfService = (id: number) => [...applied.services, ...(applied.databases ?? [])].find((x) => x.id === id)?.name ?? String(id);
+        secretsNote = t('create.gate.generatedSecrets', { n: generated.length, list: generated.map((g) => `${g.id} → ${g.serviceIds.map(nameOfService).join(', ')}`).join(' / ') });
+      }
+      toast(secretsNote ? `${base}\n${secretsNote}` : base);
       analysis.reset();
       onClose();
       navigate(`/project/${targetProject}`, blocked ? { state: { variableIssues: blocked } } : undefined);
