@@ -73,11 +73,11 @@ export function useDeployments(service?: Service) {
     loading: !current,
     error: current?.error ?? null,
     reload: load,
-    deploy: () => request({ triggerType: 'MANUAL' }),
-    redeploy: (deploymentId: string) => request({ triggerType: 'REDEPLOY', sourceDeploymentId: Number(deploymentId) }),
+    deploy: (skipVariableValidation?: boolean) => request({ triggerType: 'MANUAL', ...(skipVariableValidation && { skipVariableValidation }) }),
+    redeploy: (deploymentId: string, skipVariableValidation?: boolean) => request({ triggerType: 'REDEPLOY', sourceDeploymentId: Number(deploymentId), ...(skipVariableValidation && { skipVariableValidation }) }),
     rollback: (deploymentId: string) => request({ triggerType: 'ROLLBACK', sourceDeploymentId: Number(deploymentId) }),
     /** 지금 떠 있는(마지막으로 성공한) 배포의 이미지를 빌드 없이 다시 배포해 Pod 을 새로 시작한다. 원본 배포는 서버가 정한다. */
-    restart: () => request({ triggerType: 'RESTART' }),
+    restart: (skipVariableValidation?: boolean) => request({ triggerType: 'RESTART', ...(skipVariableValidation && { skipVariableValidation }) }),
   };
 }
 
@@ -87,13 +87,14 @@ export type DeploymentsApi = ReturnType<typeof useDeployments>;
 export function useRunner() {
   const { toast } = useUI();
   const [busy, setBusy] = useState(false);
-  const run = useCallback(async (task: () => Promise<unknown>, message: string) => {
+  /** onError 가 true 를 돌려주면 그 오류는 호출한 화면이 직접 보여 주므로 토스트를 띄우지 않는다. */
+  const run = useCallback(async (task: () => Promise<unknown>, message: string, onError?: (e: unknown) => boolean | void) => {
     setBusy(true);
     try {
       await task();
       toast(message);
     } catch (e) {
-      toast(describeError(e));
+      if (!onError?.(e)) toast(describeError(e));
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,21 @@
 // 개발용 가짜 was. `VITE_MOCK_API=1` 일 때 vite dev 서버(vite.config.ts)가 /api/v1 요청을 여기로 보낸다.
 // 앱 번들에는 들어가지 않는다. 화면 디자인용이라 상태를 메모리에만 들고, dev 서버를 다시 띄우면 처음으로 돌아간다.
 import type {
+  AnalysisBindingDto,
+  AnalysisDependencyDto,
+  AnalysisDependencyApply,
   AnalysisGateResultDto,
+  AnalysisInitScriptDto,
+  DatabaseEngine,
+  ReferenceProperty,
+  StackChangeDto,
+  StackDto,
+  StackServiceDto,
+  StackStepStatus,
+  VariableDto,
+  VariableIssueDto,
+  VariableReferenceDto,
+  VariablesValidationDto,
   AnalysisMode,
   AnalysisUnitApply,
   BranchDto,
@@ -42,7 +56,7 @@ const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 const iso = (ms: number) => new Date(ms).toISOString();
 const ok = (data: unknown, status = 200): MockResponse => ({ status, body: { success: true, data } });
-const fail = (status: number, code: string, message: string, details?: { field: string; reason: string }[]): MockResponse => ({ status, body: { success: false, code, message, details } });
+const fail = (status: number, code: string, message: string, details?: { field: string; reason: string }[], data?: unknown): MockResponse => ({ status, body: { success: false, code, message, details, data } });
 
 /* ------------------------------------------------------------------ */
 /* 시드 데이터                                                           */
@@ -63,7 +77,7 @@ type MockProject = Omit<ProjectDto, 'serviceCount' | 'onlineServiceCount'>;
  */
 type DiagnosisScenario = 'build' | 'runtime' | 'insufficient' | 'noFailure' | 'error';
 /** auto 인 배포는 만든 뒤 시간이 지나면 QUEUED → BUILDING → DEPLOYING → SUCCEEDED 로 넘어간다. 시드 배포는 상태가 고정이다. */
-type MockDeployment = Omit<DeploymentDto, 'isActive'> & { auto?: boolean; diagnosis?: DiagnosisScenario };
+type MockDeployment = Omit<DeploymentDto, 'isActive'> & { auto?: boolean; diagnosis?: DiagnosisScenario; /** 스택 배포가 만든 요청이면 스택 타임라인(DB → 앱 → 나머지)이 상태를 정한다. */ stackRun?: { stackId: number; unitId: string } };
 type MockService = Omit<ServiceDto, 'latestDeployment'>;
 
 const t0 = Date.now();
@@ -209,6 +223,7 @@ const IN_PROGRESS: DeploymentStatus[] = ['QUEUED', 'BUILDING', 'DEPLOYING'];
 
 /** auto 배포가 지금 어느 단계인지. 큐 3초 → 빌드 20초 → 배포 10초. */
 function statusOf(d: MockDeployment): DeploymentStatus {
+  if (d.stackRun) return stackStepStatus(d.stackRun.stackId, d.stackRun.unitId, Date.parse(d.createdAt)) as DeploymentStatus;
   if (!d.auto) return d.status;
   const elapsed = Date.now() - Date.parse(d.createdAt);
   if (elapsed < 3_000) return 'QUEUED';
@@ -219,7 +234,7 @@ function statusOf(d: MockDeployment): DeploymentStatus {
 
 function toDeploymentDto(d: MockDeployment): DeploymentDto {
   const status = statusOf(d);
-  const { auto: _auto, diagnosis: _diagnosis, ...rest } = d;
+  const { auto: _auto, diagnosis: _diagnosis, stackRun: _stackRun, ...rest } = d;
   return { ...rest, status, isActive: IN_PROGRESS.includes(status), updatedAt: d.auto ? iso(Date.now()) : d.updatedAt };
 }
 
@@ -878,6 +893,14 @@ function singleAppResult(root: string, mode: AnalysisMode): AnalysisGateResultDt
   };
 }
 
+const SHOP_INIT_SCRIPTS: AnalysisInitScriptDto[] = [
+  { path: 'db/schema.sql', kind: 'sql', sha256: 'a3f1c9d2e87b4a6150c3d9e2f4b7a8c1d5e6f70123456789abcdef0123456789', size: 2840, order: 0, supported: true },
+  { path: 'db/seed.sql', kind: 'sql', sha256: '7be04d1a92c3f58e6a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f607', size: 1190, order: 1, supported: true },
+  { path: 'db/migrate.sh', kind: 'sh', sha256: '0c1d2e3f405162738495a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091', size: 310, order: 2, supported: false },
+];
+const PG_URL: AnalysisBindingDto = { kind: 'dependency', targetId: 'postgres', property: 'url' };
+const REDIS_URL: AnalysisBindingDto = { kind: 'dependency', targetId: 'redis', property: 'url' };
+
 /** web/api/worker 3개 이미지 + postgres/redis compose 레포. */
 function multiImageShopResult(root: string, mode: AnalysisMode): AnalysisGateResultDto {
   return {
@@ -891,15 +914,15 @@ function multiImageShopResult(root: string, mode: AnalysisMode): AnalysisGateRes
     ],
     signals: { dockerfiles: ['api/Dockerfile', 'web/Dockerfile', 'worker/Dockerfile'], composeFiles: ['compose.yaml'], composeBuildServices: ['api', 'web', 'worker'], composeImageServices: ['postgres', 'redis'], workspaceManifests: [], runtimeManifests: [] },
     units: [
-      { id: 'web', name: 'web', rootDirectory: 'web', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 3000, startCommand: null, buildCommand: null, role: 'web', public: true, env: [{ key: 'API_BASE_URL', stage: 'build', required: true }], dependsOn: ['api'], evidence: [{ path: 'compose.yaml', line: 4 }] },
-      { id: 'api', name: 'api', rootDirectory: 'api', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 8000, startCommand: null, buildCommand: null, role: 'api', public: true, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true }, { key: 'REDIS_URL', stage: 'runtime', required: true }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 12 }] },
-      { id: 'worker', name: 'worker', rootDirectory: 'worker', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: null, startCommand: null, buildCommand: null, role: 'worker', public: false, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true }, { key: 'REDIS_URL', stage: 'runtime', required: true }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 22 }] },
+      { id: 'web', name: 'web', rootDirectory: 'web', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 3000, startCommand: null, buildCommand: null, role: 'web', public: true, env: [{ key: 'API_BASE_URL', stage: 'build', required: true, binding: { kind: 'unit', targetId: 'api', property: 'url' } }], hostAliases: [{ host: 'api', port: 8000, targetId: 'api', evidence: [{ path: 'web/nginx.conf', line: 9 }] }], dependsOn: ['api'], evidence: [{ path: 'compose.yaml', line: 4 }] },
+      { id: 'api', name: 'api', rootDirectory: 'api', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: 8000, startCommand: null, buildCommand: null, role: 'api', public: true, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true, binding: PG_URL }, { key: 'REDIS_URL', stage: 'runtime', required: true, binding: REDIS_URL }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 12 }] },
+      { id: 'worker', name: 'worker', rootDirectory: 'worker', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: null, startCommand: null, buildCommand: null, role: 'worker', public: false, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true, binding: PG_URL }, { key: 'REDIS_URL', stage: 'runtime', required: true, binding: REDIS_URL }], hostAliases: [{ host: 'postgres', port: 5432, targetId: 'postgres' }], dependsOn: ['postgres', 'redis'], evidence: [{ path: 'compose.yaml', line: 22 }] },
     ],
     dependencies: [
-      { id: 'postgres', engine: 'postgres', image: 'postgres:16-alpine', evidence: [{ path: 'compose.yaml', line: 30 }] },
-      { id: 'redis', engine: 'redis', image: 'redis:7-alpine', evidence: [{ path: 'compose.yaml', line: 38 }] },
+      { id: 'postgres', engine: 'postgres', image: 'postgres:16-alpine', port: 5432, database: 'shop', user: 'shop', passwordInSource: true, initScripts: SHOP_INIT_SCRIPTS, evidence: [{ path: 'compose.yaml', line: 30 }] },
+      { id: 'redis', engine: 'redis', image: 'redis:7-alpine', port: 6379, evidence: [{ path: 'compose.yaml', line: 38 }] },
     ],
-    questions: [{ code: 'port_unknown', unitId: 'worker', message: 'worker 의 포트를 찾지 못했어요. 외부 요청을 받지 않는 워커면 비워 두세요.' }],
+    questions: [{ code: 'port_unknown', unitId: 'worker', message: 'worker 의 포트를 찾지 못했어요. 외부 요청을 받지 않는 워커면 비워 두세요.' }, { code: 'init_script_unsupported', message: 'db/migrate.sh 는 .sh 라서 실행하지 않아요.' }],
   };
 }
 
@@ -916,7 +939,7 @@ function toAnalysisDto(mock: MockAnalysis): RepositoryAnalysisDto {
   if (repo === 'broken-repo') {
     return { ...a, status: 'FAILED', errorCode: 'ANALYZER_FAILED', errorMessage: 'analysis gate exited with status 2' };
   }
-  const result = repo === 'multi-image-shop' ? multiImageShopResult(root, a.mode) : singleAppResult(root, a.mode);
+  const result = a.id === PENDING_ANALYSIS_ID ? pendingShopResult(root) : repo === 'multi-image-shop' ? multiImageShopResult(root, a.mode) : singleAppResult(root, a.mode);
   return { ...a, sourceSha: SHA, status: applied ? 'APPLIED' : 'SUCCEEDED', decision: result.decision, complexity: result.complexity, result };
 }
 
@@ -957,35 +980,24 @@ function handleAnalyses(method: string, seg: string[], body: Record<string, unkn
     if (dto.status !== 'SUCCEEDED' || dto.decision !== 'analyze' || !dto.result) return fail(409, 'ANALYSIS_NOT_APPLICABLE', 'Analysis is not ready to apply');
     const picks = (body?.units as AnalysisUnitApply[] | undefined) ?? [];
     if (picks.length === 0) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'units', reason: 'select at least one unit' }]);
+    const depChoices = (body?.dependencies as AnalysisDependencyApply[] | undefined) ?? [];
+    const apTargets = isSingleTarget(body?.targetIds) ? body.targetIds : [1];
+    if (depChoices.some((d) => d.provision) || dto.result.units.some((u) => u.hostAliases?.length)) {
+      const rejected = networkingRejected(apTargets);
+      if (rejected && depChoices.some((d) => d.provision)) return rejected;
+    }
+    const stackId = stackOfAnalysis(a, projectId);
+    const existingUnits = new Set(stackMembers(stackId).map((m) => m.unitId));
     for (const pick of picks) {
       if (!dto.result.units.some((u) => u.id === pick.unitId)) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'units', reason: `unknown unit ${pick.unitId}` }]);
-      if (services.some((s) => s.projectId === projectId && s.name === pick.name)) return fail(409, 'SERVICE_NAME_CONFLICT', 'Service name conflict');
+      // 증분 apply: 스택에 이미 있는 unit 은 새로 만들지 않으니 이름이 겹쳐도 된다.
+      if (!existingUnits.has(pick.unitId) && services.some((s) => s.projectId === projectId && s.name === pick.name)) return fail(409, 'SERVICE_NAME_CONFLICT', 'Service name conflict');
     }
-    const targetIds = isSingleTarget(body?.targetIds) ? body.targetIds : [1];
-    const repo = a.sourceRepositoryUrl.split('/').slice(-2).join('/');
-    const created = picks.map((pick) => {
-      const unit = dto.result!.units.find((u) => u.id === pick.unitId)!;
-      const s = service(Math.max(0, ...services.map((x) => x.id)) + 1, projectId, pick.name, repo, {
-        sourceBranch: a.sourceBranch,
-        rootDirectory: pick.rootDirectory ?? unit.rootDirectory,
-        builder: pick.builder ?? unit.builder,
-        dockerfilePath: pick.dockerfilePath ?? unit.dockerfilePath ?? undefined,
-        port: pick.port ?? unit.port ?? undefined,
-        targetIds,
-        analysisGate: { analysisId: a.id, decision: 'analyze', complexity: dto.complexity, unitId: unit.id },
-        createdAt: iso(Date.now()),
-        updatedAt: iso(Date.now()),
-      });
-      services.push(s);
-      if (body?.deploy !== false) {
-        deployments.push({ ...deployment(s.id, 0, 'QUEUED', 'MANUAL', '레포 구성 확인으로 생성'), ...strategySnapshot(s), createdAt: iso(Date.now()), auto: true });
-      }
-      return s;
-    });
+    const result = applyToStack(a, dto.result, picks, depChoices, apTargets, body?.deploy !== false, stackId, body?.skipVariableValidation === true);
     a.applied = true;
-    a.appliedServiceIds = created.map((s) => s.id);
+    a.appliedServiceIds = result.services.map((s) => s.id);
     a.updatedAt = iso(Date.now());
-    return ok({ analysisId: a.id, services: created.map(toServiceDto) }, 201);
+    return ok({ analysisId: a.id, services: result.services.map(toServiceDto), databases: result.databases.map(toServiceDto), stackId, stackDeploymentId: result.deployed ? stackId * 100 : null, variableIssues: result.variableIssues, changes: result.changes.length ? result.changes : null }, 201);
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} /${seg.join('/')}`);
 }
@@ -1054,6 +1066,8 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     return ok(toProjectDto(p));
   }
   if (seg[0] === 'projects' && seg[2] === 'repository-analyses') return handleAnalyses(method, seg, body);
+  if (seg[0] === 'projects' && seg[2] === 'databases' && method === 'POST') return createDatabase(id(1), body);
+  if (seg[0] === 'projects' && seg[2] === 'stacks') return handleStacks(method, seg, body);
   if (seg[0] === 'projects' && seg[2] === 'services') {
     if (method === 'POST') {
       if (body?.targetIds !== undefined && !isSingleTarget(body.targetIds)) return fail(422, 'INVALID_INPUT', 'a service needs exactly one target');
@@ -1106,6 +1120,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     return ok(toServiceDto(s));
   }
   if (seg[2] === 'domains') return ok(domainsOf(s));
+  if (seg[2] === 'variables') return handleVariables(s, method, seg, body);
   if (seg[2] === 'logs' && seg.length === 3) {
     const entries = logsBetween(s, Date.parse(q.start), Date.parse(q.end), Math.min(Number(q.limit ?? 500), 1000));
     return ok({ entries, isTruncated: entries.length >= Number(q.limit ?? 500) });
@@ -1137,6 +1152,9 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
       if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
         return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
       }
+      // 환경변수에 error 가 있으면 배포 요청을 만들기 전에 거절한다(RESTART 포함).
+      const invalid = validate(s.id).issues.filter((i) => i.severity === 'error');
+      if (invalid.length > 0 && body?.skipVariableValidation !== true && body?.triggerType !== 'ROLLBACK') return variablesInvalid(s.id, invalid);
       // RESTART 는 원본을 보내지 않고, 서버가 지금 떠 있는(가장 최근에 성공한) 배포로 정한다.
       const source =
         body?.triggerType === 'RESTART'
@@ -1172,4 +1190,530 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     if (seg[4] === 'diagnosis' && method === 'GET') return getDiagnosis(d);
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} ${path}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* 관리형 DB · 스택 · 참조 변수 · 환경변수 검증 (phase 2)                         */
+/* ------------------------------------------------------------------ */
+
+const ENGINE_DEFAULTS: Record<DatabaseEngine, { image: string; port: number; scheme: string; user: string }> = {
+  postgres: { image: 'postgres:16-alpine', port: 5432, scheme: 'postgres', user: 'app' },
+  mysql: { image: 'mysql:8.4', port: 3306, scheme: 'mysql', user: 'app' },
+  mongodb: { image: 'mongo:7', port: 27017, scheme: 'mongodb', user: 'app' },
+  redis: { image: 'redis:7-alpine', port: 6379, scheme: 'redis', user: '' },
+};
+const internalHostOf = (id: number) => `app.svc-${id}.svc.cluster.local`;
+
+/** 관리형 DB 서비스. 소스 저장소가 없어서 sourceRepositoryUrl 에는 고정 이미지를 둔다. */
+function dbService(id: number, projectId: number, name: string, engine: DatabaseEngine, stack?: { id: number; unitId: string }): MockService {
+  const d = ENGINE_DEFAULTS[engine];
+  return service(id, projectId, name, `docker.io/library/${d.image.split(':')[0]}`, {
+    kind: 'DATABASE',
+    databaseEngine: engine,
+    internalHost: internalHostOf(id),
+    internalPort: d.port,
+    connection: {
+      urlTemplate: `${d.scheme}://${d.user ? `${d.user}:` : ':'}****@${internalHostOf(id)}:${d.port}${engine === 'redis' ? '' : '/app'}`,
+      properties: engine === 'redis' ? ['url', 'host', 'port', 'password'] : ['url', 'host', 'port', 'user', 'password', 'database'],
+    },
+    database: { image: d.image, storageGi: 5, user: d.user || undefined, database: engine === 'redis' ? undefined : 'app' },
+    referenceProperties: engine === 'redis' ? ['url', 'host', 'port', 'password'] : ['url', 'host', 'port', 'user', 'password', 'database'],
+    builder: undefined,
+    port: d.port,
+    isAutoDeploy: false,
+    stack,
+    // 관리형 DB 는 소스가 없어 저장소 주소·브랜치가 빈 문자열이다.
+    sourceRepositoryUrl: '',
+    sourceBranch: '',
+    createdAt: iso(Date.now() - DAY),
+  });
+}
+
+/* --- 스택 -------------------------------------------------------- */
+
+type StackMember = { serviceId: number; unitId: string; order: number; dependsOn: string[] };
+type MockStack = {
+  id: number;
+  projectId: number;
+  repositoryUrl: string;
+  sourceBranch: string;
+  members: StackMember[];
+  /** 마지막 스택 배포 시작 시각. 없으면 서비스별 최근 배포로 상태를 정한다. */
+  runStartedAt?: number;
+  /** 마지막 스택 배포에 포함된 서비스. 없으면 전부. */
+  runMembers?: number[];
+  /** 이 unit 의 빌드는 항상 실패한다(실패·보류 시나리오). */
+  failUnit?: string;
+  pending?: { analysisId: number; sourceSha: string; detectedAt: string; changes: StackChangeDto[] };
+};
+const stacks: MockStack[] = [];
+const stackById = (id: number) => stacks.find((x) => x.id === id);
+const stackMembers = (id: number) => stackById(id)?.members ?? [];
+
+/** 스택 배포 타임라인: 단계(order)마다 5초. 대기 1.5초 → 빌드(DB 는 배포) 4.5초 → 5초에 성공(또는 실패). */
+const PHASE_MS = 5_000;
+function stackStepStatus(stackId: number, unitId: string, startedAt: number): StackStepStatus {
+  const st = stackById(stackId);
+  const member = st?.members.find((m) => m.unitId === unitId);
+  if (!st || !member) return 'SUCCEEDED';
+  const elapsed = Date.now() - startedAt;
+  const svc = services.find((x) => x.id === member.serviceId);
+  const isDb = svc?.kind === 'DATABASE';
+  const failMember = st.failUnit ? st.members.find((m) => m.unitId === st.failUnit) : undefined;
+  const failedAt = failMember ? (failMember.order - 1) * PHASE_MS + 4_500 : Infinity;
+  if (failMember && member.order > failMember.order) return elapsed >= failedAt ? 'HELD' : 'QUEUED';
+  const begin = (member.order - 1) * PHASE_MS;
+  if (elapsed < begin + 1_500) return 'QUEUED';
+  if (member.unitId === st.failUnit) return elapsed >= failedAt ? 'FAILED' : 'BUILDING';
+  if (elapsed < begin + 4_500) return isDb ? 'DEPLOYING' : 'BUILDING';
+  if (elapsed < begin + PHASE_MS) return 'DEPLOYING';
+  return 'SUCCEEDED';
+}
+
+/** 분석 unit 의 위상 순서: DB(1) → DB 에 기대는 앱(2) → 앱에 기대는 앱(3)… */
+function levelOf(id: string, deps: Map<string, string[]>, dbs: Set<string>, seen = new Set<string>()): number {
+  if (dbs.has(id)) return 1;
+  if (seen.has(id)) return 2;
+  seen.add(id);
+  return 1 + Math.max(1, ...(deps.get(id) ?? []).map((d) => levelOf(d, deps, dbs, seen)));
+}
+
+function toStackDto(st: MockStack): StackDto {
+  const run = st.runStartedAt;
+  const members: StackServiceDto[] = st.members.map((m) => {
+    const svc = services.find((x) => x.id === m.serviceId);
+    const own = deploymentsOf(m.serviceId);
+    // 이번 스택 배포에 포함되지 않은 서비스(떠 있어서 건너뛴 DB)는 자기 최근 배포 상태 그대로다.
+    const inRun = run !== undefined && (!st.runMembers || st.runMembers.includes(m.serviceId));
+    const status: StackStepStatus = inRun ? stackStepStatus(st.id, m.unitId, run!) : own[0] ? (statusOf(own[0]) as StackStepStatus) : 'NOT_DEPLOYED';
+    const dep = inRun ? own.find((d) => d.stackRun?.stackId === st.id && Date.parse(d.createdAt) === run) : own[0];
+    const waitingFor = inRun && status === 'QUEUED' ? st.members.filter((x) => x.order < m.order && st.runMembers?.includes(x.serviceId) !== false).filter((x) => stackStepStatus(st.id, x.unitId, run!) !== 'SUCCEEDED').map((x) => x.unitId) : [];
+    return {
+      serviceId: m.serviceId,
+      name: svc?.name ?? `#${m.serviceId}`,
+      unitId: m.unitId,
+      kind: svc?.kind ?? 'APP',
+      order: m.order,
+      dependsOn: m.dependsOn,
+      status,
+      deploymentId: dep?.id,
+      ...(status === 'HELD' && st.failUnit && { heldBy: st.failUnit }),
+      ...(waitingFor.length > 0 && { waitingFor }),
+      ...(status === 'FAILED' && { failureCode: 'BUILD_FAILED' as const }),
+    };
+  });
+  return {
+    id: st.id,
+    projectId: st.projectId,
+    repositoryUrl: st.repositoryUrl,
+    sourceBranch: st.sourceBranch,
+    rootDirectory: null,
+    analysisId: st.pending?.analysisId ?? 0,
+    services: members.sort((a, b) => a.order - b.order),
+    isDeploying: members.some((m) => IN_PROGRESS.includes(m.status as DeploymentStatus)),
+    latestStackDeploymentId: run !== undefined ? st.id * 100 : null,
+    pendingChanges: st.pending ?? null,
+  };
+}
+
+const variablesInvalid = (serviceId: number, issues: VariableIssueDto[]) =>
+  fail(422, 'VARIABLES_INVALID', 'environment variables are invalid', issues.map((i) => ({ field: i.key, reason: i.code })), { ok: false, issues, serviceId });
+
+/**
+ * 스택(또는 일부)을 의존 순서로 다시 배포한다. serviceIds 를 생략하면 전체지만 이미 떠 있는 DB 는 다시 띄우지 않는다.
+ * 환경변수에 error 가 있으면 422 VARIABLES_INVALID(skip 이면 건너뜀). 진행 중이면 409.
+ */
+function deployStackCore(st: MockStack, serviceIds: number[] | undefined, skip: boolean): MockResponse {
+  const chosen = st.members.filter((m) => {
+    if (serviceIds) return serviceIds.includes(m.serviceId);
+    const svc = services.find((x) => x.id === m.serviceId);
+    return !(svc?.kind === 'DATABASE' && deploymentsOf(m.serviceId).some((d) => statusOf(d) === 'SUCCEEDED'));
+  });
+  if (!skip) {
+    for (const m of chosen) {
+      const issues = validate(m.serviceId).issues.filter((i) => i.severity === 'error');
+      if (issues.length > 0) return variablesInvalid(m.serviceId, issues);
+    }
+  }
+  if (toStackDto(st).isDeploying) return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
+  const now = Date.now();
+  st.runStartedAt = now;
+  st.runMembers = chosen.map((m) => m.serviceId);
+  const failMember = st.failUnit ? st.members.find((m) => m.unitId === st.failUnit) : undefined;
+  for (const m of chosen) {
+    if (failMember && m.order > failMember.order) continue; // 보류: 요청을 만들지 않는다
+    const svc = services.find((x) => x.id === m.serviceId)!;
+    deployments.push({
+      ...deployment(m.serviceId, 0, 'QUEUED', 'MANUAL', svc.kind === 'DATABASE' ? ENGINE_DEFAULTS[svc.databaseEngine!].image : '스택 재배포', m.unitId === st.failUnit ? 'BUILD_FAILED' : undefined),
+      ...strategySnapshot(svc),
+      createdAt: iso(now),
+      auto: true,
+      stackRun: { stackId: st.id, unitId: m.unitId },
+    });
+  }
+  return ok(toStackDto(st), 202);
+}
+
+function handleStacks(method: string, seg: string[], body: Record<string, unknown> | undefined): MockResponse {
+  const projectId = Number(seg[1]);
+  const own = stacks.filter((x) => x.projectId === projectId);
+  if (seg.length === 3) return ok(own.map(toStackDto));
+  const st = own.find((x) => x.id === Number(seg[3]));
+  if (!st) return fail(404, 'NOT_FOUND', 'Stack not found');
+  if (seg.length === 4) return ok(toStackDto(st));
+  if (seg[4] === 'deployments' && method === 'POST') return deployStackCore(st, body?.serviceIds as number[] | undefined, body?.skipVariableValidation === true);
+  return fail(404, 'NOT_FOUND', `No mock for ${method} /${seg.join('/')}`);
+}
+
+/* --- 변수 · 참조 · 검증 --------------------------------------------- */
+
+type MockVar = { key: string; value?: string; reference?: VariableReferenceDto };
+const variables = new Map<number, MockVar[]>();
+/** 분석으로 만든 서비스가 필요로 하는 변수(분석기의 unit.env). 분석 정보가 없는 서비스는 REQUIRED_MISSING 검사를 하지 않는다. */
+const requiredEnv = new Map<number, { key: string; binding?: AnalysisBindingDto | null }[]>();
+const varsOf = (id: number) => variables.get(id) ?? (variables.set(id, []), variables.get(id)!);
+
+function resolvePreview(ref: VariableReferenceDto): string | undefined {
+  const target = services.find((x) => x.id === ref.serviceId);
+  if (!target) return undefined;
+  if (target.kind === 'DATABASE') {
+    const d = ENGINE_DEFAULTS[target.databaseEngine!];
+    const host = target.internalHost!;
+    switch (ref.property) {
+      case 'url': return target.connection!.urlTemplate;
+      case 'host': return host;
+      case 'port': return String(target.internalPort);
+      case 'user': return d.user || undefined;
+      case 'password': return '********';
+      case 'database': return 'app';
+    }
+  }
+  const host = internalHostOf(target.id);
+  return ref.property === 'url' ? `http://${host}:${target.port ?? 80}` : ref.property === 'host' ? host : String(target.port ?? 80);
+}
+const toVariableDto = (v: MockVar): VariableDto => (v.reference ? { key: v.key, reference: v.reference, resolved: resolvePreview(v.reference) } : { key: v.key, value: v.value ?? '' });
+
+const ENGINE_BY_KEY: [RegExp, DatabaseEngine][] = [[/(DATABASE|POSTGRES|PG)/, 'postgres'], [/REDIS/, 'redis'], [/MONGO/, 'mongodb'], [/MYSQL/, 'mysql']];
+function suggestionFor(s: MockService, key: string, binding?: AnalysisBindingDto | null): { reference: VariableReferenceDto } | undefined {
+  const siblings = services.filter((x) => x.projectId === s.projectId && x.id !== s.id);
+  if (binding) {
+    const target = siblings.find((x) => x.stack?.unitId === binding.targetId);
+    if (target) return { reference: { serviceId: target.id, property: binding.property } };
+  }
+  const engine = ENGINE_BY_KEY.find(([re]) => re.test(key.toUpperCase()))?.[1];
+  const target = engine && siblings.find((x) => x.kind === 'DATABASE' && x.databaseEngine === engine);
+  return target ? { reference: { serviceId: target.id, property: 'url' } } : undefined;
+}
+
+/** 배포 전 환경변수 검증(계약 C 의 코드들). */
+function validate(serviceId: number): VariablesValidationDto {
+  const s = services.find((x) => x.id === serviceId);
+  if (!s || s.kind === 'DATABASE') return { ok: true, issues: [] };
+  const vars = varsOf(serviceId);
+  const issues: VariableIssueDto[] = [];
+  for (const need of requiredEnv.get(serviceId) ?? []) {
+    if (!vars.some((v) => v.key === need.key)) {
+      issues.push({ key: need.key, severity: 'error', code: 'REQUIRED_MISSING', message: `${need.key} is required by the analyzed service but is not set.`, suggestion: suggestionFor(s, need.key, need.binding) });
+    }
+  }
+  for (const v of vars) {
+    if (v.reference) {
+      if (!services.some((x) => x.id === v.reference!.serviceId && x.projectId === s.projectId)) {
+        issues.push({ key: v.key, severity: 'error', code: 'REFERENCE_BROKEN', message: 'The referenced service was deleted or belongs to another project.' });
+      }
+      continue;
+    }
+    const value = v.value ?? '';
+    if (/(_URL|_URI|_HOST|_ADDR)$/.test(v.key) && /(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(value)) {
+      issues.push({ key: v.key, severity: 'error', code: 'LOCALHOST_ADDRESS', message: 'localhost points at the container itself, not at another service.', suggestion: suggestionFor(s, v.key) });
+      continue;
+    }
+    const host = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]*@)?([^:/?#]+)/i.exec(value)?.[1] ?? (/_HOST$/.test(v.key) ? value : undefined);
+    if (host && !host.includes('.') && !services.some((x) => x.projectId === s.projectId && x.name === host)) {
+      issues.push({ key: v.key, severity: 'warning', code: 'UNRESOLVABLE_HOST', message: `Host "${host}" is not a service alias in this project, an FQDN or an external domain.` });
+    }
+    const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(value)?.[1]?.toLowerCase();
+    const keyEngine = ENGINE_BY_KEY.find(([re]) => re.test(v.key.toUpperCase()))?.[1];
+    if (scheme && keyEngine && scheme !== ENGINE_DEFAULTS[keyEngine].scheme && Object.values(ENGINE_DEFAULTS).some((d) => d.scheme === scheme)) {
+      issues.push({ key: v.key, severity: 'warning', code: 'SCHEME_MISMATCH', message: `${v.key} looks like a ${keyEngine} URL but uses the ${scheme}:// scheme.` });
+    }
+  }
+  return { ok: !issues.some((i) => i.severity === 'error'), issues };
+}
+
+const SYSTEM_VARIABLES = [
+  { key: 'PORT', description: 'Port the platform expects your app to listen on.', value: '3000' },
+  { key: 'IRIS_SERVICE_ID', description: 'Id of this service.' },
+  { key: 'IRIS_PROJECT_ID', description: 'Id of the project this service belongs to.' },
+];
+
+function handleVariables(s: MockService, method: string, seg: string[], body: Record<string, unknown> | undefined): MockResponse {
+  const list = varsOf(s.id);
+  // 관리형 DB 의 자격 증명은 변수 목록이 아니라 읽기 전용 systemVariables 에 이름만 보인다(비밀번호는 값 없음).
+  const dbSystem = s.kind === 'DATABASE'
+    ? [{ key: s.databaseEngine === 'postgres' ? 'POSTGRES_USER' : 'DB_USER', description: 'Managed by the platform. Read only.', value: s.database?.user ?? '' }, { key: s.databaseEngine === 'postgres' ? 'POSTGRES_PASSWORD' : 'DB_PASSWORD', description: 'Managed by the platform. The value is never shown.' }]
+    : [];
+  const all = () => ({ variables: [...list].sort((a, b) => (a.key < b.key ? -1 : 1)).map(toVariableDto), systemVariables: [...dbSystem, ...SYSTEM_VARIABLES] });
+  if (seg[3] === 'validation') return ok(validate(s.id));
+  if (seg.length === 3) {
+    if (method === 'PUT') {
+      // Raw 저장: 텍스트에 없는 변수는 지워진다(참조 변수도, 그래서 화면이 되살려야 한다).
+      const raw = String(body?.raw ?? '');
+      list.length = 0;
+      for (const line of raw.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))) {
+        const eq = line.indexOf('=');
+        if (eq < 1) return fail(422, 'INVALID_INPUT', 'invalid variable line', [{ field: 'raw', reason: 'line 1: invalid variable line' }]);
+        let value = line.slice(eq + 1);
+        if (value.startsWith('"')) { try { value = JSON.parse(value); } catch { /* 그대로 */ } }
+        list.push({ key: line.slice(0, eq), value });
+      }
+      return ok(all());
+    }
+    if (method === 'POST') {
+      const key = String(body?.key ?? '');
+      if (list.some((v) => v.key === key)) return fail(409, 'VARIABLE_CONFLICT', 'Variable already exists');
+      const v: MockVar = body?.reference ? { key, reference: body.reference as VariableReferenceDto } : { key, value: String(body?.value ?? '') };
+      list.push(v);
+      return ok(toVariableDto(v), 201);
+    }
+    return ok(all());
+  }
+  const key = decodeURIComponent(seg[3]);
+  const v = list.find((x) => x.key === key);
+  if (!v) return fail(404, 'VARIABLE_NOT_FOUND', 'Variable not found');
+  if (method === 'DELETE') { list.splice(list.indexOf(v), 1); return { status: 204 }; }
+  if (method === 'PUT') {
+    if (body?.reference) { delete v.value; v.reference = body.reference as VariableReferenceDto; }
+    else { delete v.reference; v.value = String(body?.value ?? ''); }
+  }
+  return ok(toVariableDto(v));
+}
+
+/* --- DB 생성 · apply(스택) ------------------------------------------- */
+
+const networkingRejected = (targetIds: number[] | undefined) =>
+  (targetIds ?? [1]).some((id) => targets.find((x) => x.id === id)?.kind === 'ONPREM')
+    ? fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'targetIds', reason: 'networking_unsupported_target' }])
+    : null;
+
+const nextServiceId = () => Math.max(0, ...services.map((x) => x.id)) + 1;
+const queueDeploy = (s: MockService, message: string) => {
+  deployments.push({ ...deployment(s.id, 0, 'QUEUED', 'MANUAL', message), ...strategySnapshot(s), createdAt: iso(Date.now()), auto: true });
+};
+
+function createDatabase(projectId: number, body: Record<string, unknown> | undefined): MockResponse {
+  const name = String(body?.name ?? '');
+  const engine = body?.engine as DatabaseEngine;
+  if (!ENGINE_DEFAULTS[engine]) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'engine', reason: 'unsupported database engine' }]);
+  if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'name', reason: 'must be a DNS label' }]);
+  if (services.some((x) => x.projectId === projectId && x.name === name)) return fail(409, 'SERVICE_NAME_CONFLICT', 'Service name conflict');
+  const rejected = networkingRejected(body?.targetIds as number[] | undefined);
+  if (rejected) return rejected;
+  const s = dbService(nextServiceId(), projectId, name, engine);
+  s.database = { ...s.database, storageGi: Number(body?.storageGi ?? 5) };
+  services.push(s);
+  queueDeploy(s, ENGINE_DEFAULTS[engine].image);
+  return ok(toServiceDto(s), 201);
+}
+
+const stackOfAnalysis = (a: MockAnalysis, projectId: number) =>
+  a.id === PENDING_ANALYSIS_ID ? 1 : (stacks.find((x) => x.projectId === projectId && x.repositoryUrl === a.sourceRepositoryUrl)?.id ?? 100 + a.id);
+
+/**
+ * 분석 apply(증분 포함): 스택에 이미 있는 unit 은 unitId 로 맞춰 중복 생성하지 않고 바뀐 필드만 갱신한다.
+ * provision 인 의존성은 DB 서비스로 만들고, env binding 은 참조 변수로, hostAliases 는 서비스 host_aliases 로 남긴다.
+ * 사라진 unit 은 건드리지 않는다.
+ */
+function applyToStack(a: MockAnalysis, result: AnalysisGateResultDto, picks: AnalysisUnitApply[], depChoices: AnalysisDependencyApply[], targetIds: number[], deploy: boolean, stackId: number, skip: boolean) {
+  let st = stackById(stackId);
+  if (!st) {
+    st = { id: stackId, projectId: a.projectId, repositoryUrl: a.sourceRepositoryUrl, sourceBranch: a.sourceBranch, members: [] };
+    stacks.push(st);
+  }
+  const projectId = a.projectId;
+  const repo = a.sourceRepositoryUrl.split('/').slice(-2).join('/');
+  const tag = (unitId: string) => ({ id: stackId, unitId });
+  const databases: MockService[] = [];
+  const created: MockService[] = [];
+  const serviceOfUnit = new Map<string, MockService>(st.members.flatMap((m) => { const x = services.find((y) => y.id === m.serviceId); return x ? [[m.unitId, x] as const] : []; }));
+
+  // 1) DB 서비스(선택한 의존성만, 기본은 지원 엔진 전부)
+  for (const dep of result.dependencies as AnalysisDependencyDto[]) {
+    if (serviceOfUnit.has(dep.id) || dep.engine === 'other') continue;
+    const choice = depChoices.find((c) => c.dependencyId === dep.id);
+    if (choice && !choice.provision) continue;
+    const s = dbService(nextServiceId(), projectId, choice?.name ?? dep.id, dep.engine, tag(dep.id));
+    s.targetIds = targetIds;
+    const scripts = (dep.initScripts ?? []).filter((x) => x.supported !== false);
+    if (scripts.length > 0) s.database = { ...s.database, initScripts: scripts.map((x) => ({ name: `${String(x.order).padStart(2, '0')}-${x.path.split('/').pop()}`, path: x.path, sha256: x.sha256 ?? '', size: x.size })) };
+    services.push(s);
+    serviceOfUnit.set(dep.id, s);
+    databases.push(s);
+  }
+  // 2) 앱 서비스
+  for (const pick of picks) {
+    const unit = result.units.find((u) => u.id === pick.unitId)!;
+    const known = serviceOfUnit.get(unit.id);
+    if (known) {
+      // 바뀐 필드만 갱신한다.
+      Object.assign(known, { port: pick.port ?? unit.port ?? known.port, updatedAt: iso(Date.now()) });
+      continue;
+    }
+    const s = service(nextServiceId(), projectId, pick.name, repo, {
+      sourceBranch: a.sourceBranch,
+      rootDirectory: pick.rootDirectory ?? unit.rootDirectory,
+      builder: pick.builder ?? unit.builder,
+      dockerfilePath: pick.dockerfilePath ?? unit.dockerfilePath ?? undefined,
+      port: pick.port ?? unit.port ?? undefined,
+      targetIds,
+      analysisGate: { analysisId: a.id, decision: 'analyze', complexity: 'complex', unitId: unit.id },
+      stack: tag(unit.id),
+      createdAt: iso(Date.now()),
+      updatedAt: iso(Date.now()),
+    });
+    services.push(s);
+    serviceOfUnit.set(unit.id, s);
+    created.push(s);
+  }
+  // 3) 참조 변수와 필수 변수, 호스트 별칭(마지막으로 만든 서비스들에 대해)
+  for (const s of [...created]) {
+    const unit = result.units.find((u) => u.id === s.analysisGate?.unitId)!;
+    requiredEnv.set(s.id, unit.env.filter((e) => e.required).map((e) => ({ key: e.key, binding: e.binding })));
+    for (const e of unit.env) {
+      const b = e.binding;
+      const target = b && serviceOfUnit.get(b.targetId);
+      if (b && target) varsOf(s.id).push({ key: e.key, reference: { serviceId: target.id, property: b.property as ReferenceProperty } });
+    }
+  }
+  // 4) 스택 구성원(순서는 위상 정렬)
+  const deps = new Map(result.units.map((u) => [u.id, u.dependsOn]));
+  const dbIds = new Set(result.dependencies.map((d) => d.id));
+  st.members = [...serviceOfUnit.entries()].map(([unitId, svc]) => ({
+    serviceId: svc.id,
+    unitId,
+    order: levelOf(unitId, deps, dbIds),
+    dependsOn: (deps.get(unitId) ?? []).filter((d) => serviceOfUnit.has(d)),
+  }));
+  const changes = (st.pending?.changes ?? []).filter((c) => c.type === 'DEPENDENCY_CHANGED');
+  st.pending = undefined;
+  // 의존 순서 스택 배포. 새로 만든 서비스만 대상으로 하고, 환경변수 error 가 있으면 배포 없이 이슈를 돌려준다.
+  const fresh = [...databases, ...created].map((x) => x.id);
+  let deployed = false;
+  let variableIssues: { serviceId: number; ok: boolean; issues: VariableIssueDto[] }[] | null = null;
+  if (deploy && fresh.length > 0) {
+    const res = deployStackCore(st, fresh, skip);
+    deployed = res.status === 202;
+    if (!deployed) {
+      const failed = fresh.map((id) => ({ serviceId: id, ...validate(id) })).filter((v) => !v.ok);
+      variableIssues = failed.length ? failed : null;
+    }
+  }
+  return { services: created, databases, deployed, variableIssues, changes };
+}
+
+/* --- 시드 -------------------------------------------------------- */
+
+const PENDING_ANALYSIS_ID = 900;
+/** push 뒤 자동 분석: multi-image-shop 에 scheduler 가 생기고 api 포트가 바뀌고 mongo 가 늘었다. */
+function pendingShopResult(root: string): AnalysisGateResultDto {
+  const base = multiImageShopResult(root, 'auto');
+  return {
+    ...base,
+    sourceSha: 'b81e0c4d92a7f3561d0e8a9b7c4f2e1d3a5b6c7d',
+    units: [
+      ...base.units.map((u) => (u.id === 'api' ? { ...u, port: 8080 } : u)),
+      { id: 'scheduler', name: 'scheduler', rootDirectory: 'scheduler', builder: 'dockerfile', dockerfilePath: 'Dockerfile', port: null, startCommand: null, buildCommand: null, role: 'worker', public: false, env: [{ key: 'DATABASE_URL', stage: 'runtime', required: true, binding: PG_URL }], dependsOn: ['postgres'], evidence: [{ path: 'compose.yaml', line: 48 }] },
+    ],
+    dependencies: [...base.dependencies, { id: 'mongo', engine: 'mongodb', image: 'mongo:7', port: 27017, database: 'events', evidence: [{ path: 'compose.yaml', line: 55 }] }],
+  };
+}
+
+function seedStack(opts: { stackId: number; projectId: number; repo: string; ids: { postgres: number; redis: number; api: number; worker?: number; web?: number }; failUnit?: string; names?: Partial<Record<string, string>> }) {
+  const { stackId, projectId, ids } = opts;
+  const tag = (unitId: string) => ({ id: stackId, unitId });
+  const url = `https://github.com/${opts.repo}`;
+  const deps = [
+    dbService(ids.postgres, projectId, 'postgres', 'postgres', tag('postgres')),
+    dbService(ids.redis, projectId, 'redis', 'redis', tag('redis')),
+  ];
+  const mk = (id: number, name: string, unit: string, port: number | undefined, extra: Partial<MockService> = {}) =>
+    service(id, projectId, name, opts.repo, { rootDirectory: unit, builder: 'dockerfile', dockerfilePath: 'Dockerfile', port, analysisGate: { analysisId: 800 + projectId, decision: 'analyze', complexity: 'complex', unitId: unit }, stack: tag(unit), ...extra });
+  const apps = [mk(ids.api, 'api', 'api', 8000), ...(ids.worker ? [mk(ids.worker, 'worker', 'worker', undefined)] : []), ...(ids.web ? [mk(ids.web, 'web', 'web', 3000)] : [])];
+  services.push(...deps, ...apps);
+  const members: StackMember[] = [
+    { serviceId: ids.postgres, unitId: 'postgres', order: 1, dependsOn: [] },
+    { serviceId: ids.redis, unitId: 'redis', order: 1, dependsOn: [] },
+    { serviceId: ids.api, unitId: 'api', order: 2, dependsOn: ['postgres', 'redis'] },
+    ...(ids.worker ? [{ serviceId: ids.worker, unitId: 'worker', order: 2, dependsOn: ['postgres', 'redis'] }] : []),
+    ...(ids.web ? [{ serviceId: ids.web, unitId: 'web', order: 3, dependsOn: ['api'] }] : []),
+  ];
+  stacks.push({ id: stackId, projectId, repositoryUrl: url, sourceBranch: 'main', members, failUnit: opts.failUnit });
+  return { deps, apps };
+}
+
+{
+  const iaddRef = (id: number, key: string, serviceId: number, property: ReferenceProperty) => varsOf(id).push({ key, reference: { serviceId, property } });
+  const projectsAdd = (id: number, name: string, description: string) => projects.push({ id, name, description, createdAt: iso(t0 - 4 * DAY), updatedAt: iso(t0 - 5 * MIN) });
+
+  // 프로젝트 4: 멀티 이미지 스택이 postgres·redis 와 함께 배포된 상태 + push 로 감지된 구성 변경(pendingChanges).
+  projectsAdd(4, 'multi-image-shop', 'web · api · worker 와 postgres · redis 를 한 스택으로 운영');
+  seedStack({ stackId: 1, projectId: 4, repo: 'kylo-dev/multi-image-shop', ids: { postgres: 41, redis: 42, api: 43, worker: 44, web: 45 } });
+  services.find((x) => x.id === 41)!.database = { ...services.find((x) => x.id === 41)!.database, initScripts: [
+    { name: '00-schema.sql', path: 'db/schema.sql', sha256: SHOP_INIT_SCRIPTS[0].sha256 ?? '', size: SHOP_INIT_SCRIPTS[0].size },
+    { name: '01-seed.sql', path: 'db/seed.sql', sha256: SHOP_INIT_SCRIPTS[1].sha256 ?? '', size: SHOP_INIT_SCRIPTS[1].size },
+  ] };
+  for (const id of [41, 42, 43, 44, 45]) {
+    const isDb = id <= 42;
+    deployments.push(deployment(id, isDb ? 3 * DAY : 3 * DAY - 5 * MIN, 'SUCCEEDED', isDb ? 'MANUAL' : 'MANUAL', isDb ? (id === 41 ? 'postgres:16-alpine' : 'redis:7-alpine') : '레포 구성 확인으로 생성'));
+  }
+  deployments.push(deployment(43, 4 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 주문 API 페이지네이션'));
+  for (const id of [43, 44]) {
+    iaddRef(id, 'DATABASE_URL', 41, 'url');
+    iaddRef(id, 'REDIS_URL', 42, 'url');
+    requiredEnv.set(id, [{ key: 'DATABASE_URL', binding: PG_URL }, { key: 'REDIS_URL', binding: REDIS_URL }]);
+  }
+  varsOf(43).push({ key: 'LOG_LEVEL', value: 'info' });
+  varsOf(45).push({ key: 'API_BASE_URL', value: 'http://api:8000' });
+  requiredEnv.set(45, [{ key: 'API_BASE_URL', binding: { kind: 'unit', targetId: 'api', property: 'url' } }]);
+  analyses.push({
+    id: PENDING_ANALYSIS_ID, projectId: 4, sourceRepositoryUrl: 'https://github.com/kylo-dev/multi-image-shop', sourceBranch: 'main', sourceSha: null,
+    rootDirectory: '.', mode: 'auto', errorCode: null, errorMessage: null, appliedServiceIds: [], createdAt: iso(t0 - 20 * MIN), updatedAt: iso(t0 - 20 * MIN), startedAt: 0, applied: false,
+  });
+  stackById(1)!.pending = {
+    analysisId: PENDING_ANALYSIS_ID,
+    sourceSha: 'b81e0c4d92a7f3561d0e8a9b7c4f2e1d3a5b6c7d',
+    detectedAt: iso(t0 - 20 * MIN),
+    changes: [
+      { type: 'UNIT_ADDED', unitId: 'scheduler' },
+      { type: 'UNIT_CHANGED', unitId: 'api', field: 'port', from: 8000, to: 8080 },
+      { type: 'DEPENDENCY_ADDED', unitId: 'mongo' },
+      { type: 'DEPENDENCY_CHANGED', unitId: 'postgres', field: 'initScripts', reason: 'init_scripts_changed', serviceId: 41, message: 'Init scripts run only when the database is first created and are not run again on an existing database.', from: [{ path: 'db/schema.sql', sha256: 'a3f1c9d2' }], to: [{ path: 'db/schema.sql', sha256: 'e0b44c71' }, { path: 'db/seed.sql', sha256: '7be04d1a' }] },
+    ],
+  };
+
+  // 프로젝트 5: 환경변수 검증 실패(localhost, 필수 변수 누락, 해석 불가 호스트, 스킴 불일치).
+  projectsAdd(5, 'shop-validation', '배포 전 환경변수 검증이 막는 스택');
+  const lab = seedStack({ stackId: 3, projectId: 5, repo: 'kylo-dev/shop-validation', ids: { postgres: 52, redis: 53, api: 51 } });
+  for (const s of [...lab.deps, ...lab.apps]) deployments.push(deployment(s.id, 2 * DAY, 'SUCCEEDED', 'MANUAL', s.kind === 'DATABASE' ? ENGINE_DEFAULTS[s.databaseEngine!].image : '초기 배포'));
+  varsOf(51).push(
+    { key: 'DATABASE_URL', value: 'postgres://shop:secret@localhost:5432/shop' },
+    { key: 'CACHE_HOST', value: 'cache' },
+    { key: 'MONGO_URL', value: 'redis://redis:6379/0' },
+  );
+  requiredEnv.set(51, [{ key: 'DATABASE_URL', binding: PG_URL }, { key: 'REDIS_URL', binding: REDIS_URL }]);
+
+  // 프로젝트 6: api 빌드가 실패해 같은 단계의 worker 는 끝나고 web 은 보류된 스택 배포.
+  projectsAdd(6, 'shop-stack-failing', 'api 빌드가 실패해 web 이 보류된 스택 배포');
+  const bad = seedStack({ stackId: 2, projectId: 6, repo: 'kylo-dev/shop-stack-failing', ids: { postgres: 61, redis: 62, api: 63, worker: 64, web: 65 }, failUnit: 'api' });
+  stackById(2)!.runStartedAt = Date.now() - 10 * MIN;
+  for (const s of [...bad.deps, ...bad.apps]) {
+    if (s.id === 65) continue; // 보류: 배포 요청이 없다
+    const failed = s.id === 63;
+    deployments.push({ ...deployment(s.id, 10 * MIN, failed ? 'FAILED' : 'SUCCEEDED', 'MANUAL', s.kind === 'DATABASE' ? ENGINE_DEFAULTS[s.databaseEngine!].image : '스택 전체 재배포', failed ? 'BUILD_FAILED' : undefined, failed ? 'build' : undefined) });
+  }
+  for (const id of [63, 64]) {
+    iaddRef(id, 'DATABASE_URL', 61, 'url');
+    iaddRef(id, 'REDIS_URL', 62, 'url');
+  }
+  varsOf(65).push({ key: 'API_BASE_URL', value: 'http://api:8000' });
 }

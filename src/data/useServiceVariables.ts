@@ -18,6 +18,7 @@ export function describeVariablesError(error: unknown, t: (key: MessageKey, vars
     case 'VARIABLE_NOT_FOUND': return t('service.vars.err.notFound');
     case 'SERVICE_NOT_FOUND': return t('service.vars.err.serviceGone');
     case 'NOT_CONFIGURED': return t('service.vars.err.notConfigured');
+    case 'VARIABLE_REFERENCE_INVALID': return t('stack.vars.err.referenceInvalid');
     case 'INVALID_INPUT': {
       const key = INVALID_INPUT_KEYS[error.message];
       if (key) return t(key);
@@ -100,12 +101,25 @@ export function useServiceVariables(serviceId: string) {
   const add = useCallback((key: string, value: string) =>
     write(() => api.createServiceVariable(serviceId, { key, value }), (d, v) => ({ ...d, variables: withVariable(d.variables, v) })), [serviceId, write]);
   const update = useCallback((key: string, value: string) =>
-    write(() => api.updateServiceVariable(serviceId, key, value), (d, v) => ({ ...d, variables: withVariable(d.variables, v) })), [serviceId, write]);
+    write(() => api.updateServiceVariable(serviceId, key, { value }), (d, v) => ({ ...d, variables: withVariable(d.variables, v) })), [serviceId, write]);
+  /** 값 대신 같은 프로젝트 서비스의 연결 정보를 가리키는 변수를 만들거나(없으면) 바꾼다(있으면). */
+  const setReference = useCallback((key: string, reference: api.VariableReferenceDto, exists: boolean) =>
+    write(
+      () => (exists ? api.updateServiceVariable(serviceId, key, { reference }) : api.createServiceVariable(serviceId, { key, reference })),
+      (d, v) => ({ ...d, variables: withVariable(d.variables, v) }),
+    ), [serviceId, write]);
   const remove = useCallback((key: string) =>
     write(() => api.deleteServiceVariable(serviceId, key), (d) => ({ ...d, variables: withoutVariable(d.variables, key) })), [serviceId, write]);
   /** 텍스트에 없는 변수는 지운다. 형식이 틀린 줄이 있으면 서버가 422 를 주고 아무것도 바뀌지 않는다. */
-  const replaceAll = useCallback((raw: string) =>
-    write(() => api.replaceServiceVariables(serviceId, raw), (_, fresh) => fresh), [serviceId, write]);
+  const replaceAll = useCallback((raw: string, keep: api.VariableDto[] = []) =>
+    write(async () => {
+      const fresh = await api.replaceServiceVariables(serviceId, raw);
+      // 참조 변수는 Raw 텍스트에 없어서 서버가 지웠을 수 있다. 되살리고(이미 있으면 무시), 최종 목록을 다시 받는다.
+      const missing = keep.filter((k) => k.reference && !fresh.variables.some((v) => v.key === k.key));
+      if (missing.length === 0) return fresh;
+      await Promise.all(missing.map((k) => api.createServiceVariable(serviceId, { key: k.key, reference: k.reference! }).catch(() => undefined)));
+      return api.getServiceVariables(serviceId);
+    }, (_, fresh) => fresh), [serviceId, write]);
 
   return {
     loading: !current,
@@ -115,6 +129,6 @@ export function useServiceVariables(serviceId: string) {
     ready: !!data,
     variables: data?.variables ?? [],
     systemVariables: data?.systemVariables ?? [],
-    busy, add, update, remove, replaceAll,
+    busy, add, update, setReference, remove, replaceAll,
   };
 }

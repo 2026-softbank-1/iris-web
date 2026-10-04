@@ -73,7 +73,7 @@ function SavedToggle({ value, label, onSave }: { value: boolean; label: string; 
   );
 }
 
-function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; children?: ReactNode; id: string }) {
+export function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; children?: ReactNode; id: string }) {
   return (
     <div className="st-item" id={id}>
       <header className="st-item-head">
@@ -103,7 +103,7 @@ function Section({ name, icon: Icon, children }: { name: string; icon?: LucideIc
 }
 
 /** 한 줄 값을 고쳐 저장하는 설정. 비우고 저장하면 null(값 지우기)을 넘긴다. onSave 는 저장에 성공했는지 돌려준다. */
-function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
+export function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
   const [draft, setDraft] = useState(value);
   const [busy, setBusy] = useState(false);
   const { t } = useI18n();

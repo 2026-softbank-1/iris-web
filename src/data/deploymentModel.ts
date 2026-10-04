@@ -47,6 +47,8 @@ export function failureKey(code?: FailureCode): MessageKey | undefined {
     case 'BUILD_CONFIG_REQUIRED': return 'service.failure.configRequired';
     case 'BUILD_FAILED': return 'service.failure.buildFailed';
     case 'DEPLOY_FAILED': return 'service.failure.deployFailed';
+    case 'VARIABLES_INVALID': return 'stack.failure.variablesInvalid';
+    case 'DEPENDENCY_FAILED': return 'stack.failure.dependencyFailed';
     default: return undefined;
   }
 }

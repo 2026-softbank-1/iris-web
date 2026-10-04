@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { CircleAlert, Database, Layers, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, CircleAlert, Database, Layers, Link2, Sparkles, Zap } from 'lucide-react';
 import type { AnalysisState } from '../data/useRepositoryAnalysis';
 import type * as api from '../lib/endpoints';
 import { useI18n, type MessageKey } from '../i18n';
+import { DataLossNotice, ENGINE_LABEL } from './DatabaseBits';
 
 // 서비스 이름 규칙(CreateDialog 와 같다). 도메인에 쓰이므로 DNS 레이블 규칙을 따른다.
 export const SERVICE_NAME_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -29,6 +30,23 @@ export const toUnitDrafts = (units: api.AnalysisUnitDto[]): UnitDraft[] =>
     dockerfilePath: u.dockerfilePath ?? '',
     port: u.port ? String(u.port) : '',
   }));
+
+/** 화면에서 고치는 의존성(DB) 하나. provision 이면 플랫폼이 개발용 DB 서비스를 만든다. */
+export type DepDraft = { id: string; engine: api.AnalysisDependencyDto['engine']; provision: boolean; name: string };
+
+/** 지원하는 엔진(postgres·mysql·mongodb·redis)은 기본으로 자동 생성한다. 그 밖(other)은 만들 수 없다. */
+export const canProvision = (engine: api.AnalysisDependencyDto['engine']) => engine !== 'other';
+export const toDepDrafts = (deps: api.AnalysisDependencyDto[]): DepDraft[] =>
+  deps.map((d) => ({ id: d.id, engine: d.engine, provision: canProvision(d.engine), name: slugify(d.id) }));
+
+/** apply 요청의 dependencies. 이름이 규칙에 어긋나거나 서비스 이름과 겹치면 오류 키를 준다. */
+export function toApplyDependencies(drafts: DepDraft[], unitNames: string[]): { dependencies: api.AnalysisDependencyApply[] } | { error: MessageKey } {
+  const chosen = drafts.filter((d) => d.provision);
+  const names = [...chosen.map((d) => d.name.trim()), ...unitNames];
+  if (chosen.some((d) => !SERVICE_NAME_RE.test(d.name.trim()))) return { error: 'create.gate.err.name' };
+  if (new Set(names).size !== names.length) return { error: 'create.gate.err.duplicate' };
+  return { dependencies: drafts.map((d) => ({ dependencyId: d.id, provision: d.provision, ...(d.provision && { name: d.name.trim() }) })) };
+}
 
 const portOf = (value: string) => {
   if (!value.trim()) return undefined;
@@ -87,6 +105,10 @@ type Props = {
   busy: boolean;
   drafts: UnitDraft[];
   onDrafts: (next: UnitDraft[]) => void;
+  /** 선택한 배포 타깃이 온프레미스면 DB 자동 생성·호스트 별칭을 쓸 수 없다. */
+  onPrem?: boolean;
+  depDrafts: DepDraft[];
+  onDepDrafts: (next: DepDraft[]) => void;
   /** skip 결과로 기존 방식대로 서비스 하나를 만든다(analysisId 포함). */
   onDeploySimple: (analysisId: number) => void;
   /** 분석 없이 서비스 하나를 만든다(기존 경로 그대로). */
@@ -96,7 +118,7 @@ type Props = {
   onApply: () => void;
 };
 
-export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onDeploySimple, onFallback, onForce, onRetry, onApply }: Props) {
+export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onPrem, depDrafts, onDepDrafts, onDeploySimple, onFallback, onForce, onRetry, onApply }: Props) {
   const { t } = useI18n();
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -186,6 +208,16 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onDeploySimple
   const chosen = drafts.filter((d) => d.selected).length;
   const update = (unitId: string, patch: Partial<UnitDraft>) => onDrafts(drafts.map((d) => (d.unitId === unitId ? { ...d, ...patch } : d)));
   const nameOf = (unitId?: string | null) => (unitId && drafts.find((d) => d.unitId === unitId)?.name) || unitId;
+  const updateDep = (id: string, patch: Partial<DepDraft>) => onDepDrafts(depDrafts.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  /** unit/의존성 id → 연결될 대상. 선택한 unit 의 서비스나 자동 생성할 DB 만 "자동 연결"이다. */
+  const targetOf = (id: string): { name: string; kind: 'unit' | 'db'; auto: boolean } | null => {
+    const unit = drafts.find((d) => d.unitId === id);
+    if (unit) return { name: unit.name, kind: 'unit', auto: unit.selected };
+    const dep = depDrafts.find((d) => d.id === id);
+    if (dep) return { name: dep.provision ? dep.name : dep.id, kind: 'db', auto: dep.provision };
+    return null;
+  };
+  const provisioned = onPrem ? [] : depDrafts.filter((d) => d.provision);
 
   return (
     <div className="gate-result">
@@ -242,8 +274,42 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onDeploySimple
                 </label>
                 <div className="gate-unit-meta">
                   {unit && <span className={`gate-role role-${unit.role}`}>{unit.role}{unit.public ? '' : ` · ${t('create.gate.private')}`}</span>}
-                  {env.length > 0 && <span title={t('create.gate.env')}><span className="gate-meta-label">{t('create.gate.env')}</span> <span className="mono">{env.map((e) => e.key + (e.required ? '' : '?')).join(', ')}</span></span>}
+                  {env.length > 0 && <span title={t('create.gate.env')}><span className="gate-meta-label">{t('create.gate.env')}</span> <span className="mono">{env.filter((e) => !e.binding).map((e) => e.key + (e.required ? '' : '?')).join(', ')}</span></span>}
                   {unit && unit.dependsOn.length > 0 && <span><span className="gate-meta-label">{t('create.gate.dependsOn')}</span> <span className="mono">{unit.dependsOn.join(', ')}</span></span>}
+                  {env.some((e) => e.binding) && (
+                    <ul className="gate-map" aria-label={t('stack.apply.envMap')}>
+                      {env.filter((e) => e.binding).map((e) => {
+                        const b = e.binding!;
+                        const target = targetOf(b.targetId);
+                        const auto = d.selected && !!target?.auto;
+                        return (
+                          <li key={e.key}>
+                            <Link2 size={12} aria-hidden />
+                            <span className="mono">{e.key}</span>
+                            <ArrowRight size={12} aria-hidden className="gate-map-arrow" />
+                            <span className="mono">{target?.name ?? b.targetId}.{b.property}</span>
+                            <span className={`gate-code ${auto ? 'auto' : 'manual'}`}>{t(auto ? 'stack.apply.autoLinked' : 'stack.apply.manual')}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {!onPrem && unit?.hostAliases && unit.hostAliases.length > 0 && (
+                    <ul className="gate-map" aria-label={t('stack.apply.aliases')}>
+                      {unit.hostAliases.map((a) => {
+                        const target = targetOf(a.targetId);
+                        return (
+                          <li key={a.host}>
+                            <span className="gate-meta-label">{t('stack.apply.alias')}</span>
+                            <span className="mono">{a.host}{a.port ? `:${a.port}` : ''}</span>
+                            <ArrowRight size={12} aria-hidden className="gate-map-arrow" />
+                            <span className="mono">{target?.name ?? a.targetId}</span>
+                            <span className="gate-muted">{t(target?.kind === 'db' ? 'stack.apply.aliasDb' : 'stack.apply.aliasService')}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               </div>
             );
@@ -252,17 +318,52 @@ export function RepoAnalysisStep({ state, busy, drafts, onDrafts, onDeploySimple
       )}
 
       {result.dependencies.length > 0 && (
-        <div className="gate-deps">
-          <Database size={16} />
-          <div>
-            <p>{t('create.gate.depsNote')}</p>
-            <ul>
-              {result.dependencies.map((dep) => (
-                <li key={dep.id}><span className="mono">{dep.id}</span>{dep.image && <span className="gate-muted mono"> · {dep.image}</span>}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <section className="gate-deps" aria-label={t('stack.apply.depsTitle')}>
+          <h4><Database size={16} aria-hidden /> {t('stack.apply.depsTitle')}</h4>
+          <p className="gate-muted">{t('create.gate.depsNote')}</p>
+          <ul className="gate-dep-list">
+            {result.dependencies.map((dep) => {
+              const draft = depDrafts.find((x) => x.id === dep.id);
+              if (!draft) return null;
+              const supported = canProvision(dep.engine) && !onPrem;
+              return (
+                <li key={dep.id} className={`gate-dep${draft.provision ? ' on' : ''}`}>
+                  <label className="gate-dep-toggle">
+                    <input type="checkbox" checked={draft.provision && !onPrem} disabled={!supported} onChange={(e) => updateDep(dep.id, { provision: e.target.checked })} />
+                    <span>
+                      <b className="mono">{dep.id}</b>
+                      <span className="gate-muted"> · {dep.engine === 'other' ? dep.engine : ENGINE_LABEL[dep.engine]}{dep.image ? ` · ${dep.image}` : ''}</span>
+                    </span>
+                  </label>
+                  <p className="gate-dep-state">
+                    {onPrem ? t('stack.apply.onPrem') : supported ? t(draft.provision ? 'stack.apply.provisionOn' : 'stack.apply.provisionOff') : t('stack.apply.unsupported')}
+                    {dep.passwordInSource && <> {t('stack.apply.passwordInSource')}</>}
+                  </p>
+                  {dep.initScripts && dep.initScripts.length > 0 && (() => {
+                    const ok = dep.initScripts!.filter((x) => x.supported !== false);
+                    const skipped = dep.initScripts!.filter((x) => x.supported === false);
+                    return (
+                      <div className="gate-init">
+                        {ok.length > 0 && <p><Database size={12} aria-hidden /> {t('stack.init.summary', { n: ok.length, paths: ok.map((x) => x.path).join(', ') })}</p>}
+                        {skipped.length > 0 && <p className="warn"><CircleAlert size={12} aria-hidden /> {t('stack.init.unsupported', { paths: skipped.map((x) => x.path).join(', ') })}</p>}
+                      </div>
+                    );
+                  })()}
+                  {draft.provision && !onPrem && (
+                    <div className="gate-dep-fields">
+                      <label className="gate-cell">
+                        <span className="gate-cell-label">{t('stack.apply.dbName')}</span>
+                        <input value={draft.name} maxLength={63} aria-invalid={!SERVICE_NAME_RE.test(draft.name.trim())} onChange={(e) => updateDep(dep.id, { name: e.target.value })} />
+                      </label>
+                      <span className="gate-dep-spec gate-muted">{t('stack.apply.spec', { port: dep.port ?? '—' })}</span>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {provisioned.length > 0 && <DataLossNotice />}
+        </section>
       )}
 
       {result.questions.length > 0 && (
