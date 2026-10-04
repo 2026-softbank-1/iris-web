@@ -29,6 +29,7 @@ export function DeploymentActions({
   onRedeploy,
   onRestart,
   onRollback,
+  deployBlockedReason,
 }: {
   size?: number;
   className?: string;
@@ -41,6 +42,8 @@ export function DeploymentActions({
   onRestart?: () => void;
   /** 이전에 성공한 배포로 되돌린다. 성공했던 배포(이미 대체된 것)에서만 준다. */
   onRollback?: () => void;
+  /** 있으면 새 배포를 만드는 동작(재배포·재시작·롤백)을 막고 이 이유를 보여 준다. 서비스의 서버가 연결되지 않았을 때다. */
+  deployBlockedReason?: string;
 }) {
   const pop = usePopover();
   const { toast } = useUI();
@@ -62,7 +65,8 @@ export function DeploymentActions({
           {horizontal ? <Ellipsis size={size} /> : <EllipsisVertical size={size} />}
         </div>
       </button>
-      <Popover anchor={pop.anchor} onClose={pop.close} align="end" width={200}>
+      <Popover anchor={pop.anchor} onClose={pop.close} align="end" width={deployBlockedReason ? 260 : 200}>
+        {deployBlockedReason && (onRedeploy || onRestart || onRollback) && <div className="menu-label menu-note">{deployBlockedReason}</div>}
         {onDiagnose && (
           <button
             type="button"
@@ -80,6 +84,8 @@ export function DeploymentActions({
           <button
             type="button"
             className="menu-item"
+            disabled={!!deployBlockedReason}
+            title={deployBlockedReason}
             onClick={(e) => {
               e.stopPropagation();
               pop.close();
@@ -93,6 +99,8 @@ export function DeploymentActions({
           <button
             type="button"
             className="menu-item"
+            disabled={!!deployBlockedReason}
+            title={deployBlockedReason}
             onClick={(e) => {
               e.stopPropagation();
               pop.close();
@@ -106,6 +114,8 @@ export function DeploymentActions({
           <button
             type="button"
             className="menu-item"
+            disabled={!!deployBlockedReason}
+            title={deployBlockedReason}
             onClick={(e) => {
               e.stopPropagation();
               pop.close();
@@ -132,7 +142,7 @@ export function DeploymentActions({
   );
 }
 
-export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeploy, onRestart, onRollback }: { d: Deployment; to: string; variant: 'active' | 'history'; serviceId?: string; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void }) {
+export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeploy, onRestart, onRollback, deployBlockedReason }: { d: Deployment; to: string; variant: 'active' | 'history'; serviceId?: string; onDiagnose?: () => void; onRedeploy?: () => void; onRestart?: () => void; onRollback?: () => void; deployBlockedReason?: string }) {
   const { t, lang } = useI18n();
   const status = d.status.toLowerCase();
   return (
@@ -157,7 +167,7 @@ export function DeploymentRow({ d, to, variant, serviceId, onDiagnose, onRedeplo
           </div>
           <div className="dep-actions">
             {serviceId && canDiagnose(d) && <FailedRepairButton serviceId={serviceId} deploymentId={d.id} to={`${to}/diagnosis`} />}
-            <DeploymentActions deployment={d} onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} />
+            <DeploymentActions deployment={d} onDiagnose={onDiagnose} onRedeploy={onRedeploy} onRestart={onRestart} onRollback={onRollback} deployBlockedReason={deployBlockedReason} />
             <div className={`dep-viewlogs-wrap${variant === 'history' ? ' hover-only' : ''}`}>
               <span className={`dep-viewlogs ${variant}`}>
                 <span>{t('service.row.viewDetails')}</span>

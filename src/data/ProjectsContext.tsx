@@ -4,6 +4,7 @@ import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
 import { serviceStatusOf } from './deploymentModel';
 import type { Project, Service } from './mock';
+import { shouldPollServer, targetLabel } from './targetModel';
 
 /* ------------------------------------------------------------------ */
 /* was 응답 → 화면 모델                                                  */
@@ -11,9 +12,9 @@ import type { Project, Service } from './mock';
 
 const repoFullName = (url: string) => url.replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/, '').replace(/\/$/, '');
 
-function toService(dto: api.ServiceDto, targets: api.TargetDto[]): Service {
-  // 서비스가 배포되는 타깃(aws·local)을 지역 자리에 보여준다.
-  const where = dto.targetIds.map((id) => targets.find((t) => t.id === id)?.name ?? `#${id}`).join(', ');
+function toService(dto: api.ServiceDto, targets: api.TargetDto[], servers: api.OnpremServerDto[]): Service {
+  // 서비스가 배포되는 타깃(aws·onprem·내 서버 이름)을 지역 자리에 보여준다.
+  const where = dto.targetIds.map((id) => { const target = targets.find((t) => t.id === id); return target ? targetLabel(target, servers) : `#${id}`; }).join(', ');
   return {
     id: String(dto.id),
     shortId: String(dto.id),
@@ -37,7 +38,7 @@ function withDomains(service: Service, dtos: api.ServiceDomainDto[] | undefined)
   return { ...service, domains, domain: (domains.find((d) => d.isConnected) ?? domains[0])?.host };
 }
 
-function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api.TargetDto[]): Project {
+function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api.TargetDto[], servers: api.OnpremServerDto[]): Project {
   return {
     id: String(dto.id),
     name: dto.name,
@@ -47,7 +48,7 @@ function toProject(dto: api.ProjectDto, services: api.ServiceDto[], targets: api
     updatedAt: dto.updatedAt,
     serviceCount: dto.serviceCount,
     onlineServiceCount: dto.onlineServiceCount,
-    services: services.map((s) => toService(s, targets)),
+    services: services.map((s) => toService(s, targets, servers)),
   };
 }
 
@@ -62,7 +63,11 @@ type ProjectsApi = {
   error: string | null;
   projects: Project[];
   targets: api.TargetDto[];
+  /** 내 온프레미스 서버. 서버 타깃의 이름을 보여 줄 때 쓴다. */
+  servers: api.OnpremServerDto[];
   reload: () => Promise<void>;
+  /** 타깃과 내 서버를 다시 받는다(서버를 추가·삭제했거나 연결 상태가 바뀌었을 때). */
+  reloadTargets: () => Promise<void>;
   /** 목록에 없는 프로젝트(다른 탭에서 만든 것 등)를 하나만 받아 합친다. 없으면 null. */
   loadProject: (id: string) => Promise<Project | null>;
   createProject: (body: api.ProjectCreate) => Promise<Project>;
@@ -92,6 +97,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   // 변경 함수가 최신 값을 읽도록 ref 로도 쥔다(setState 업데이터 안에서 값을 꺼내 쓰지 않으려는 것).
   const targetsRef = useRef<api.TargetDto[]>([]);
   targetsRef.current = targets;
+  const [servers, setServers] = useState<api.OnpremServerDto[]>([]);
+  const serversRef = useRef<api.OnpremServerDto[]>([]);
+  serversRef.current = servers;
   const projectsRef = useRef<Project[]>([]);
   projectsRef.current = projects;
   // 도메인은 서비스 응답에 없어서 따로 받아 서비스 id 별로 쥐고, 화면에는 서비스에 붙여서 내보낸다.
@@ -110,10 +118,16 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     setStatus((s) => (s === 'ready' ? s : 'loading'));
     try {
-      const [dtos, targetList] = await Promise.all([api.listProjects(), api.listTargets().catch(() => [] as api.TargetDto[])]);
+      const [dtos, targetList, serverList] = await Promise.all([
+        api.listProjects(),
+        api.listTargets().catch(() => [] as api.TargetDto[]),
+        // 서버 등록 API 가 없는 was 에서도 화면이 뜨게 한다. 그때는 서버 타깃이 없으니 이름도 필요 없다.
+        api.listOnpremServers().catch(() => [] as api.OnpremServerDto[]),
+      ]);
       // 프로젝트마다 서비스를 따로 받는다(목록 API 에는 서비스가 없다).
-      const withServices = await Promise.all(dtos.map(async (dto) => toProject(dto, dto.serviceCount > 0 ? await api.listServices(dto.id) : [], targetList)));
+      const withServices = await Promise.all(dtos.map(async (dto) => toProject(dto, dto.serviceCount > 0 ? await api.listServices(dto.id) : [], targetList, serverList)));
       setTargets(targetList);
+      setServers(serverList);
       setProjects(withServices);
       setError(null);
       setStatus('ready');
@@ -129,6 +143,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     else if (auth.status === 'logged-out') {
       setProjects([]);
       setTargets([]);
+      setServers([]);
       setDomains({});
       domainSeq.current.clear();
       setStatus('idle');
@@ -139,7 +154,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     if (!/^\d+$/.test(id)) return null; // 서버 id 는 숫자다. 예전 주소(UUID)는 없는 프로젝트다.
     try {
       const dto = await api.getProject(id);
-      const project = toProject(dto, await api.listServices(id), targetsRef.current);
+      const project = toProject(dto, await api.listServices(id), targetsRef.current, serversRef.current);
       setProjects((list) => replaceProject(list, project));
       return project;
     } catch (e) {
@@ -149,7 +164,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createProject = useCallback(async (body: api.ProjectCreate) => {
-    const project = toProject(await api.createProject(body), [], targetsRef.current);
+    const project = toProject(await api.createProject(body), [], targetsRef.current, serversRef.current);
     setProjects((list) => replaceProject(list, project));
     return project;
   }, []);
@@ -169,14 +184,14 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 
   const createService = useCallback(async (projectId: string, body: api.ServiceCreate) => {
     const dto = await api.createService(projectId, body);
-    const service = toService(dto, targetsRef.current);
+    const service = toService(dto, targetsRef.current, serversRef.current);
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: [...p.services, service], serviceCount: (p.serviceCount ?? p.services.length) + 1 } : p)));
     return service;
   }, []);
 
   const updateService = useCallback((projectId: string, serviceId: string, body: api.ServiceUpdate) => serial(`service:${serviceId}`, async () => {
     const dto = await api.updateService(serviceId, body);
-    const next = toService(dto, targetsRef.current);
+    const next = toService(dto, targetsRef.current, serversRef.current);
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: p.services.map((s) => (s.id === serviceId ? next : s)) } : p)));
     return next;
   }), [serial]);
@@ -184,7 +199,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const refreshService = useCallback(async (projectId: string, serviceId: string) => {
     const dto = await api.getService(serviceId);
     const previous = projectsRef.current.find((p) => p.id === projectId)?.services.find((s) => s.id === serviceId);
-    const next = toService(dto, targetsRef.current);
+    const next = toService(dto, targetsRef.current, serversRef.current);
     setProjects((list) => list.map((p) => (p.id === projectId ? { ...p, services: p.services.map((s) => (s.id === serviceId ? next : s)) } : p)));
     // 배포가 끝나면 프로젝트의 online 서비스 수도 달라질 수 있다.
     if (previous?.deploying && !next.deploying) {
@@ -196,7 +211,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProject = useCallback(async (projectId: string) => {
-    const services = (await api.listServices(projectId)).map((dto) => toService(dto, targetsRef.current));
+    const services = (await api.listServices(projectId)).map((dto) => toService(dto, targetsRef.current, serversRef.current));
     const current = projectsRef.current.find((p) => p.id === projectId)?.services ?? [];
     const same = current.length === services.length && current.every((s, i) => s.id === services[i].id && JSON.stringify(s.remote) === JSON.stringify(services[i].remote));
     if (same) return;
@@ -222,6 +237,48 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const reloadTargets = useCallback(async () => {
+    const [targetList, serverList] = await Promise.all([api.listTargets(), api.listOnpremServers()]);
+    setTargets(targetList);
+    setServers(serverList);
+    // 서버 이름이 바뀌었거나 서버가 새로 생겼으면 서비스에 보이는 배포 위치도 바뀐다.
+    setProjects((list) => list.map((p) => ({
+      ...p,
+      services: p.services.map((s) => {
+        if (!s.remote) return s;
+        const { region, regionLong } = toService(s.remote, targetList, serverList);
+        return region === s.region ? s : { ...s, region, regionLong };
+      }),
+    })));
+  }, []);
+
+  // 서버마다 지금 상태를 처음 본 시각. 응답에 상태가 바뀐 시각이 없는 REGISTERING 의 폴링 기한을 여기서 센다.
+  const observedAt = useRef(new Map<number, { status: api.OnpremServerStatus; at: number }>());
+  useEffect(() => {
+    const now = Date.now();
+    for (const server of servers) {
+      if (observedAt.current.get(server.id)?.status !== server.status) observedAt.current.set(server.id, { status: server.status, at: now });
+    }
+  }, [servers]);
+
+  // 연결을 기다리는 서버가 있으면 5초마다 다시 받아 배포 버튼이 연결되는 대로 풀리게 한다.
+  // 토큰이 만료됐거나 한 상태에서 20분이 지난 서버는 기다리지 않는다(목록 화면에 들어오면 다시 받는다).
+  useEffect(() => {
+    const isPollable = () => {
+      const now = Date.now();
+      return serversRef.current.some((server) => shouldPollServer(server, observedAt.current.get(server.id)?.at ?? now, now));
+    };
+    if (!isPollable()) return;
+    const timer = window.setInterval(() => {
+      if (!isPollable()) {
+        window.clearInterval(timer);
+        return;
+      }
+      if (document.visibilityState === 'visible') void reloadTargets().catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [servers, reloadTargets]);
+
   // 배포가 진행 중인 서비스는 3초마다 다시 받아서 캔버스·Dashboard 의 상태가 바뀌게 한다.
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -245,8 +302,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ProjectsApi>(
-    () => ({ status, error, projects: shown, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService }),
-    [status, error, shown, targets, reload, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService],
+    () => ({ status, error, projects: shown, targets, servers, reload, reloadTargets, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService }),
+    [status, error, shown, targets, servers, reload, reloadTargets, loadProject, createProject, updateProject, removeProject, createService, updateService, loadDomains, refreshService, refreshProject, removeService],
   );
   return <ProjectsCtx.Provider value={value}>{children}</ProjectsCtx.Provider>;
 }

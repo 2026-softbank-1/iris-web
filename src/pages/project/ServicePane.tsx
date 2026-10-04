@@ -34,6 +34,7 @@ import { useI18n, type MessageKey } from '../../i18n';
 import { canDiagnose, canDiagnoseApi } from '../../data/diagnosisModel';
 import { apiStatusLabel, canRedeploy, canRestart, deploymentLabel, formatDuration, renderMsg } from '../../data/deploymentModel';
 import type { Deployment, Project, Service } from '../../data/mock';
+import { useDeployBlock } from '../../data/useDeployBlock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import { describeRawError, describeVariablesError, useServiceVariables } from '../../data/useServiceVariables';
 import { initialVariableValue, mergeUploadedEnvironment, toRaw } from '../../data/variablesModel';
@@ -120,6 +121,8 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
   const diagnosisTo = (id: string | number) => `${base}/deployment/${id}/diagnosis`;
   // 실패 배너가 가리키는 것은 가장 최근 배포다. 진단할 수 있는 실패(REMOVE 가 아닌)일 때만 그 진단 결과를 배너 아래에 보여 준다.
   const latest = service.remote?.latestDeployment;
+  // 연결되지 않은 내 서버에 배포하는 서비스는 배포를 만드는 버튼을 모두 막는다.
+  const deployBlock = useDeployBlock(service.id);
 
   return (
     <div className="deps">
@@ -152,7 +155,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
           )}
         </div>
         <div className="deps-info-right">
-          <button type="button" className="btn btn-primary" disabled={busy || !!building} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
+          <button type="button" className={`btn btn-primary${deployBlock.blocked ? ' deploy-blocked' : ''}`} disabled={busy || !!building || deployBlock.blocked} title={deployBlock.reason} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
             {t('service.deploy')}
           </button>
           {service.runtime && (
@@ -198,6 +201,12 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         </div>
       )}
 
+      {deployBlock.blocked && (
+        <p className="deploy-blocked-note" role="status">
+          {deployBlock.reason} <Link to="/workspace/servers">{t('servers.manage')}</Link>
+        </p>
+      )}
+
       {service.crashedBanner && (
         <div className="deps-warning">
           <div className="deps-warning-head">
@@ -238,6 +247,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
               variant="active"
               onRedeploy={() => void runChecked((skip) => deps.redeploy(active.id, skip), t('service.redeployRequested'))}
               onRestart={canRestart(active, deps.items) ? () => void runChecked((skip) => deps.restart(skip), t('service.restartRequested')) : undefined}
+              deployBlockedReason={deployBlock.reason}
             />
             <div className="deps-success-wrap">
               <button type="button" className={`deps-success${stepsOpen ? ' open' : ''}`} onClick={() => setStepsOpen((v) => !v)}>
@@ -257,7 +267,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
         <div className="deps-empty">
           <p>{deps.loading ? t('service.loadingDeployments') : (deps.error ?? t(deps.removed ? 'service.removedNoActive' : 'service.noActive'))}</p>
           <div className="deps-empty-actions">
-            <button type="button" className="btn btn-ghost" disabled={busy || deps.loading} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
+            <button type="button" className={`btn btn-ghost${deployBlock.blocked ? ' deploy-blocked' : ''}`} disabled={busy || deps.loading || deployBlock.blocked} title={deployBlock.reason} onClick={() => void runChecked((skip) => deps.deploy(skip), t('service.deployRequested'))}>
               <span>
                 <span>
                   {repoPre}
@@ -295,6 +305,7 @@ function DeploymentsTab({ project, service, deps }: { project: Project; service:
                     onDiagnose={canDiagnose(d) ? () => navigate(diagnosisTo(d.id)) : undefined}
                     onRedeploy={canRedeploy(d) ? () => void runChecked((skip) => deps.redeploy(d.id, skip), t('service.redeployRequested')) : undefined}
                     onRollback={d.status === 'REMOVED' ? () => void run(() => deps.rollback(d.id), t('service.rollbackRequested')) : undefined}
+                    deployBlockedReason={deployBlock.reason}
                   />
                 ))}
             </div>

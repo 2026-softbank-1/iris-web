@@ -93,6 +93,7 @@ export const ja: Record<keyof typeof ko, string> = {
 
   'nav.projects': 'プロジェクト',
   'nav.settings': '設定',
+  'nav.servers': 'マイサーバー',
   'nav.collapse': 'サイドバーを閉じる',
   'menu.account': 'アカウント設定',
   'menu.theme': 'テーマ',
