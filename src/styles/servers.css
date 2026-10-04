@@ -19,6 +19,19 @@
   color: var(--fg-subtle);
 }
 
+.server-hint.error {
+  color: var(--red-text);
+}
+
+/* 이름 규칙을 어긴 입력란. 포커스 윤곽선도 에러 색으로 바꿔 포커스 중에도 보이게 한다. */
+.server-dialog input[aria-invalid='true'] {
+  border-color: var(--red);
+}
+
+.server-dialog input[aria-invalid='true']:focus {
+  outline-color: var(--red);
+}
+
 /* "내 서버" page */
 .server-page {
   margin-top: 32px;

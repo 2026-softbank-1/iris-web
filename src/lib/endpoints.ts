@@ -820,7 +820,8 @@ export const listTargets = () => request<TargetDto[]>('/targets');
 
 /* on-prem servers */
 /**
- * 이름은 1~63자이고 내 서버 안에서 유일해야 한다(409 ONPREM_SERVER_NAME_CONFLICT). 같은 트랜잭션에서 서버 타깃도 만든다.
+ * 이름 규칙은 src/data/serverNameModel.ts 에 있다. 어기면 422 INVALID_INPUT(details[{field: 'name', reason}])이고,
+ * 내 서버 안에서 유일해야 한다(409 ONPREM_SERVER_NAME_CONFLICT, 대소문자 구분). 같은 트랜잭션에서 서버 타깃도 만든다.
  * 한 사용자는 서버를 5개까지 둘 수 있다(409 ONPREM_SERVER_LIMIT_EXCEEDED). 서버 등록 설정이 없는 was 는 503 NOT_CONFIGURED 다.
  */
 export const createOnpremServer = (name: string) => request<OnpremServerRegistrationDto>('/onprem-servers', { method: 'POST', json: { name } });
