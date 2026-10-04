@@ -800,7 +800,23 @@ button.diag-chip:hover {
 .diag-brief-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end; /* actions sit bottom-right, under the result */
   gap: 8px;
+  margin-top: 2px;
+}
+
+.diag-brief-actions .btn {
+  height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.diag-brief-actions .btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .diag-brief-actions .btn:disabled {

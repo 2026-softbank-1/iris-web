@@ -117,26 +117,6 @@
   background: rgba(var(--wash), 0.08);
 }
 
-.agent-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 20px;
-  color: var(--fg-muted);
-  border: 1px solid transparent;
-  border-radius: 6px;
-  transition: background-color 0.12s ease, color 0.12s ease;
-}
-
-.agent-btn:hover,
-.agent-btn.on {
-  color: var(--fg);
-  background: rgba(var(--wash), 0.06);
-}
 
 .proj-body {
   position: relative;
@@ -305,44 +285,11 @@
   color: var(--red-text);
 }
 
-.agent-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
-.agent-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-}
 
-.agent-msg {
-  max-width: 85%;
-  padding: 8px 12px;
-  font-size: 13px;
-  line-height: 19px;
-  background: var(--bg-4);
-  border-radius: 10px;
-}
 
-.agent-msg.me {
-  align-self: flex-end;
-  background: var(--primary);
-  color: var(--on-primary);
-}
 
-.agent-input {
-  display: flex;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px solid var(--border);
-}
 
-.agent-input .input {
-  flex: 1;
-}
 
 /* ------------------------------------------------------------------
    Canvas

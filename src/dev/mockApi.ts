@@ -2,6 +2,8 @@
 // 앱 번들에는 들어가지 않는다. 화면 디자인용이라 상태를 메모리에만 들고, dev 서버를 다시 띄우면 처음으로 돌아간다.
 import type {
   BranchDto,
+  ServiceVariablesDto,
+  VariableDto,
   BuildLogsDto,
   BuildStatus,
   DeploymentDetailDto,
@@ -841,6 +843,79 @@ diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('docs: 배포 파�
 diagnoses.push({ id: nextDiagnosisId++, deploymentId: seeded('feat: 샌드박스 초기 설정').id, startedAt: t0 - 3 * MIN, outcome: 'build' });
 
 /* ------------------------------------------------------------------ */
+/* 환경변수                                                             */
+/* ------------------------------------------------------------------ */
+
+const variables = new Map<number, VariableDto[]>([
+  [11, [{ key: 'NODE_ENV', value: 'production' }, { key: 'NEXT_PUBLIC_API_URL', value: 'https://api-12.likelion.uk' }]],
+  [12, [{ key: 'DATABASE_URL', value: 'postgres://app:secret@db.internal:5432/app' }, { key: 'JWT_SECRET', value: 'change-me' }, { key: 'LOG_LEVEL', value: 'info' }]],
+  [13, [{ key: 'QUEUE_URL', value: 'redis://queue.internal:6379' }]],
+]);
+
+const varsOf = (id: number) => variables.get(id) ?? [];
+const sortVars = (list: VariableDto[]) => [...list].sort((a, b) => a.key.localeCompare(b.key));
+
+function variablesDto(s: MockService): ServiceVariablesDto {
+  return {
+    variables: sortVars(varsOf(s.id)),
+    systemVariables: [
+      { key: 'PORT', description: 'Port the app should listen on', value: String(s.port ?? 3000) },
+      { key: 'IRIS_SERVICE_NAME', description: 'Name of this service', value: s.name },
+      { key: 'IRIS_DEPLOYMENT_ID', description: 'ID of the running deployment' },
+    ],
+  };
+}
+
+/** 서버와 같은 키 규칙: 영문·숫자·밑줄, 숫자로 시작 불가, 128자 이하, PORT·IRIS_ 예약. */
+function invalidKey(key: string): string | null {
+  if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(key)) return 'must be letters, digits or underscores and not start with a digit';
+  if (key === 'PORT' || key.startsWith('IRIS_')) return 'is reserved';
+  return null;
+}
+
+const invalid = (field: string, reason: string): MockResponse => ({ status: 422, body: { success: false, code: 'INVALID_INPUT', message: `${field} ${reason}`, details: [{ field, reason }] } });
+
+function handleVariables(method: string, s: MockService, key: string | undefined, body: Record<string, unknown> | undefined): MockResponse {
+  const list = varsOf(s.id);
+  if (!key && method === 'GET') return ok(variablesDto(s));
+  if (!key && method === 'POST') {
+    const next = { key: String(body?.key ?? ''), value: String(body?.value ?? '') };
+    const bad = invalidKey(next.key);
+    if (bad) return invalid('key', bad);
+    if (list.some((v) => v.key === next.key)) return fail(409, 'VARIABLE_CONFLICT', 'Variable already exists');
+    variables.set(s.id, [...list, next]);
+    return ok(next, 201);
+  }
+  if (!key && method === 'PUT') {
+    // .env 전체 교체: 빈 줄과 # 주석은 건너뛰고, 형식이 틀린 줄이 있으면 아무것도 바꾸지 않는다.
+    const next: VariableDto[] = [];
+    for (const line of String(body?.raw ?? '').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq <= 0) return invalid('raw', 'has a line without KEY=VALUE');
+      const k = trimmed.slice(0, eq).trim();
+      const bad = invalidKey(k);
+      if (bad) return invalid('raw', `key ${k} ${bad}`);
+      next.push({ key: k, value: trimmed.slice(eq + 1).trim().replace(/^(['"])(.*)\1$/, '$2') });
+    }
+    variables.set(s.id, next);
+    return ok(variablesDto(s));
+  }
+  const found = list.find((v) => v.key === key);
+  if (!found) return fail(404, 'VARIABLE_NOT_FOUND', 'Variable not found');
+  if (method === 'PUT') {
+    found.value = String(body?.value ?? '');
+    return ok(found);
+  }
+  if (method === 'DELETE') {
+    variables.set(s.id, list.filter((v) => v !== found));
+    return { status: 204 };
+  }
+  return fail(405, 'METHOD_NOT_ALLOWED', `${method} not allowed`);
+}
+
+/* ------------------------------------------------------------------ */
 /* 라우터                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -953,6 +1028,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     return ok(toServiceDto(s));
   }
   if (seg[2] === 'domains') return ok(domainsOf(s));
+  if (seg[2] === 'variables') return handleVariables(method, s, seg[3] && decodeURIComponent(seg[3]), body);
   if (seg[2] === 'logs' && seg.length === 3) {
     const entries = logsBetween(s, Date.parse(q.start), Date.parse(q.end), Math.min(Number(q.limit ?? 500), 1000));
     return ok({ entries, isTruncated: entries.length >= Number(q.limit ?? 500) });

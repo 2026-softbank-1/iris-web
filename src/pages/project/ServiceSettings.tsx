@@ -1,21 +1,13 @@
 import {
   ChevronDown,
   Code,
-  LogOut,
-  PencilLine,
-  RefreshCw,
-  ArrowRight,
-  CircleCheck,
   Globe,
-  Zap,
   ShieldAlert,
   Copy,
   Earth,
-  FileCode2,
-  Flag,
+  ExternalLink,
   Hammer,
   Network,
-  Pencil,
   Plus,
   Rocket,
   Scaling,
@@ -41,14 +33,14 @@ import { useI18n, type MessageKey } from '../../i18n';
 /* Building blocks                                                     */
 /* ------------------------------------------------------------------ */
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+function Toggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <div className="st-box">
       <div className="st-switch-row">
-        <button type="button" role="switch" aria-checked={checked} aria-label={label} className="st-switch" onClick={() => onChange(!checked)}>
+        <button type="button" role="switch" aria-checked={checked} aria-label={label} className="st-switch" disabled={disabled} onClick={() => onChange(!checked)}>
           <span />
         </button>
-        <label className="st-switch-label" onClick={() => onChange(!checked)}>
+        <label className="st-switch-label" onClick={() => !disabled && onChange(!checked)}>
           {label}
         </label>
       </div>
@@ -72,12 +64,15 @@ function SavedToggle({ value, label, onSave }: { value: boolean; label: string; 
   );
 }
 
-function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; children?: ReactNode; id: string }) {
+/** soon: 아직 서버 기능이 없는 항목. 제목 옆에 '준비 중'을 붙이고 안의 컨트롤은 각자 비활성화한다. */
+function Item({ title, desc, children, id, soon }: { title: string; desc?: ReactNode; children?: ReactNode; id: string; soon?: boolean }) {
+  const { t } = useI18n();
   return (
-    <div className="st-item" id={id}>
+    <div className={`st-item${soon ? ' st-item-soon' : ''}`} id={id}>
       <header className="st-item-head">
         <a href={`#${id}`} className="st-item-title" onClick={(e) => e.preventDefault()}>
           {title}
+          {soon && <span className="st-soon">{t('create.comingSoon')}</span>}
         </a>
         {desc && <h2 className="st-item-desc">{desc}</h2>}
       </header>
@@ -86,16 +81,20 @@ function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; 
   );
 }
 
-function Section({ name, icon: Icon, children }: { name: string; icon?: LucideIcon; children: ReactNode }) {
+/** soon: 아직 서버 기능이 없는 섹션. 제목 옆에 '준비 중'을 붙이고 안의 컨트롤은 각자 비활성화한다. */
+function Section({ name, icon: Icon, soon, children }: { name: string; icon?: LucideIcon; soon?: boolean; children: ReactNode }) {
   const { t } = useI18n();
   return (
-    <section className="st-section" id={`set-${name}`}>
+    <section className={`st-section${soon ? ' st-section-soon' : ''}`} id={`set-${name}`}>
       {Icon && (
         <div className="st-section-icon">
           <Icon size={18} />
         </div>
       )}
-      <h1 className="st-section-title">{t(SECTION_LABEL[name])}</h1>
+      <h1 className="st-section-title">
+        {t(SECTION_LABEL[name])}
+        {soon && <span className="st-soon">{t('create.comingSoon')}</span>}
+      </h1>
       <div className="st-section-body">{children}</div>
     </section>
   );
@@ -151,6 +150,21 @@ function LimitSlider({ name, ready, stops, value, parse, format, disabled, onCha
         style={{ '--ratio': ratio } as CSSProperties}
         onChange={(e) => onChange(stops[Number(e.target.value)].qty)}
       />
+      {ready && (
+        // 칸마다의 값. 슬라이더 thumb 중심 아래에 놓이고, 눌러서 바로 고를 수도 있다.
+        <div className="st-range-ticks" aria-hidden>
+          {stops.map((stop, i) => {
+            const tick = format(stop.amount);
+            return (
+              <button key={stop.qty} type="button" tabIndex={-1} className={i === index ? 'on' : undefined} disabled={disabled} onClick={() => onChange(stop.qty)}>
+                <span>
+                  {tick.value} {tick.unit}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -216,8 +230,6 @@ const SECTION_LABEL: Record<string, MessageKey> = {
   Scale: 'svcSettings.sec.scale',
   Build: 'svcSettings.sec.build',
   Deploy: 'svcSettings.sec.deploy',
-  'Config-as-code': 'svcSettings.sec.config',
-  'Feature-flags': 'svcSettings.sec.flags',
   Danger: 'svcSettings.sec.danger',
 };
 const SECTIONS = Object.keys(SECTION_LABEL);
@@ -281,11 +293,8 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
     return () => { cancelled = true; };
   }, [service.repo]);
   const [filter, setFilter] = useState('');
-  const [ipv6, setIpv6] = useState(false);
   const [cdn, setCdn] = useState(false);
   const [teardown, setTeardown] = useState(false);
-  const [serverless, setServerless] = useState(false);
-  const [skipped, setSkipped] = useState(false);
   const scale = useServiceScaling(service.id);
   const strategy = strategyOf(remote);
   // 온프레미스 타깃은 롤링만 지원한다. 타깃 목록을 아직 받지 못했으면 서버의 422 가 막는다.
@@ -378,7 +387,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
 
       <div className="st-layout">
         <div className="st-main">
-          {show('Source', 'repo', 'branch', 'root directory', 'upstream') && (
+          {show('Source', 'repo', 'branch', 'root directory') && (
             <Section name="Source" icon={Code}>
               {remote && (
                 <Item title={t('svcSettings.serviceName.title')} desc={t('svcSettings.serviceName.desc')} id="service-name">
@@ -391,7 +400,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </Item>
               )}
               <Item title={t('svcSettings.sourceRepo')} id="source-repo">
-                <div className="st-repo error">
+                <div className="st-repo">
                   <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link tall">
                     <RepoIcon size={20} />
                     <p>
@@ -399,9 +408,6 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     </p>
                   </a>
                   <div className="st-repo-actions">
-                    <button type="button" className="st-icon-btn" aria-label={t('svcSettings.edit')} onClick={() => toast(t('svcSettings.repoPickerMock'))}>
-                      <PencilLine size={16} />
-                    </button>
                     <button type="button" className="st-mini-btn" onClick={() => toast(t('svcSettings.disconnectDisabled'))}>
                       <span>{t('svcSettings.disconnect')}</span>
                     </button>
@@ -413,28 +419,6 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     <ValueSetting label={t('svcSettings.rootDir.label')} value={remote.rootDirectory ?? ''} placeholder={t('svcSettings.rootDir.placeholder')} onSave={(v) => save({ rootDirectory: v })} />
                   </div>
                 )}
-              </Item>
-              <Item title={t('svcSettings.upstream')} id="upstream">
-                <div className="st-repo">
-                  <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link">
-                    <RepoIcon size={20} />
-                    <p>
-                      <span>{service.repo}</span>
-                    </p>
-                  </a>
-                  <div className="st-repo-actions">
-                    <button type="button" className="st-mini-btn red" onClick={() => toast(t('svcSettings.ejectMock'))}>
-                      <LogOut size={14} />
-                      <span>{t('svcSettings.eject')}</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="st-check">
-                  <button type="button" className="st-mini-btn primary" onClick={() => toast(t('svcSettings.latest'))}>
-                    <RefreshCw size={14} />
-                    <span>{t('svcSettings.checkUpdates')}</span>
-                  </button>
-                </div>
               </Item>
               <Item title={t('svcSettings.branch.title')} desc={t('svcSettings.branch.desc')} id="branch">
                 {remote && (
@@ -453,7 +437,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('Networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
+          {show('Networking', 'domain', 'public') && (
             <Section name="Networking" icon={Network}>
               {remote && (
                 <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.desc')} id="port">
@@ -474,28 +458,19 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   service.domains.map((d) => (
                     <div key={d.host} className="st-card st-domain-card">
                       <div className="st-card-row">
-                        <div className="st-card-icon">
-                          <Globe size={20} />
+                        <div className={`st-card-icon${d.isConnected ? ' on' : ''}`}>
+                          <Globe size={18} />
                         </div>
                         <div className="st-domain-text">
                           <a href={`https://${d.host}`} target="_blank" rel="noreferrer">
-                            <span>{d.host}</span>
-                            <span className="st-ext">↗</span>
+                            {d.host}
+                            <ExternalLink size={14} />
                           </a>
                           <p>
-                            {service.port !== undefined && (
-                              <span className="st-port">
-                                <ArrowRight size={16} />
-                                <span>
-                                  {t('svcSettings.port.title')} <span className="mono">{service.port}</span>
-                                </span>
-                              </span>
-                            )}
-                            <span>
-                              {service.port !== undefined && ' · '}
-                              {d.targetName}
-                              {!d.isConnected && ` · ${t('svcSettings.reachableAfter')}`}
-                            </span>
+                            {/* 포트 · 타깃 · (아직 접속 불가) 를 한 줄에 */}
+                            {[service.port !== undefined && `${t('svcSettings.port.title')} ${service.port}`, d.targetName, !d.isConnected && t('svcSettings.reachableAfter')]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </p>
                         </div>
                         <div className="st-card-actions">
@@ -503,6 +478,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                             type="button"
                             className="st-sq-btn"
                             aria-label={t('svcSettings.copy')}
+                            title={t('svcSettings.copy')}
                             onClick={() => {
                               navigator.clipboard?.writeText(d.host);
                               toast(t('svcSettings.domainCopied'));
@@ -517,68 +493,20 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 ) : (
                   <p className="st-muted st-gap16">{t('svcSettings.notExposed')}</p>
                 )}
-                <div className="st-btn-row">
-                  <button type="button" className="btn btn-primary-outline st-plus-btn" onClick={() => toast(t('svcSettings.domainGenMock'))}>
-                    <Zap size={16} className="btn-icon" />
-                    <span>{t('svcSettings.generateDomain')}</span>
-                  </button>
-                  <button type="button" className="btn btn-primary-outline st-plus-btn">
-                    <Plus size={16} className="btn-icon" />
-                    <span>{t('svcSettings.customDomain')}</span>
-                  </button>
-                  <button type="button" className="btn btn-primary-outline st-plus-btn">
-                    <Plus size={16} className="btn-icon" />
-                    <span>{t('svcSettings.tcpProxy')}</span>
-                  </button>
-                </div>
-              </Item>
-              <Item title={t('svcSettings.private.title')} desc={t('svcSettings.private.desc')} id="private-networking">
-                <div className="st-card">
-                  <div className="st-card-row private">
-                    <div className="st-card-icon green">
-                      <CircleCheck size={20} />
-                    </div>
-                    <div className="st-private-text">
-                      <div className="st-private-top">
-                        <div className="st-private-name">
-                          <span>{service.name.toLowerCase()}.likelion.internal</span>
-                          <div className="st-ip-tag">
-                            <Globe size={12} />
-                            IPv4 &amp; IPv6
-                          </div>
-                        </div>
-                        <div className="st-private-actions">
-                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.copy')} onClick={() => toast(t('svcSettings.privateCopied'))}>
-                            <Copy size={10} />
-                          </button>
-                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.edit')}>
-                            <Pencil size={10} />
-                          </button>
-                        </div>
-                      </div>
-                      <p className="st-private-sub">
-                        {t('svcSettings.privateReady')} · <span className="st-primary">{t('svcSettings.shortName')}</span> <code className="st-code-chip">{service.name}</code>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Item>
-              <Item title={t('svcSettings.ipv6.title')} desc={t('svcSettings.ipv6.desc')} id="ipv6">
-                <Toggle checked={ipv6} onChange={setIpv6} label={t('svcSettings.ipv6.toggle')} />
               </Item>
             </Section>
           )}
 
           {show('Edge', 'cdn', 'attack', 'rules') && (
-            <Section name="Edge" icon={Shield}>
+            <Section name="Edge" icon={Shield} soon>
               <Item title={t('svcSettings.attack.title')} desc={t('svcSettings.attack.desc')} id="attack">
                 <div className="st-attack">
                   <div className="st-attack-row">
-                    <button type="button" className="st-select">
+                    <button type="button" className="st-select" disabled>
                       <span>{t('svcSettings.attack.until')}</span>
                       <ChevronDown size={16} className="st-region-chev" />
                     </button>
-                    <button type="button" className="btn st-activate" onClick={() => toast(t('svcSettings.attack.activated'))}>
+                    <button type="button" className="btn st-activate" disabled>
                       <ShieldAlert size={20} />
                       <span>{t('svcSettings.attack.activate')}</span>
                     </button>
@@ -587,7 +515,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </div>
               </Item>
               <Item title={t('svcSettings.cdn.title')} desc={t('svcSettings.cdn.desc')} id="cdn">
-                <Toggle checked={cdn} onChange={setCdn} label={t('svcSettings.cdn.toggle')} />
+                <Toggle checked={cdn} onChange={setCdn} label={t('svcSettings.cdn.toggle')} disabled />
               </Item>
             </Section>
           )}
@@ -750,7 +678,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('Deploy', 'start', 'strategy', 'rolling', 'canary', 'blue-green', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
+          {show('Deploy', 'start', 'strategy', 'rolling', 'canary', 'blue-green', 'teardown', 'cron', 'healthcheck', 'restart') && (
             <Section name="Deploy" icon={Rocket}>
               <Item title={t('svcSettings.startCmd.title')} desc={t('svcSettings.startCmd.desc')} id="start-cmd">
                 {remote && <ValueSetting label={t('svcSettings.startCmd.label')} value={remote.startCommand ?? ''} placeholder={t('svcSettings.startCmd.placeholder')} onSave={(v) => save({ startCommand: v })} />}
@@ -764,9 +692,9 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">
                 <Toggle checked={teardown} onChange={setTeardown} label={t('svcSettings.teardown.toggle')} />
               </Item>
-              <Item title={t('svcSettings.cron.title')} desc={t('svcSettings.cron.desc')} id="cron">
+              <Item title={t('svcSettings.cron.title')} desc={t('svcSettings.cron.desc')} id="cron" soon>
                 <div>
-                  <button type="button" className="btn btn-outline">
+                  <button type="button" className="btn btn-outline" disabled>
                     <Plus size={16} /> {t('svcSettings.cron.add')}
                   </button>
                 </div>
@@ -777,9 +705,6 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     <Plus size={16} /> {t('svcSettings.health.title')}
                   </button>
                 </div>
-              </Item>
-              <Item title={t('svcSettings.serverless.title')} desc={t('svcSettings.serverless.desc')} id="serverless">
-                <Toggle checked={serverless} onChange={setServerless} label={t('svcSettings.serverless.toggle')} />
               </Item>
               <Item title={t('svcSettings.restart.title')} desc={t('svcSettings.restart.desc')} id="restart">
                 <button type="button" className="st-box st-policy">
@@ -794,27 +719,6 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   <input value={retries} onChange={(e) => setRetries(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                 </label>
               </Item>
-            </Section>
-          )}
-
-          {show('Config-as-code', 'file') && (
-            <Section name="Config-as-code" icon={FileCode2}>
-              <Item title={t('svcSettings.configFile.title')} desc={t('svcSettings.configFile.desc')} id="config-file">
-                <div>
-                  <button type="button" className="btn btn-outline">
-                    <Plus size={16} /> {t('svcSettings.configFile.add')}
-                  </button>
-                </div>
-              </Item>
-            </Section>
-          )}
-
-          {show('Feature-flags', 'skipped') && (
-            <Section name="Feature-flags" icon={Flag}>
-              <div className="st-item">
-                <Toggle checked={skipped} onChange={setSkipped} label={t('svcSettings.skipped.toggle')} />
-                <p className="st-muted">{t('svcSettings.skipped.desc')}</p>
-              </div>
             </Section>
           )}
 

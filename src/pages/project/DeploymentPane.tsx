@@ -1,5 +1,4 @@
-import { FailedRepairButton } from './FailedRepairButton';
-import { ChevronRight, CircleCheck, Clock, Code2, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
+import { CircleCheck, Clock, GitBranch, Hammer, Rocket, Sparkles, TriangleAlert, X, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BuilderIcon, RepoIcon } from '../../components/brand';
@@ -7,7 +6,7 @@ import { useUI } from '../../components/ui';
 import { apiStatusLabel, canRedeploy, deploymentLabel, failureKey } from '../../data/deploymentModel';
 import { MIN_REPLICAS_FOR_PROGRESSIVE, isRollingOnlyTarget, strategyLabel } from '../../data/deploymentStrategyModel';
 import { canDiagnose } from '../../data/diagnosisModel';
-import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
+import { fmtKst, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import type { DeploymentDetailDto } from '../../lib/endpoints';
@@ -50,35 +49,53 @@ function headlineOf(d: Deployment, t: (key: MessageKey) => string): string {
   }
 }
 
+/** 3초 / 4분 37초 / 1시간 2분. */
+function fmtDuration(sec: number, t: (key: MessageKey, vars?: Record<string, string | number>) => string): string {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return t('service.dp.durSec', { s });
+  if (s < 3600) return t('service.dp.durMin', { m: Math.floor(s / 60), s: s % 60 });
+  return t('service.dp.durHour', { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) });
+}
+
+const clock = (iso: string) => fmtKst(iso).split(' ')[1];
+
 function Details({ d, service, serviceBase, detail, error }: { d: Deployment; service: Service; serviceBase: string; detail: DeploymentDetailDto | null; error: string | null }) {
   const { t } = useI18n();
-  const [mode, setMode] = useState<'pretty' | 'code'>('pretty');
-  const [statusOpen, setStatusOpen] = useState(false);
+  const problem = d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION';
+  // 단계가 중요한 때(진행 중·실패)는 처음부터 펼친다.
+  const [statusOpen, setStatusOpen] = useState(d.isActive || problem);
   // 구성·소스는 상세 응답의 값으로 그린다. 응답을 받기 전(또는 받지 못했을 때)에는 서비스의 지금 설정으로 채운다.
   const remote = service.remote;
   const build = detail?.configuration.build ?? remote;
   const deploy = detail?.configuration.deploy ?? remote;
   const targets = detail ? detail.configuration.deploy.targets.map((x) => x.name).join(', ') : service.region;
   const replacedBy = detail?.replacedBy;
-  const problem = d.status === 'FAILED' || d.status === 'ROLLED_BACK' || d.status === 'MANUAL_INTERVENTION';
   // 배포 방식 도입 전 요청과 REMOVE 요청에는 없다. 요청과 다르면 레플리카가 모자라 롤링으로 대체된 것이다.
   const strategy = detail?.deploymentStrategy ?? d.deploymentStrategy;
   const requestedStrategy = detail?.requestedDeploymentStrategy ?? d.requestedDeploymentStrategy;
   const fellBackFrom = strategy === 'ROLLING' && requestedStrategy !== 'ROLLING' ? requestedStrategy : undefined;
   // 온프레미스 타깃은 레플리카와 상관없이 롤링으로 배포하니 대체 이유가 다르다.
   const onPrem = !!detail?.configuration.deploy.targets.some(isRollingOnlyTarget);
+  const history = detail?.history ?? [];
+  const totalSec = history.length ? ((d.isActive ? Date.now() : Date.parse(history[history.length - 1].createdAt)) - Date.parse(history[0].createdAt)) / 1000 : 0;
+  const tone = problem ? 'bad' : d.isActive ? 'running' : d.status === 'ACTIVE' ? 'ok' : 'neutral';
   return (
     <div className="details">
-      <div className={`details-status${problem ? ' crashed' : ''}`}>
+      <div className={`details-status ${tone}`}>
         <div>
-          <button type="button" className="details-status-btn" onClick={() => setStatusOpen((v) => !v)}>
-            <div className="details-status-left">
-              <div className="side-icon">{problem ? <TriangleAlert size={16} /> : d.isActive ? <Clock size={16} /> : <CircleCheck size={16} />}</div>
-              <p>{headlineOf(d, t)}</p>
+          <button type="button" className="details-status-btn" aria-expanded={statusOpen} onClick={() => setStatusOpen((v) => !v)}>
+            <div className="details-status-icon">{problem ? <TriangleAlert size={18} /> : d.isActive ? <Clock size={18} /> : <CircleCheck size={18} />}</div>
+            <div className="details-status-text">
+              <p className="details-status-title">{headlineOf(d, t)}</p>
+              {history.length > 0 && (
+                <p className="details-status-sub">
+                  {t('service.dp.totalTime', { time: fmtDuration(totalSec, t) })}
+                  {!d.isActive && ` · ${fmtKst(history[history.length - 1].createdAt)}`}
+                </p>
+              )}
             </div>
-            <div className="details-status-right">
-              <p>{statusOpen ? t('service.dp.viewLess') : t('service.dp.viewMore')}</p>
-              <div className="side-icon">{statusOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</div>
+            <div className="details-status-chev" aria-label={statusOpen ? t('service.dp.viewLess') : t('service.dp.viewMore')}>
+              <ChevronDown size={18} />
             </div>
           </button>
           {replacedBy && (
@@ -88,23 +105,29 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
             </p>
           )}
           {statusOpen && (
-            <div className="details-timeline">
-              {error && <p className="set-muted">{error}</p>}
-              {!detail && !error && <p className="set-muted">{t('service.loading')}</p>}
-              {detail?.history.map((h) => {
+            <ol className="details-timeline">
+              {error && <li className="set-muted">{error}</li>}
+              {!detail && !error && <li className="set-muted">{t('service.loading')}</li>}
+              {history.map((h, i) => {
                 const bad = h.toStatus === 'FAILED' || h.toStatus === 'ROLLED_BACK' || h.toStatus === 'MANUAL_INTERVENTION';
+                const last = i === history.length - 1;
+                const running = last && d.isActive;
+                // 단계 시간: 다음 단계가 시작될 때까지. 진행 중인 마지막 단계는 지금까지.
+                const until = last ? (running ? Date.now() : undefined) : Date.parse(history[i + 1].createdAt);
+                const state = bad ? 'bad' : running ? 'running' : 'done';
                 return (
-                  <div key={`${h.toStatus}-${h.createdAt}`} className="details-timeline-row">
-                    {bad ? <TriangleAlert size={14} className="red" /> : <CircleCheck size={14} />}
-                    <span>{apiStatusLabel(h.toStatus)}</span>
-                    <span className="set-muted">
-                      {fmtKst(h.createdAt)}
-                      {failureKey(h.failureCode) ? ` · ${t(failureKey(h.failureCode)!)}` : ''}
+                  <li key={`${h.toStatus}-${h.createdAt}`} className={`details-step ${state}`}>
+                    <span className="details-step-dot" aria-hidden />
+                    <span className="details-step-label">
+                      {apiStatusLabel(h.toStatus)}
+                      {failureKey(h.failureCode) && <span className="details-step-reason">{t(failureKey(h.failureCode)!)}</span>}
                     </span>
-                  </div>
+                    {until !== undefined && <span className="details-step-dur">{fmtDuration((until - Date.parse(h.createdAt)) / 1000, t)}</span>}
+                    <time className="details-step-time" title={fmtKst(h.createdAt)}>{clock(h.createdAt)}</time>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           )}
         </div>
       </div>
@@ -138,76 +161,58 @@ function Details({ d, service, serviceBase, detail, error }: { d: Deployment; se
       <div className="details-config">
         <div className="details-config-head">
           <p className="details-h">{t('service.dp.config')}</p>
-          <div role="tablist" className="seg">
-            <button type="button" role="tab" data-state={mode === 'pretty' ? 'active' : 'inactive'} onClick={() => setMode('pretty')}>
+        </div>
+        <div className="details-cols">
+          <div className="details-box col">
+            <div className="details-col-head">
               <div className="side-icon">
-                <Sparkles size={16} />
+                <Hammer size={16} />
               </div>
-              <p>{t('service.dp.pretty')}</p>
-            </button>
-            <button type="button" role="tab" data-state={mode === 'code' ? 'active' : 'inactive'} onClick={() => setMode('code')}>
+              <p>{t('service.dtab.build')}</p>
+            </div>
+            <div className="details-col-body">
+              <KV label={t('service.dp.builder')}>
+                <div className="details-builder">
+                  <span>{build?.builder ?? t('service.dp.autoDetect')}</span>
+                  <BuilderIcon size={20} />
+                </div>
+              </KV>
+              <hr />
+              <KV label={t('service.dp.rootDir')}>{build?.rootDirectory ?? '/'}</KV>
+              <hr />
+              <KV label={t('service.dp.buildCmd')}>{build?.buildCommand ?? '—'}</KV>
+            </div>
+          </div>
+          <div className="details-box col">
+            <div className="details-col-head">
               <div className="side-icon">
-                <Code2 size={16} />
+                <Rocket size={16} />
               </div>
-              <p>{t('service.dp.code')}</p>
-            </button>
+              <p>{t('service.dtab.deploy')}</p>
+            </div>
+            <div className="details-col-body">
+              <KV label={t('service.dp.targets')}>{targets || '—'}</KV>
+              <hr className="soft" />
+              <KV label={t('service.dp.port')}>{deploy?.port ?? '—'}</KV>
+              <hr className="soft" />
+              <KV label={t('service.dp.startCmd')}>{deploy?.startCommand ?? '—'}</KV>
+              {strategy && (
+                <>
+                  <hr className="soft" />
+                  <KV label={t('service.dp.strategy')}>
+                    {strategyLabel(t, strategy)}
+                    {fellBackFrom && (
+                      <p className="details-strategy-note">
+                        <TriangleAlert size={14} />
+                        <span>{t(onPrem ? 'service.dp.strategyFallbackOnPrem' : 'service.dp.strategyFallback', { requested: strategyLabel(t, fellBackFrom), min: MIN_REPLICAS_FOR_PROGRESSIVE })}</span>
+                      </p>
+                    )}
+                  </KV>
+                </>
+              )}
+            </div>
           </div>
         </div>
-        {mode === 'pretty' ? (
-          <div role="tabpanel" className="details-cols">
-            <div className="details-box col">
-              <div className="details-col-head">
-                <div className="side-icon">
-                  <Hammer size={16} />
-                </div>
-                <p>{t('service.dtab.build')}</p>
-              </div>
-              <div className="details-col-body">
-                <KV label={t('service.dp.builder')}>
-                  <div className="details-builder">
-                    <span>{build?.builder ?? t('service.dp.autoDetect')}</span>
-                    <BuilderIcon size={20} />
-                  </div>
-                </KV>
-                <hr />
-                <KV label={t('service.dp.rootDir')}>{build?.rootDirectory ?? '/'}</KV>
-                <hr />
-                <KV label={t('service.dp.buildCmd')}>{build?.buildCommand ?? '—'}</KV>
-              </div>
-            </div>
-            <div className="details-box col">
-              <div className="details-col-head">
-                <div className="side-icon">
-                  <Rocket size={16} />
-                </div>
-                <p>{t('service.dtab.deploy')}</p>
-              </div>
-              <div className="details-col-body">
-                <KV label={t('service.dp.targets')}>{targets || '—'}</KV>
-                <hr className="soft" />
-                <KV label={t('service.dp.port')}>{deploy?.port ?? '—'}</KV>
-                <hr className="soft" />
-                <KV label={t('service.dp.startCmd')}>{deploy?.startCommand ?? '—'}</KV>
-                {strategy && (
-                  <>
-                    <hr className="soft" />
-                    <KV label={t('service.dp.strategy')}>
-                      {strategyLabel(t, strategy)}
-                      {fellBackFrom && (
-                        <p className="details-strategy-note">
-                          <TriangleAlert size={14} />
-                          <span>{t(onPrem ? 'service.dp.strategyFallbackOnPrem' : 'service.dp.strategyFallback', { requested: strategyLabel(t, fellBackFrom), min: MIN_REPLICAS_FOR_PROGRESSIVE })}</span>
-                        </p>
-                      )}
-                    </KV>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <pre className="details-code mono">{JSON.stringify(detail ?? { id: d.id, status: d.status }, null, 2)}</pre>
-        )}
       </div>
     </div>
   );
@@ -259,19 +264,14 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                 </div>
               </div>
               <div className="dp-head-right">
-                {diagnosable && <FailedRepairButton serviceId={service.id} deploymentId={deployment.id} to={`${base}/diagnosis`} />}
                 <DeploymentActions
                   size={16}
                   horizontal
                   className="btn btn-icon-only dp-action"
-                  deployment={deployment}
                   onDiagnose={diagnosable ? () => navigate(`${base}/diagnosis`) : undefined}
                   onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
                 />
-                <time title={fmtKstFull(deployment.createdAt)} className="dp-time">
-                  {fmtKst(deployment.createdAt, false)} GMT+9
-                </time>
                 <Link to={serviceBase} className="btn btn-icon-only dp-close" aria-label={t('service.close')}>
                   <div className="tool-icon">
                     <X size={16} />

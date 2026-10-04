@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, FolderGit2, Lock, Plus, Search, X } from 'lucide-react';
+import { ArrowLeft, FolderGit2, Lock, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
@@ -29,8 +29,9 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const [installations, setInstallations] = useState<api.InstallationDto[] | null>(null);
-  const [installationId, setInstallationId] = useState<number | undefined>();
   const [refresh, setRefresh] = useState(0);
+  // 응답이 빨라도 눌렀다는 게 보이게 아이콘을 최소 0.6초는 돌린다.
+  const [minSpin, setMinSpin] = useState(false);
   const [repos, setRepos] = useState<RepoList>({ status: 'loading', items: [] });
   const [urlCheck, setUrlCheck] = useState<UrlCheck>({ status: 'idle' });
   const [repo, setRepo] = useState<api.RepositoryDto | null>(null);
@@ -52,7 +53,6 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setQuery('');
     setNotice('');
     setRepo(null);
-    setInstallationId(undefined);
     setSubmitting(false);
   }, [open]);
 
@@ -73,13 +73,13 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     let cancelled = false;
     setRepos((r) => ({ ...r, status: 'loading' }));
     const timer = window.setTimeout(() => {
-      api.searchRepositories({ q: query.trim() || undefined, installationId }).then(
+      api.searchRepositories({ q: query.trim() || undefined }).then(
         (page) => { if (!cancelled) setRepos({ status: 'ready', items: page.items }); },
         (e) => { if (!cancelled) setRepos({ status: 'error', items: [], error: describeError(e) }); },
       );
     }, query ? 300 : 0);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [open, step, isUrl, query, installationId, refresh]);
+  }, [open, step, isUrl, query, refresh]);
 
   // 붙여넣은 주소 확인(저장소가 있고 접근 권한이 있는지)
   useEffect(() => {
@@ -181,19 +181,17 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const noInstallation = installations !== null && installations.length === 0;
   const branchOptions = branches.includes(branch) ? branches : [branch, ...branches];
 
+  const refreshing = minSpin || repos.status === 'loading';
   return <Dialog open={open} onClose={onClose} className="create-dialog" label={t('create.title')}>
-    <header><h2>{t(step === 'review' ? 'create.reviewTitle' : 'create.title')}</h2><button className="create-icon" aria-label={t('create.dismiss')} onClick={onClose}><X size={18} /></button></header>
-    {step !== 'create' && <button className="create-back" onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> {t('create.back')}</button>}
+    <header><div className="create-title">{step !== 'create' && <button className="create-back" aria-label={t('create.back')} title={t('create.back')} onClick={() => { setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={18} /></button>}<h2>{t(step === 'review' ? 'create.reviewTitle' : 'create.title')}</h2></div><button className="create-icon" aria-label={t('create.dismiss')} onClick={onClose}><X size={18} /></button></header>
     {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label={t('create.prompt')} placeholder={t('create.prompt')} value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => t(o).toLowerCase().includes(query.toLowerCase())).map(option => option === GITHUB
         ? <button key={option} onClick={() => { setStep('repos'); setQuery(''); }}><FolderGit2 size={17} />{t(option)}</button>
         : <button key={option} disabled><Plus size={17} />{t(option)}<span className="create-soon">{t('create.comingSoon')}</span></button>)}</div></>}
     {step === 'repos' && <>
-      <p className="diag-muted">{t('repair.authorizationNote')}</p>
-      <div className="create-search"><Search size={17} /><input autoFocus aria-label={t('create.searchRepos')} placeholder={t('create.searchRepos')} value={query} onChange={e => setQuery(e.target.value)} /></div>
+      <div className="create-search"><label className="create-search-field"><Search size={16} /><input autoFocus aria-label={t('create.searchRepos')} placeholder={t('create.searchRepos')} value={query} onChange={e => setQuery(e.target.value)} /></label></div>
       <div className="create-repo-actions">
         <button onClick={goInstall}>{t('create.configureApp')}</button>
-        {installations !== null && installations.length > 1 && <select aria-label={t('create.githubAccount')} value={installationId ?? ''} onChange={e => setInstallationId(e.target.value ? Number(e.target.value) : undefined)}><option value="">{t('create.allAccounts')}</option>{installations.map(i => <option key={i.installationId} value={i.installationId}>{i.accountLogin}</option>)}</select>}
-        <button onClick={() => setRefresh(n => n + 1)}>{t('create.refreshRepos')}</button>
+        <button className={`create-refresh${refreshing ? ' spinning' : ''}`} aria-label={t('create.refreshRepos')} title={t('create.refreshRepos')} disabled={refreshing} aria-busy={refreshing} onClick={() => { setRefresh(n => n + 1); setMinSpin(true); window.setTimeout(() => setMinSpin(false), 600); }}><RefreshCw size={15} /></button>
       </div>
       {isUrl
         ? urlCheck.status === 'valid' && urlCheck.repo

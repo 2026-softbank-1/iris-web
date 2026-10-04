@@ -9,14 +9,11 @@ import {
   Layers3,
   LayoutDashboard,
   LogOut,
-  MessageSquare,
   Network,
   Plus,
   Settings,
-  Sparkles,
   User,
   X,
-  SendHorizontal,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useMatch, useNavigate, useParams } from 'react-router-dom';
@@ -172,57 +169,12 @@ function ActivityDrawer({ project, onClose }: { project: Project; onClose: () =>
   );
 }
 
-function AgentDrawer({ onClose }: { onClose: () => void }) {
-  const { t } = useI18n();
-  // 첫 인사는 언어를 바꾸면 따라 바뀌도록 상태에 넣지 않고 그릴 때 붙인다.
-  const [msgs, setMsgs] = useState<{ me: boolean; text: string }[]>([]);
-  const [draft, setDraft] = useState('');
-  const send = () => {
-    if (!draft.trim()) return;
-    const text = draft.trim();
-    setDraft('');
-    setMsgs((m) => [
-      ...m,
-      { me: true, text },
-      {
-        me: false,
-        text: t('project.agentReply'),
-      },
-    ]);
-  };
-  return (
-    <div className="side-drawer">
-      <div className="side-drawer-head">
-        <span className="agent-title">
-          <Sparkles size={16} /> {t('project.agent')}
-        </span>
-        <button type="button" className="icon-btn" aria-label={t('project.closeAgent')} onClick={onClose}>
-          <X size={16} />
-        </button>
-      </div>
-      <div className="side-drawer-body agent-body">
-        {[{ me: false, text: t('project.agentGreeting') }, ...msgs].map((m, i) => (
-          <div key={i} className={`agent-msg${m.me ? ' me' : ''}`}>
-            {m.text}
-          </div>
-        ))}
-      </div>
-      <div className="agent-input">
-        <input className="input" placeholder={t('project.askPlaceholder')} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
-        <button type="button" className="btn btn-primary btn-icon-only" aria-label={t('project.send')} onClick={send}>
-          <SendHorizontal size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function ProjectLayout() {
   const { projectId } = useParams();
   const { state, project, error } = useProject(projectId);
   useProjectDomains(project);
   const navigate = useNavigate();
-  const [drawer, setDrawer] = useState<'activity' | 'agent' | null>(null);
+  const [drawer, setDrawer] = useState<'activity' | null>(null);
   const accountPop = usePopover();
   const auth = useAuth();
   const user = useSessionUser();
@@ -277,19 +229,6 @@ export function ProjectLayout() {
               </div>
               <LanguageButton />
               <NotificationsButton />
-              <div className="vsep" />
-              <button
-                type="button"
-                aria-label={t('project.agent')}
-                title={t('project.openAgent')}
-                className={`agent-btn${drawer === 'agent' ? ' on' : ''}`}
-                onClick={() => setDrawer((d) => (d === 'agent' ? null : 'agent'))}
-              >
-                <div className="side-icon">
-                  <MessageSquare size={16} />
-                </div>
-                <span>{t('project.agent')}</span>
-              </button>
             </div>
           </nav>
         </header>
@@ -345,7 +284,6 @@ export function ProjectLayout() {
           <Outlet />
         </div>
         {drawer === 'activity' && <ActivityDrawer project={project} onClose={() => setDrawer(null)} />}
-        {drawer === 'agent' && <AgentDrawer onClose={() => setDrawer(null)} />}
       </div>
     </div>
   );

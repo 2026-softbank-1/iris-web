@@ -334,8 +334,12 @@ export function ProjectCanvasPage() {
         </ReactFlowProvider>
         {service && (
           <div className="pane-wrapper">
-            <ServicePane project={project} service={service} tab={tab} stacked={!!deployment} deps={deps} />
-            {deployment && <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} deps={deps} />}
+            {/* 한 번에 패널 하나만: 배포 상세를 열면 서비스 패널 대신 보여주고, 닫으면 서비스 패널로 돌아간다 */}
+            {deployment ? (
+              <DeploymentPane project={project} service={service} deployment={deployment} tab={dtab} deps={deps} />
+            ) : (
+              <ServicePane project={project} service={service} tab={tab} deps={deps} />
+            )}
           </div>
         )}
       </div>
