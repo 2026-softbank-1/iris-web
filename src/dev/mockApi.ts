@@ -203,6 +203,8 @@ const services: MockService[] = [
   service(32, 3, 'edge-api', 'kylo-dev/playground', { targetIds: [4], createdAt: iso(t0 - 3 * HOUR) }),
   // 연결이 끊긴 내 서버(rack-01)에 배포돼 있는 서비스. 배포·재배포·재시작이 막힌다.
   service(33, 3, 'metrics', 'kylo-dev/playground', { targetIds: [7], createdAt: iso(t0 - 9 * DAY) }),
+  // 연결된 내 서버(home-lab)에 배포돼 있는 서비스. 콘솔이 열린다(공용 onprem 의 edge 와 같다).
+  service(34, 3, 'home-api', 'kylo-dev/playground', { targetIds: [3], createdAt: iso(t0 - 2 * DAY) }),
 ];
 
 /** 저장된 Pod 수·자원. 설정한 적 없는 서비스는 서버 기본값(레플리카 1)이다. */
@@ -269,6 +271,7 @@ const deployments: MockDeployment[] = [
   deployment(23, 4 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 엣지 캐시 설정'),
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
   deployment(33, 2 * DAY, 'SUCCEEDED', 'PUSH', 'feat: 지표 수집기'),
+  deployment(34, 6 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 홈 서버 API'),
   deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
 
@@ -1373,16 +1376,18 @@ let consoleSessionCount = 0;
 
 /**
  * 콘솔 가능 여부와 세션 발급. was 와 같은 규칙이다: 그 타깃에 떠 있는 배포(가장 최근에 성공했고 REMOVE 가 아닌 것)가 없으면 열 수 없고,
- * 온프레미스 타깃은 아직 지원하지 않는다. ticket(token)은 `mock-{serviceId}-{n}` 이고 가짜 Gateway 가 이 모양만 확인한다.
+ * 내 서버 타깃이면 서버가 CONNECTED 여야 한다(DISCONNECTED·PENDING·REGISTERING·FAILED 는 TARGET_NOT_CONNECTED).
+ * 공용 타깃(AWS·onprem)은 배포 조건만 본다. ticket(token)은 `mock-{serviceId}-{n}` 이고 가짜 Gateway 가 이 모양만 확인한다.
  */
 function handleConsole(s: MockService, method: string, seg: string[], q: Query, body: Record<string, unknown> | undefined, origin: string): MockResponse {
   const targetId = Number(method === 'GET' ? q.targetId : body?.targetId);
   if (!s.targetIds.includes(targetId)) return fail(404, 'NOT_FOUND', 'Target not found');
   const running = deploymentsOf(s.id).find((d) => statusOf(d) === 'SUCCEEDED');
-  const reason = isOnPrem(s) ? 'TARGET_NOT_SUPPORTED' : !running || running.triggerType === 'REMOVE' ? 'NO_RUNNING_DEPLOYMENT' : undefined;
+  const serverTarget = targetsNow().find((x) => x.id === targetId);
+  const reason = !running || running.triggerType === 'REMOVE' ? 'NO_RUNNING_DEPLOYMENT' : serverTarget?.connectionStatus && serverTarget.connectionStatus !== 'CONNECTED' ? 'TARGET_NOT_CONNECTED' : undefined;
   if (method === 'GET' && seg.length === 3) return ok(reason ? { available: false, reason } : { available: true });
   if (method === 'POST' && seg[3] === 'sessions' && seg.length === 4) {
-    if (reason === 'TARGET_NOT_SUPPORTED') return fail(409, 'CONSOLE_TARGET_NOT_SUPPORTED', 'Console is not supported for this target');
+    if (reason === 'TARGET_NOT_CONNECTED') return fail(409, 'TARGET_NOT_CONNECTED', 'Target server is not connected');
     if (reason) return fail(409, 'NO_RUNNING_DEPLOYMENT', 'No running deployment');
     return ok(
       {

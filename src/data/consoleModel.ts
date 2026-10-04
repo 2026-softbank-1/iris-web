@@ -127,7 +127,8 @@ export const isTimeoutEnd = (end: ConsoleEnd) => end.kind === 'error' && (end.co
 
 export const UNAVAILABLE_KEYS: Record<ConsoleUnavailableReason, MessageKey> = {
   NO_RUNNING_DEPLOYMENT: 'service.console.unavailableSub',
-  TARGET_NOT_SUPPORTED: 'service.console.unavailableOnprem',
+  TARGET_NOT_CONNECTED: 'service.console.unavailableNotConnected',
+  TARGET_NOT_SUPPORTED: 'service.console.unavailableTarget',
   NOT_CONFIGURED: 'service.console.unavailableNotConfigured',
 };
 
@@ -138,6 +139,7 @@ export const unavailableKey = (reason?: string): MessageKey => UNAVAILABLE_KEYS[
 export function unavailableReasonOf(error: unknown): ConsoleUnavailableReason | null {
   if (!(error instanceof ApiError)) return null;
   if (error.code === 'NO_RUNNING_DEPLOYMENT') return 'NO_RUNNING_DEPLOYMENT';
+  if (error.code === 'TARGET_NOT_CONNECTED') return 'TARGET_NOT_CONNECTED';
   if (error.code === 'CONSOLE_TARGET_NOT_SUPPORTED') return 'TARGET_NOT_SUPPORTED';
   if (error.code === 'NOT_CONFIGURED') return 'NOT_CONFIGURED';
   return null;
