@@ -1,7 +1,7 @@
 import {
   Activity,
-  Box,
-  ChartNoAxesColumn,
+  // Box, // [주석 처리] 숨긴 Observability·Sandboxes 메뉴 아이콘
+  // ChartNoAxesColumn, // [주석 처리] 숨긴 Observability·Sandboxes 메뉴 아이콘
   Check,
   ChevronDown,
   CircleDot,
@@ -11,7 +11,7 @@ import {
   LogOut,
   MessageSquare,
   Network,
-  Plus,
+  // Plus, // [주석 처리] 환경 생성 메뉴를 숨겼다
   Settings,
   Sparkles,
   User,
@@ -102,11 +102,13 @@ function EnvSwitcher({ project }: { project: Project }) {
           {project.environment}
           <Check size={14} className="menu-right" />
         </button>
+        {/* [주석 처리] was 의 환경은 prod 하나뿐이라 환경 생성은 동작하지 않는다.
         <div className="menu-sep" />
         <button type="button" className="menu-item" onClick={pop.close}>
           <Plus size={16} className="menu-icon" />
           {t('project.newEnvironment')}
         </button>
+        */}
       </Popover>
     </div>
   );
@@ -298,9 +300,13 @@ export function ProjectLayout() {
         <nav aria-label={t('project.nav')} className="proj-rail">
           <div className="rail-items">
             <RailItem to={base} end forceActive={!!onService} label={t('project.rail.architecture')} icon={<Network size={16} />} />
+            {/* [주석 처리] Observability 는 샘플 화면이라 숨겼다.
             <RailItem to={`${base}/observability`} label={t('project.rail.observability')} icon={<ChartNoAxesColumn size={16} />} />
+            */}
             <RailItem to={`${base}/logs`} label={t('project.rail.logs')} icon={<FileText size={16} />} />
+            {/* [주석 처리] Sandboxes 는 샘플 화면이라 숨겼다.
             <RailItem to={`${base}/sandboxes`} label={t('project.rail.sandboxes')} icon={<Box size={16} />} />
+            */}
             <RailItem to={`${base}/settings`} label={t('nav.settings')} icon={<Settings size={16} />} />
           </div>
           <div className="rail-fill" />

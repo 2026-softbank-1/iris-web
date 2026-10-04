@@ -65,7 +65,7 @@ flowchart LR
 | AI 진단 (자동 시작·재진단·근거 로그) | WAS 연동 |
 | AI 수정·재배포 (자동 핫픽스, 환경변수 문제는 수동 안내) | WAS 연동 |
 | 서비스 Console | 샘플 (고정 응답 셸) |
-| Observability, Sandboxes, Templates, Workspace Settings | 샘플 (빈 화면·안내 토스트) |
+| Observability, Sandboxes, Templates | 샘플이라 숨김 (코드에 주석 처리) |
 | 워크스페이스 이름 | 샘플 (`src/data/mock.ts`) |
 | Usage | 샘플 (라우트 비활성) |
 
