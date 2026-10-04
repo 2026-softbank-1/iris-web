@@ -428,6 +428,10 @@
   color: var(--red-text);
 }
 
+.tp-status.disconnected {
+  color: var(--fg-subtle);
+}
+
 .create-dialog .tp-trigger {
   width: auto;
 }

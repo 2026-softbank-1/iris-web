@@ -85,6 +85,9 @@ const servers: MockServer[] = [
   { id: 3, name: 'old-pi', serverKey: 'q4m8z1ra', targetId: 5, fixedStatus: 'FAILED', failureCode: 'CONNECT_TIMED_OUT', registrationExpiresAt: iso(seededAt - HOUR), createdAt: iso(seededAt - 2 * DAY) },
   // 명령 다시 받기가 503 NOT_CONFIGURED 로 실패하는 서버(아래 NOT_CONFIGURED_NAMES).
   { id: 4, name: 'legacy-vm', serverKey: 'v2c7h5ke', targetId: 6, fixedStatus: 'FAILED', failureCode: 'GITOPS_COMMIT_FAILED', registrationExpiresAt: iso(seededAt - 3 * HOUR), createdAt: iso(seededAt - 5 * DAY) },
+  // 연결됐다가 7분째 신호가 없는 서버(DISCONNECTED). 서비스 metrics 가 이 서버에 배포돼 있어 배포 버튼이 막힌다.
+  // 시드가 5개라 서버를 더 추가하면 409 ONPREM_SERVER_LIMIT_EXCEEDED 다(old-pi 를 지우면 추가할 수 있다).
+  { id: 5, name: 'rack-01', serverKey: 'r8d3n6wt', targetId: 7, fixedStatus: 'DISCONNECTED', tailnetFqdn: 'iris-r8d3n6wt.tailb046e8.ts.net', connectedAt: iso(seededAt - 10 * DAY), lastSeenAt: iso(seededAt - 7 * MIN), createdAt: iso(seededAt - 10 * DAY - 10 * MIN) },
 ];
 /** was 와 같다: 사용자 한 명이 둘 수 있는 서버 수. 시드가 4개라 하나 더 추가한 뒤 다음 추가가 409 다. */
 const MAX_SERVERS = 5;
@@ -125,6 +128,8 @@ function toServerDto(m: MockServer): OnpremServerDto {
     status,
     ...(status !== 'PENDING' && { tailnetFqdn: m.tailnetFqdn ?? `iris-${m.serverKey}.tailb046e8.ts.net` }),
     ...(connected && { connectedAt: iso(startedAt + SERVER_PENDING_MS + SERVER_REGISTERING_MS) }),
+    // 연결된 서버는 신호를 계속 보낸다고 친다.
+    ...(status === 'CONNECTED' && { lastSeenAt: iso(Date.now() - 20_000) }),
   };
 }
 
@@ -196,6 +201,8 @@ const services: MockService[] = [
   service(31, 3, 'sandbox', 'kylo-dev/playground'),
   // 아직 연결되지 않은 내 서버(office-nuc)에 배포하는 서비스. 배포 버튼이 막힌다.
   service(32, 3, 'edge-api', 'kylo-dev/playground', { targetIds: [4], createdAt: iso(t0 - 3 * HOUR) }),
+  // 연결이 끊긴 내 서버(rack-01)에 배포돼 있는 서비스. 배포·재배포·재시작이 막힌다.
+  service(33, 3, 'metrics', 'kylo-dev/playground', { targetIds: [7], createdAt: iso(t0 - 9 * DAY) }),
 ];
 
 /** 저장된 Pod 수·자원. 설정한 적 없는 서비스는 서버 기본값(레플리카 1)이다. */
@@ -261,6 +268,7 @@ const deployments: MockDeployment[] = [
   deployment(21, MIN, 'DEPLOYING', 'REDEPLOY', 'feat: 게이트웨이 라우팅'),
   deployment(23, 4 * HOUR, 'SUCCEEDED', 'PUSH', 'feat: 엣지 캐시 설정'),
   deployment(22, 30 * MIN, 'MANUAL_INTERVENTION', 'MANUAL', 'docs: 배포 파이프라인 정리', undefined, 'runtime'), // 6분째 RUNNING 인 멈춘 진단이 있다
+  deployment(33, 2 * DAY, 'SUCCEEDED', 'PUSH', 'feat: 지표 수집기'),
   deployment(31, 4 * MIN, 'FAILED', 'PUSH', 'feat: 샌드박스 초기 설정', 'DEPLOY_FAILED', 'build'), // 서비스의 가장 최근 배포가 실패했고 성공한 진단이 있다(실패 배너 아래에 진단 요약)
 ];
 

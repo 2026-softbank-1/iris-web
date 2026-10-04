@@ -105,7 +105,8 @@ export function OnpremServers() {
         <ul className="server-list" aria-label={t('servers.title')}>
           {servers.map((server) => {
             // 연결 확인 중(REGISTERING)에도 명령을 다시 받아 처음부터 다시 실행할 수 있다(상태는 PENDING 으로 돌아간다).
-            const canReissue = server.status !== 'CONNECTED';
+            // 연결이 끊긴 서버는 저절로 다시 연결되므로 명령을 다시 받을 필요가 없다.
+            const canReissue = server.status !== 'CONNECTED' && server.status !== 'DISCONNECTED';
             return (
               <li key={server.id} className="server-row">
                 <div className="server-row-main">
@@ -116,11 +117,13 @@ export function OnpremServers() {
                   </div>
                   <p className="server-row-meta">
                     {server.connectedAt ? t('servers.connectedAgo', { ago: formatAgo(server.connectedAt, lang) }) : t('servers.addedAgo', { ago: formatAgo(server.createdAt, lang) })}
+                    {server.lastSeenAt && <> · {t('servers.lastSeen', { ago: formatAgo(server.lastSeenAt, lang) })}</>}
                     {server.tailnetFqdn && <> · <span className="mono">{server.tailnetFqdn}</span></>}
                     {server.status === 'PENDING' && server.registrationExpiresAt && (
                       <> · {isExpired(server) ? t('servers.tokenExpired') : t('servers.tokenExpires', { time: fmtKst(server.registrationExpiresAt, false) })}</>
                     )}
                   </p>
+                  {server.status === 'DISCONNECTED' && <p className="server-row-error">{t('servers.disconnectedHint')}</p>}
                   {server.status === 'FAILED' && (
                     <p className="server-row-error">{t(server.failureCode === 'GITOPS_COMMIT_FAILED' ? 'servers.failure.GITOPS_COMMIT_FAILED' : 'servers.failure.CONNECT_TIMED_OUT')}</p>
                   )}

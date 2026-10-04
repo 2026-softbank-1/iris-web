@@ -20,7 +20,8 @@ export const isRegistrationExpired = (server: OnpremServerDto, now = Date.now())
  * resumedAt 은 사용자가 다시 확인을 누른 시각으로, 그때부터 20분을 다시 센다.
  */
 export function shouldPollServer(server: OnpremServerDto, observedAt: number, now = Date.now(), resumedAt = 0): boolean {
-  if (!isServerConnecting(server.status) || isRegistrationExpired(server, now)) return false;
+  // 연결이 끊긴 서버도 저절로 다시 연결되므로 같은 기한 동안 다시 받아 배포 버튼이 풀리게 한다.
+  if (!(isServerConnecting(server.status) || server.status === 'DISCONNECTED') || isRegistrationExpired(server, now)) return false;
   const since = server.status === 'PENDING' && server.registrationExpiresAt ? Date.parse(server.registrationExpiresAt) - REGISTRATION_TTL_MS : observedAt;
   return now - Math.max(since, resumedAt) < SERVER_POLL_LIMIT_MS;
 }
@@ -30,6 +31,7 @@ export const SERVER_STATUS_LABEL: Record<OnpremServerStatus, MessageKey> = {
   REGISTERING: 'servers.status.REGISTERING',
   CONNECTED: 'servers.status.CONNECTED',
   FAILED: 'servers.status.FAILED',
+  DISCONNECTED: 'servers.status.DISCONNECTED',
 };
 
 // 서버 등록·관리 API 의 오류 중 화면 문구가 따로 있는 것. 나머지는 describeError 로 보여 준다.

@@ -13,6 +13,10 @@ export const ko = {
   'servers.status.REGISTERING': '연결 확인 중',
   'servers.status.CONNECTED': '연결됨',
   'servers.status.FAILED': '연결 실패',
+  'servers.status.DISCONNECTED': '연결 끊김',
+  'servers.lastSeen': '마지막 신호 {ago}',
+  'servers.disconnectedHint': '3분 넘게 서버에서 신호가 오지 않아요. 서버가 켜져 있고 인터넷에 연결돼 있는지 확인해 주세요. 다시 연결되면 저절로 돌아와요.',
+  'servers.deployDisconnected': '{name} 서버와 연결이 끊겼어요. 서버가 켜져 있고 인터넷에 연결돼 있는지 확인해 주세요. 다시 연결되면 저절로 배포할 수 있어요.',
   'servers.failure.CONNECT_TIMED_OUT': '15분 안에 연결되지 않았어요. 명령을 다시 받아 서버에서 다시 실행해 주세요.',
   'servers.failure.GITOPS_COMMIT_FAILED': '서버 연결 설정을 반영하지 못했어요. 명령을 다시 받아 서버에서 다시 실행해 주세요.',
   'servers.connectedAgo': '{ago} 연결됨',
@@ -78,6 +82,7 @@ export const ko = {
   'servers.short.REGISTERING': '연결 중',
   'servers.short.CONNECTED': '연결됨',
   'servers.short.FAILED': '실패',
+  'servers.short.DISCONNECTED': '끊김',
   'servers.repairDeployWaits': '수정 후보는 지금 만들 수 있지만, 다시 배포는 서버가 연결된 뒤에 할 수 있어요.',
 };
 
@@ -95,6 +100,10 @@ export const ja: Record<keyof typeof ko, string> = {
   'servers.status.REGISTERING': '接続確認中',
   'servers.status.CONNECTED': '接続済み',
   'servers.status.FAILED': '接続失敗',
+  'servers.status.DISCONNECTED': '接続切れ',
+  'servers.lastSeen': '最後の信号: {ago}',
+  'servers.disconnectedHint': '3分以上サーバーから信号がありません。サーバーの電源とインターネット接続を確認してください。再接続されると自動で戻ります。',
+  'servers.deployDisconnected': '{name} との接続が切れています。サーバーの電源とインターネット接続を確認してください。再接続されると自動でデプロイできるようになります。',
   'servers.failure.CONNECT_TIMED_OUT': '15分以内に接続されませんでした。コマンドを再取得してサーバーで再実行してください。',
   'servers.failure.GITOPS_COMMIT_FAILED': 'サーバーの接続設定を反映できませんでした。コマンドを再取得してサーバーで再実行してください。',
   'servers.connectedAgo': '{ago}に接続',
@@ -160,6 +169,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'servers.short.REGISTERING': '接続中',
   'servers.short.CONNECTED': '接続済み',
   'servers.short.FAILED': '失敗',
+  'servers.short.DISCONNECTED': '切断',
   'servers.repairDeployWaits': '修正候補は今作成できますが、再デプロイはサーバーが接続された後に行えます。',
 };
 
@@ -177,6 +187,10 @@ export const en: Record<keyof typeof ko, string> = {
   'servers.status.REGISTERING': 'Connecting',
   'servers.status.CONNECTED': 'Connected',
   'servers.status.FAILED': 'Connection failed',
+  'servers.status.DISCONNECTED': 'Disconnected',
+  'servers.lastSeen': 'Last seen {ago}',
+  'servers.disconnectedHint': "We haven't heard from this server for over 3 minutes. Check that it's powered on and online. It reconnects automatically.",
+  'servers.deployDisconnected': '{name} lost its connection. Check that the server is powered on and online. You can deploy again once it reconnects automatically.',
   'servers.failure.CONNECT_TIMED_OUT': "The server didn't connect within 15 minutes. Get a new command and run it on the server again.",
   'servers.failure.GITOPS_COMMIT_FAILED': "We couldn't apply the server's connection settings. Get a new command and run it on the server again.",
   'servers.connectedAgo': 'Connected {ago}',
@@ -242,5 +256,6 @@ export const en: Record<keyof typeof ko, string> = {
   'servers.short.REGISTERING': 'Connecting',
   'servers.short.CONNECTED': 'Connected',
   'servers.short.FAILED': 'Failed',
+  'servers.short.DISCONNECTED': 'Offline',
   'servers.repairDeployWaits': 'You can create a fix candidate now, but redeploying waits until the server connects.',
 };
