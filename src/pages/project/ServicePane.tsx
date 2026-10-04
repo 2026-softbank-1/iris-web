@@ -24,7 +24,7 @@ import {
   ShieldCheck,
   Database,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon, RuntimeIcon } from '../../components/brand';
@@ -48,7 +48,8 @@ import { DeploymentRow } from './DeploymentRow';
 import { DiagnosisBrief } from './DiagnosisBrief';
 import { ServiceMetrics } from './ServiceMetrics';
 import { ServiceSettings } from './ServiceSettings';
-import { ServiceConsole } from './ServiceConsole';
+// 콘솔은 터미널(xterm)이 커서 탭을 열 때 불러온다.
+const ServiceConsole = lazy(() => import('./ServiceConsole').then((m) => ({ default: m.ServiceConsole })));
 
 const DB_TAB = { id: 'database', label: 'stack.tab.database' as MessageKey };
 const DB_HIDDEN_TABS = ['console'];
@@ -768,7 +769,11 @@ export function ServicePane({ project, service, tab, stacked, deps }: { project:
             {current === 'deployments' && <DeploymentsTab project={project} service={service} deps={deps} />}
             {current === 'variables' && <VariablesTab key={service.id} project={project} service={service} />}
             {current === 'metrics' && <ServiceMetrics service={service} />}
-            {current === 'console' && <ServiceConsole service={service} />}
+            {current === 'console' && (
+              <Suspense fallback={<p className="st-muted">{t('service.loading')}</p>}>
+                <ServiceConsole key={service.id} service={service} />
+              </Suspense>
+            )}
             {current === 'settings' && (database ? <DatabaseSettings project={project} service={service} /> : <ServiceSettings project={project} service={service} onScaled={() => void deps.reload()} />)}
           </div>
         </div>
