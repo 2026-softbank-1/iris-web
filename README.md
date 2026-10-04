@@ -64,7 +64,7 @@ flowchart LR
 | 서비스·프로젝트 Settings (Scale, 배포 방식 롤링·카나리·블루그린, 삭제) | WAS 연동 |
 | AI 진단 (자동 시작·재진단·근거 로그) | WAS 연동 |
 | AI 수정·재배포 (자동 핫픽스, 환경변수 문제는 수동 안내) | WAS 연동 |
-| 서비스 Console | 샘플 (고정 응답 셸) |
+| 서비스 Console (실행 중인 Pod 의 셸, AWS 타깃) | WAS 연동 (Console Gateway) |
 | Observability, Sandboxes, Templates | 샘플이라 숨김 (코드에 주석 처리) |
 | 워크스페이스 이름 | 샘플 (`src/data/mock.ts`) |
 | Usage | 샘플 (라우트 비활성) |
@@ -114,6 +114,7 @@ npm run typecheck && npm run build
 
 - was REST `/api/v1`만 호출한다. 인증은 was가 발급한 세션 쿠키(credentials 포함), 401이면 `/login`으로 보낸다.
 - 실시간 로그는 SSE(`/services/{id}/logs/stream`), 진행 중인 배포·진단·수정은 폴링한다.
+- 서비스 Console 은 was 가 발급한 1회성 ticket 으로 Console Gateway(별도 서버)의 WebSocket 에 붙는다. 셸 입출력은 was 를 지나지 않는다.
 - 배포·Scale·AI 수정 요청에는 `Idempotency-Key`를 붙인다.
 - 계약 원문은 was 문서(`docs/deployment-details-api.md`, `docs/diagnosis-api.md` 등)를 따른다.
 
@@ -129,6 +130,7 @@ npm run typecheck && npm run build
 - MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 - `/traffic-metrics`가 없는 was에서는 트래픽 지표 카드가 '지표가 없어요' 빈 상태다.
 - mock 모드(`VITE_MOCK_API=1`)에는 AI 수정 시나리오가 없다.
+- mock 모드의 Console 은 가짜 Gateway(`dev/mockConsoleGateway.ts`)가 같은 dev 서버에서 몇 가지 명령에만 답한다(`help`). `mock-error <CODE>` 를 입력하면 해당 오류 안내를 볼 수 있다.
 - 데스크톱 화면 기준이다. GitHub avatar 표시는 외부 네트워크가 필요하다.
 - 화면 문구·코드에는 아직 `LikeLion` 표기가 남아 있다(README·docs만 `Likelion`으로 정리).
 

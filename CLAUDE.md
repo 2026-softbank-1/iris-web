@@ -2,7 +2,7 @@
 
 React 19 + TypeScript + Vite 대시보드. `npm run typecheck`, `npm run build`로 검증한다.
 
-백엔드 없이 화면을 보려면 `.env.local`에 `VITE_MOCK_API=1`을 넣고 dev 서버를 다시 띄운다. `/api/v1`을 `src/dev/mockApi.ts`가 답한다(상태는 메모리, 재시작하면 초기화).
+백엔드 없이 화면을 보려면 `.env.local`에 `VITE_MOCK_API=1`을 넣고 dev 서버를 다시 띄운다. `/api/v1`을 `src/dev/mockApi.ts`가 답한다(상태는 메모리, 재시작하면 초기화). 서비스 Console 탭의 Console Gateway 는 `dev/mockConsoleGateway.ts`(vite 설정이 붙인다)가 같은 서버의 `/mock-console-gateway` 로 답하고, 이 파일은 `src/` 밖이라 타입 검사·번들에 들어가지 않는다.
 
 ## 디자인 작업
 

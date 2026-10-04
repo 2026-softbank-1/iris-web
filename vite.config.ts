@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { attachMockConsoleGateway } from './dev/mockConsoleGateway.ts';
 
 /**
  * VITE_MOCK_API=1 이면 dev 서버가 /api/v1 을 was 대신 src/dev/mockApi.ts 로 답한다.
@@ -11,6 +12,8 @@ function mockApi(): Plugin {
     name: 'likelion-mock-api',
     apply: 'serve',
     configureServer(server) {
+      // 콘솔(셸) 화면용 가짜 Console Gateway. 같은 dev 서버의 /mock-console-gateway 로 REST·WebSocket 을 받는다.
+      attachMockConsoleGateway(server);
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith(PREFIX)) return next();
         const mock = await server.ssrLoadModule('/src/dev/mockApi.ts');
@@ -32,7 +35,7 @@ function mockApi(): Plugin {
 
         let raw = '';
         for await (const chunk of req) raw += chunk;
-        const out = mock.handle(req.method ?? 'GET', path, Object.fromEntries(url.searchParams), raw ? JSON.parse(raw) : undefined);
+        const out = mock.handle(req.method ?? 'GET', path, Object.fromEntries(url.searchParams), raw ? JSON.parse(raw) : undefined, `http://${req.headers.host}`);
         await new Promise((r) => setTimeout(r, 150)); // 로딩 상태도 보이게
         if (out.redirect) {
           res.writeHead(302, { Location: out.redirect }).end();

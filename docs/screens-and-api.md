@@ -29,6 +29,7 @@ README 에서 옮긴 상세다. 엔드포인트는 모두 was 의 `/api/v1` 아�
 | 서비스 Metrics 탭 (CPU, Memory) | `GET /services/{id}/metrics` |
 | 서비스 Metrics 탭 (Public Network Traffic, Requests, Request Error Rate, Response Time) | `GET /services/{id}/traffic-metrics` |
 | 서비스 Settings 의 Scale (Replica 수, CPU·메모리 한도) | `GET·PUT /services/{id}/scaling` |
+| 서비스 Console 탭 (실행 중인 Pod 의 셸) | `GET /services/{id}/console`, `POST /services/{id}/console/sessions`, Console Gateway 의 `GET /v1/pods`·WebSocket `/v1/exec` |
 | 서비스 Settings 의 Deploy 배포 방식 (롤링·카나리·블루그린) | `PATCH /services/{id}` 의 `deploymentStrategy` |
 | 서비스 Variables 탭 (추가·수정·삭제, Raw Editor, Likelion 이 넣는 변수) | `GET·POST·PUT /services/{id}/variables`, `PUT·DELETE /services/{id}/variables/{key}` |
 | 배포 패널 AI 진단 탭 (실패한 배포의 원인·해결책) | `GET /services/{id}/deployments/{deploymentId}/diagnosis`, `POST …/diagnose[?refresh=true]` |
@@ -47,6 +48,14 @@ Public Network Traffic·Requests·Request Error Rate·Response Time 은 ALB 접�
 - 지표가 약 15분 늦게 집계됩니다. 응답의 `availableUntil` 이후는 비어 있는 것이 아니라 '집계 대기'입니다. 보이는 범위가 전부 대기이면(Last 15 min) 안내를 보이고, 일부만 대기이면 그 구간을 옅게 칠하고 '집계 대기'라고 표시합니다. 그래서 처음 열 때의 기본 범위는 Last 1 hour 입니다.
 - 요청 오류율은 5xx·4xx 두 줄(축은 %), 응답 시간은 p50·p95 두 줄(축은 ms·s, 평균은 그리지 않음)입니다. 응답 시간은 5분 구간 값이라 받은 점을 그대로 그리고 합치지 않습니다.
 - 이 API 가 아직 없는 was 는 404 를 주는데, 오류로 보지 않고 '지표가 없어요' 빈 상태로 둡니다. API 가 나가면 다음 조회부터 자동으로 동작합니다.
+
+서비스 Console 탭은 실행 중인 레플리카(Pod)의 `app` 컨테이너에 셸을 엽니다(AWS 타깃만). 셸 입출력은 was 가 아니라 별도 서버인 Console Gateway 와 WebSocket 으로 주고받고, was 는 소유권을 확인해 1회성 ticket 만 발급합니다. 계약은 was 의 콘솔 API 문서(`docs/console-api.md`)를 따릅니다.
+
+- 탭을 열면 `GET /services/{id}/console?targetId=` 로 열 수 있는지 먼저 봅니다(토큰·감사 기록을 만들지 않습니다). `available=false` 의 `reason` 은 `NO_RUNNING_DEPLOYMENT`(떠 있는 배포 없음, REMOVE 뒤 포함), `TARGET_NOT_SUPPORTED`(온프레미스, 아직 미지원), `NOT_CONFIGURED`(서버에 콘솔 미설정)이고, 화면은 사유별 문구의 빈 상태를 보여 줍니다. 모르는 사유는 일반 안내입니다.
+- 열 수 있으면 `POST …/console/sessions`(`{targetId}`)로 ticket(JWT, 60초)을 받아 `GET {gateway.httpUrl}/v1/pods`(Bearer)로 Pod 목록을 봅니다. 준비된 Pod 가 하나뿐이면 바로 연결하고, 여럿이면 고르게 합니다(준비 중인 Pod 는 비활성). 연결할 때는 **새 ticket** 을 받아 `{gateway.wsUrl}/v1/exec?pod=` WebSocket 을 열고 첫 프레임으로 `{type:"auth", token, cols, rows}` 를 보냅니다(토큰을 URL 에 싣지 않습니다). ticket 은 연결에 한 번만 쓸 수 있어서 다시 연결할 때마다 새로 받습니다.
+- 프레임은 JSON 텍스트입니다. 클라이언트는 `input`·`resize`·`ping`(25초마다, ALB idle timeout 대비), Gateway 는 `ready`·`output`·`pong`·`exit`·`error` 를 보냅니다. `error.code` 별 안내가 있습니다: `SHELL_NOT_FOUND`(이미지에 셸이 없음, 다시 해도 소용없어 버튼 없음), `SESSION_LIMIT_EXCEEDED`, `IDLE_TIMEOUT`·`MAX_DURATION_EXCEEDED`(오류가 아닌 안내 색), `POD_NOT_FOUND`·`POD_NOT_READY`(목록 새로고침), `CLUSTER_UNAVAILABLE`, `TOKEN_*`·`UNAUTHORIZED` 등. 코드를 모르면 서버가 준 `message` 를 그대로 보입니다. Gateway 에 닿지 못하거나 15초 안에 `ready` 가 없으면 화면이 직접 `GATEWAY_UNREACHABLE`·`CONNECT_TIMEOUT` 으로 안내합니다.
+- 연결이 끝나도 이전 출력은 남기고 아래에 안내와 `다시 연결` 버튼을 띄웁니다. 같은 Pod 에 다시 연결하면 구분선 아래에 이어 쓰고, 다른 Pod 로 옮기면 화면을 비웁니다. 탭을 떠나거나 서비스를 바꾸면 소켓을 닫고, 다시 열면 새 셸입니다.
+- 터미널은 xterm.js 이고(탭을 열 때 불러오는 별도 청크), 컨테이너 크기가 바뀌면 `resize` 를 보내며, 라이트·다크 전환을 따라갑니다. Linux·Windows 는 선택 영역을 `Ctrl+Shift+C` 로 복사합니다.
 
 서비스 Settings 의 Scale 은 was 가 저장한 **원하는** 설정(Replica 수, Pod 하나의 CPU·메모리 limits)을 보여 주고, 실제로 떠 있는 Pod 수나 적용 완료를 뜻하지는 않습니다. 슬라이더는 정해진 칸(CPU 0.25·0.5·1·2 vCPU, 메모리 256 MiB~4 GiB)에서 고르고, was 에 이미 다른 값이 저장돼 있으면 그 값도 칸으로 보여 줍니다. 적용(PUT)은 Pod 이 새로 시작되는 RESTART 배포를 만드니 값을 고칠 때마다 보내지 않고 Apply 를 눌러야 보냅니다. requests 는 화면에서 고치지 않고 저장된 값을 그대로 보내되, 새 limits 보다 크면 limits 로 낮춥니다. 배포가 진행 중이면 Apply 를 막고, 성공한 배포가 없으면 서버가 409 를 줍니다. CPU 최대 2 vCPU 는 iris-infra 노드(`m7i-flex.large`, 2 vCPU·8 GiB)의 크기에 맞춘 값입니다. Replica 는 0~10이고 0 이면 요청을 처리하지 못합니다.
 
@@ -92,7 +101,7 @@ was 에 대응 기능이 없어서(토스트만 뜨거나 화면 상태일 뿐�
 - 엣지(공격 방어 모드, CDN), 감시 경로
 - 이전 배포 정리, Cron, 헬스체크, 서버리스, 재시작 정책, 배포 전 단계 (헬스체크는 저장소의 `iris.json` 으로만 지원)
 - 설정 파일, 빌드 건너뛰기(기능 플래그)
-- 샘플 화면: Observability, Sandboxes(프로젝트 왼쪽 메뉴), Templates(커맨드 팔레트·대시보드). 페이지 파일은 그대로 두고 라우트·메뉴만 주석 처리했다. 예전 주소는 프로젝트 첫 화면·대시보드로 이동한다. 서비스 Console 은 샘플이지만 남겨 두었다.
+- 샘플 화면: Observability, Sandboxes(프로젝트 왼쪽 메뉴), Templates(커맨드 팔레트·대시보드). 페이지 파일은 그대로 두고 라우트·메뉴만 주석 처리했다. 예전 주소는 프로젝트 첫 화면·대시보드로 이동한다.
 
 워크스페이스의 도메인·감사 로그·개발자 화면은 같은 이유로 주석이 아니라 삭제했다.
 

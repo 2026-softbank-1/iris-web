@@ -1134,7 +1134,7 @@ const page = <T>(items: T[], q: Query) => {
 };
 
 /** /api/v1 뒤의 경로를 처리한다. 모르는 경로는 404. */
-export function handle(method: string, path: string, q: Query, body: Record<string, unknown> | undefined): MockResponse {
+export function handle(method: string, path: string, q: Query, body: Record<string, unknown> | undefined, origin = 'http://localhost:5173'): MockResponse {
   const seg = path.split('/').filter(Boolean);
   const id = (i: number) => Number(seg[i]);
 
@@ -1284,6 +1284,7 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     return ok({ entries, isTruncated: entries.length >= Number(q.limit ?? 500) });
   }
   if (seg[2] === 'metrics') return ok(metricsFor(s, q));
+  if (seg[2] === 'console') return handleConsole(s, method, seg, q, body, origin);
   if (seg[2] === 'scaling' && seg.length === 3) {
     if (method === 'PUT') {
       const replicas = Number(body?.replicas);
@@ -1352,6 +1353,40 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     if (seg[4] === 'diagnosis' && method === 'GET') return getDiagnosis(d);
   }
   return fail(404, 'NOT_FOUND', `No mock for ${method} ${path}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* 콘솔                                                                  */
+/* ------------------------------------------------------------------ */
+
+/** vite.config.ts 가 같은 경로에 가짜 Console Gateway(dev/mockConsoleGateway.ts)를 붙인다. */
+const MOCK_GATEWAY_PATH = '/mock-console-gateway';
+let consoleSessionCount = 0;
+
+/**
+ * 콘솔 가능 여부와 세션 발급. was 와 같은 규칙이다: 그 타깃에 떠 있는 배포(가장 최근에 성공했고 REMOVE 가 아닌 것)가 없으면 열 수 없고,
+ * 온프레미스 타깃은 아직 지원하지 않는다. ticket(token)은 `mock-{serviceId}-{n}` 이고 가짜 Gateway 가 이 모양만 확인한다.
+ */
+function handleConsole(s: MockService, method: string, seg: string[], q: Query, body: Record<string, unknown> | undefined, origin: string): MockResponse {
+  const targetId = Number(method === 'GET' ? q.targetId : body?.targetId);
+  if (!s.targetIds.includes(targetId)) return fail(404, 'NOT_FOUND', 'Target not found');
+  const running = deploymentsOf(s.id).find((d) => statusOf(d) === 'SUCCEEDED');
+  const reason = isOnPrem(s) ? 'TARGET_NOT_SUPPORTED' : !running || running.triggerType === 'REMOVE' ? 'NO_RUNNING_DEPLOYMENT' : undefined;
+  if (method === 'GET' && seg.length === 3) return ok(reason ? { available: false, reason } : { available: true });
+  if (method === 'POST' && seg[3] === 'sessions' && seg.length === 4) {
+    if (reason === 'TARGET_NOT_SUPPORTED') return fail(409, 'CONSOLE_TARGET_NOT_SUPPORTED', 'Console is not supported for this target');
+    if (reason) return fail(409, 'NO_RUNNING_DEPLOYMENT', 'No running deployment');
+    return ok(
+      {
+        sessionId: crypto.randomUUID(),
+        token: `mock-${s.id}-${++consoleSessionCount}`,
+        expiresAt: iso(Date.now() + MIN),
+        gateway: { httpUrl: `${origin}${MOCK_GATEWAY_PATH}`, wsUrl: `${origin.replace(/^http/, 'ws')}${MOCK_GATEWAY_PATH}` },
+      },
+      201,
+    );
+  }
+  return fail(404, 'NOT_FOUND', `No mock for ${method} ${seg.join('/')}`);
 }
 
 /* ------------------------------------------------------------------ */
