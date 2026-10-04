@@ -2389,6 +2389,40 @@ button.st-box {
 
 
 
+/* segmented tabs: base for the log target / status-class switchers (logs.css overrides) */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.seg button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 8px 12px;
+  color: var(--fg-subtle);
+  border: 1px solid var(--border);
+}
+
+.seg button p {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.seg button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.seg button:last-child {
+  margin-left: -1px;
+  border-radius: 0 6px 6px 0;
+}
+
+.seg button[data-state='active'] {
+  color: var(--fg);
+}
+
 .details-cols {
   display: flex;
   gap: 8px;
@@ -2752,32 +2786,6 @@ button.st-box {
   word-break: keep-all;
 }
 
-/* settings section that is not built yet */
-.st-soon {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 8px;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
-  vertical-align: middle;
-  color: var(--primary-text);
-  background: var(--primary-bg);
-  border-radius: 9999px;
-}
-
-.st-section-soon .st-section-body button:disabled,
-.st-section-soon .st-section-body button:disabled + .st-switch-label,
-.st-item-soon .st-item-body button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.st-section-soon .st-activate:disabled:hover {
-  background: var(--red);
-}
-
 /* .env upload: keep it from touching the editor/list below */
 .vars-upload {
   margin-bottom: 16px;
@@ -2788,3 +2796,39 @@ button.st-box {
   background: var(--primary-bg);
 }
 
+/* 레포 구성 확인(분석 게이트) 결과 배지 — 서비스 패널 제목 옆, 설정의 Source */
+.gate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 100%;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.gate-badge > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gate-badge.skip {
+  background: var(--green-bg);
+  border-color: var(--green-bg-border);
+  color: var(--green-text);
+}
+.gate-badge.analyze {
+  background: var(--primary-bg);
+  border-color: var(--primary-border);
+  color: var(--primary-text);
+}
+.st-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 13px;
+}

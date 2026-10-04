@@ -1,6 +1,6 @@
 import { ChevronDown, CircleAlert, Folder, LayoutGrid, List, Plus, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // [주석 처리] useNavigate: 템플릿 버튼을 숨겨 쓰는 곳이 없다
 import { CreateDialog } from '../components/CreateDialog';
 import { RepoIcon } from '../components/brand';
 import { ServiceStatusPill } from '../components/ServiceStatusPill';
@@ -125,7 +125,7 @@ export function Dashboard() {
   const [favs, setFavs] = useState<string[]>(() => JSON.parse(localStorage.getItem('ll:favs') || '[]'));
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
   const filterPop = usePopover();
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // [주석 처리] 템플릿 버튼을 숨겨 쓰는 곳이 없다
 
   const toggleFav = (id: string) => {
     setFavs((f) => {
@@ -279,9 +279,11 @@ export function Dashboard() {
             </div>
           )}
         </div>
+        {/* [주석 처리] 템플릿은 샘플 화면이라 숨겼다.
         <button type="button" className="sr-only" onClick={() => navigate('/workspace/templates')}>
           {t('dash.templates')}
         </button>
+        */}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { MIN_REPLICAS_FOR_PROGRESSIVE, isRollingOnlyTarget, strategyLabel } from
 import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
+import { useDeployBlock } from '../../data/useDeployBlock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import type { DeploymentDetailDto } from '../../lib/endpoints';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
@@ -226,13 +227,16 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
   // 상세 응답은 Details 의 구성·소스와 Deploy·Network Logs 의 타깃이 쓴다. 진행 중이면 3초마다 다시 받는다.
   const { detail, error: detailError, failure: detailFailure } = useDeploymentDetail(service.id, deployment.id);
   const diagnosable = canDiagnose(deployment);
-  const tabs = diagnosable ? [...DTABS, DIAGNOSIS_TAB] : DTABS;
+  // 관리형 DB 는 빌드하지 않고 HTTP 로 서비스하지도 않으니 빌드 로그·네트워크 탭이 없다.
+  const baseTabs = service.remote?.kind === 'DATABASE' ? DTABS.filter((x) => x.id !== 'build' && x.id !== 'http') : DTABS;
+  const tabs = diagnosable ? [...baseTabs, DIAGNOSIS_TAB] : baseTabs;
   // 주소에 탭이 없으면 상세(Details)를 보여준다. 진단할 수 없는 배포의 /diagnosis 주소도 상세로 간다.
   const current = tabs.some((x) => x.id === tab) ? tab! : 'details';
   const currentTab = tabs.find((x) => x.id === current)!;
   const serviceBase = `/project/${project.id}/service/${service.id}`;
   const base = `${serviceBase}/deployment/${deployment.id}`;
   const status = deploymentLabel(deployment.status);
+  const deployBlock = useDeployBlock(service.id);
 
   return (
     <div className="pane deployment-pane">
@@ -271,6 +275,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   onDiagnose={diagnosable ? () => navigate(`${base}/diagnosis`) : undefined}
                   onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
+                  deployBlockedReason={deployBlock.reason}
                 />
                 <Link to={serviceBase} className="btn btn-icon-only dp-close" aria-label={t('service.close')}>
                   <div className="tool-icon">

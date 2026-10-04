@@ -1,0 +1,420 @@
+/* ------------------------------------------------------------------
+   On-prem servers: workspace list, add-server dialog, target badges
+------------------------------------------------------------------- */
+
+.server-pill {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.server-key {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
+.server-hint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--fg-subtle);
+}
+
+/* "내 서버" page */
+.server-page {
+  margin-top: 32px;
+}
+
+.server-list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.server-list-card .set-muted {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg-subtle);
+}
+
+.server-list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.server-list-head .btn {
+  flex-shrink: 0;
+}
+
+.server-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--fg-subtle);
+}
+
+.server-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.server-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.server-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.server-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.server-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.server-row-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--fg-subtle);
+  overflow-wrap: anywhere;
+}
+
+.server-row-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--red-text);
+}
+
+.server-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.server-row-actions .btn,
+.server-command .btn,
+.server-result .btn {
+  gap: 6px;
+}
+
+/* add-server dialog (shares the create dialog frame) */
+.server-dialog .create-review label {
+  gap: 6px;
+}
+
+.server-install {
+  display: grid;
+  gap: 14px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.server-install p {
+  margin: 0;
+}
+
+.server-install-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.server-reqs {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--fg-muted);
+  background: var(--bg-3);
+  border-radius: 8px;
+}
+
+.server-reqs b {
+  color: var(--fg);
+}
+
+.server-reqs ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.server-reqs p {
+  margin: 0;
+}
+
+.server-command {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.server-command pre {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg);
+}
+
+.server-wait {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--primary-text);
+  background: var(--primary-bg);
+  border-radius: 8px;
+}
+
+.server-spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 2px solid var(--primary-border);
+  border-top-color: var(--primary);
+  border-radius: 9999px;
+  animation: diag-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .server-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.server-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
+.server-result svg {
+  flex-shrink: 0;
+}
+
+.server-result p {
+  flex: 1;
+}
+
+.server-result.ok {
+  color: var(--green-text);
+  background: var(--green-bg);
+}
+
+.server-result.failed {
+  color: var(--red-text);
+  background: var(--red-bg);
+}
+
+.server-result.stalled {
+  color: var(--fg-muted);
+  background: var(--bg-3);
+}
+
+.server-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.deploy-blocked-note {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--fg-subtle);
+}
+
+/* deployment actions menu: deploy-creating items blocked by a disconnected server */
+.menu-note {
+  white-space: normal;
+}
+
+.menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menu-item:disabled:hover {
+  background: transparent;
+}
+
+/* deploy buttons blocked until the service's server connects */
+.btn.deploy-blocked:disabled {
+  opacity: 0.5;
+}
+
+.deploy-blocked-note a {
+  color: var(--primary-text);
+  text-decoration: underline;
+}
+
+/* service settings: more target choices wrap, the replica box keeps its width */
+.st-region-row .st-replicas {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+/* target picker: kind radios + on-prem server dropdown (create dialog, service settings) */
+.tp-onprem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tp-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tp-trigger:hover:not(:disabled) {
+  background: rgba(var(--wash), 0.03);
+}
+
+.tp-trigger:focus-visible {
+  outline: 2px solid var(--primary-strong);
+  outline-offset: 1px;
+}
+
+.tp-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tp-trigger svg {
+  flex-shrink: 0;
+  color: var(--fg-subtle);
+}
+
+.tp-trigger-name,
+.tp-option-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tp-menu {
+  max-width: min(320px, calc(100vw - 16px));
+}
+
+.tp-option,
+.tp-add {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tp-option:focus-visible,
+.tp-add:focus-visible {
+  outline: none;
+  background: rgba(var(--wash), 0.06);
+}
+
+.tp-option[aria-selected='true'] {
+  font-weight: 600;
+}
+
+.tp-check {
+  display: inline-flex;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--primary-text);
+}
+
+.tp-option .tp-status {
+  margin-left: auto;
+}
+
+.tp-add {
+  color: var(--primary-text);
+}
+
+.tp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+.tp-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+
+.tp-status.connected {
+  color: var(--green-text);
+}
+
+.tp-status.pending,
+.tp-status.registering {
+  color: var(--primary-text);
+}
+
+.tp-status.failed {
+  color: var(--red-text);
+}
+
+.create-dialog .tp-trigger {
+  width: auto;
+}

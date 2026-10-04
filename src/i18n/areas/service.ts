@@ -6,6 +6,10 @@ export const ko = {
   'service.tab.console': '콘솔',
   'service.icon': '서비스 아이콘',
   'service.close': '닫기',
+  'service.gate.skipped': 'AI 분석 생략',
+  'service.gate.analyzed': '분석으로 생성됨 · {unit}',
+  'service.gate.analyzedNoUnit': '분석으로 생성됨',
+  'service.gate.tooltip': '레포 구성 확인 #{id}',
   'service.loading': '불러오는 중…',
 
   'service.unexposed': '공개되지 않은 서비스',
@@ -211,6 +215,10 @@ export const ja: Record<keyof typeof ko, string> = {
   'service.tab.console': 'コンソール',
   'service.icon': 'サービスアイコン',
   'service.close': '閉じる',
+  'service.gate.skipped': 'AI 分析を省略',
+  'service.gate.analyzed': '分析から作成 · {unit}',
+  'service.gate.analyzedNoUnit': '分析から作成',
+  'service.gate.tooltip': 'リポジトリ構成の確認 #{id}',
   'service.loading': '読み込み中…',
 
   'service.unexposed': '非公開のサービス',
@@ -416,6 +424,10 @@ export const en: Record<keyof typeof ko, string> = {
   'service.tab.console': 'Console',
   'service.icon': 'Service icon',
   'service.close': 'Close',
+  'service.gate.skipped': 'AI analysis skipped',
+  'service.gate.analyzed': 'Created from analysis · {unit}',
+  'service.gate.analyzedNoUnit': 'Created from analysis',
+  'service.gate.tooltip': 'Repository check #{id}',
   'service.loading': 'Loading…',
 
   'service.unexposed': 'Unexposed service',

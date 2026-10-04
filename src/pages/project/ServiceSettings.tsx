@@ -1,24 +1,35 @@
 import {
-  ChevronDown,
+  // ChevronDown, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Code,
+  // LogOut, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // PencilLine, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // RefreshCw, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // CircleCheck, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Globe,
-  ShieldAlert,
+  // Zap, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // ShieldAlert, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Copy,
   Earth,
   ExternalLink,
+  // FileCode2, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // Flag, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Hammer,
   Network,
-  Plus,
+  // Pencil, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
+  // Plus, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   Rocket,
   Scaling,
-  Shield,
+  // Shield, // [주석 처리] 숨긴 설정 항목에서만 쓰던 아이콘
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon } from '../../components/brand';
 
+import { OnpremServerDialog } from '../../components/OnpremServerDialog';
+import { TargetPicker } from '../../components/TargetPicker';
 import { ConfirmDialog, useUI } from '../../components/ui';
 import { DEPLOYMENT_STRATEGIES, MIN_REPLICAS_FOR_PROGRESSIVE, fallsBackToRolling, isRollingOnlyTarget, isStrategyRejected, needsReplicas, strategyDescKey, strategyLabel, strategyOf } from '../../data/deploymentStrategyModel';
 import type { Project, Service } from '../../data/mock';
@@ -26,21 +37,21 @@ import { useProjects } from '../../data/ProjectsContext';
 import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
 import { useServiceScaling } from '../../data/useServiceScaling';
 import { ApiError, describeError } from '../../lib/api';
-import { isTargetSupported, listBranches, type Builder, type DeploymentStrategy, type ServiceUpdate } from '../../lib/endpoints';
+import { listBranches, type Builder, type DeploymentStrategy, type ServiceUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
 
 /* ------------------------------------------------------------------ */
 /* Building blocks                                                     */
 /* ------------------------------------------------------------------ */
 
-function Toggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <div className="st-box">
       <div className="st-switch-row">
-        <button type="button" role="switch" aria-checked={checked} aria-label={label} className="st-switch" disabled={disabled} onClick={() => onChange(!checked)}>
+        <button type="button" role="switch" aria-checked={checked} aria-label={label} className="st-switch" onClick={() => onChange(!checked)}>
           <span />
         </button>
-        <label className="st-switch-label" onClick={() => !disabled && onChange(!checked)}>
+        <label className="st-switch-label" onClick={() => onChange(!checked)}>
           {label}
         </label>
       </div>
@@ -64,15 +75,12 @@ function SavedToggle({ value, label, onSave }: { value: boolean; label: string; 
   );
 }
 
-/** soon: 아직 서버 기능이 없는 항목. 제목 옆에 '준비 중'을 붙이고 안의 컨트롤은 각자 비활성화한다. */
-function Item({ title, desc, children, id, soon }: { title: string; desc?: ReactNode; children?: ReactNode; id: string; soon?: boolean }) {
-  const { t } = useI18n();
+export function Item({ title, desc, children, id }: { title: string; desc?: ReactNode; children?: ReactNode; id: string }) {
   return (
-    <div className={`st-item${soon ? ' st-item-soon' : ''}`} id={id}>
+    <div className="st-item" id={id}>
       <header className="st-item-head">
         <a href={`#${id}`} className="st-item-title" onClick={(e) => e.preventDefault()}>
           {title}
-          {soon && <span className="st-soon">{t('create.comingSoon')}</span>}
         </a>
         {desc && <h2 className="st-item-desc">{desc}</h2>}
       </header>
@@ -81,27 +89,23 @@ function Item({ title, desc, children, id, soon }: { title: string; desc?: React
   );
 }
 
-/** soon: 아직 서버 기능이 없는 섹션. 제목 옆에 '준비 중'을 붙이고 안의 컨트롤은 각자 비활성화한다. */
-function Section({ name, icon: Icon, soon, children }: { name: string; icon?: LucideIcon; soon?: boolean; children: ReactNode }) {
+function Section({ name, icon: Icon, children }: { name: string; icon?: LucideIcon; children: ReactNode }) {
   const { t } = useI18n();
   return (
-    <section className={`st-section${soon ? ' st-section-soon' : ''}`} id={`set-${name}`}>
+    <section className="st-section" id={`set-${name}`}>
       {Icon && (
         <div className="st-section-icon">
           <Icon size={18} />
         </div>
       )}
-      <h1 className="st-section-title">
-        {t(SECTION_LABEL[name])}
-        {soon && <span className="st-soon">{t('create.comingSoon')}</span>}
-      </h1>
+      <h1 className="st-section-title">{t(SECTION_LABEL[name])}</h1>
       <div className="st-section-body">{children}</div>
     </section>
   );
 }
 
 /** 한 줄 값을 고쳐 저장하는 설정. 비우고 저장하면 null(값 지우기)을 넘긴다. onSave 는 저장에 성공했는지 돌려준다. */
-function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
+export function ValueSetting({ label, value, placeholder, inputProps, onSave }: { label: string; value: string; placeholder?: string; inputProps?: InputHTMLAttributes<HTMLInputElement>; onSave: (value: string | null) => Promise<boolean> }) {
   const [draft, setDraft] = useState(value);
   const [busy, setBusy] = useState(false);
   const { t } = useI18n();
@@ -226,10 +230,12 @@ function StrategyPicker({ value, savedReplicas, replicasUnknown, rollingOnly, on
 const SECTION_LABEL: Record<string, MessageKey> = {
   Source: 'svcSettings.sec.source',
   Networking: 'svcSettings.sec.networking',
-  Edge: 'svcSettings.sec.edge',
+  // Edge: 'svcSettings.sec.edge', // [주석 처리] 섹션을 숨겼다
   Scale: 'svcSettings.sec.scale',
   Build: 'svcSettings.sec.build',
   Deploy: 'svcSettings.sec.deploy',
+  // 'Config-as-code': 'svcSettings.sec.config', // [주석 처리] 섹션을 숨겼다
+  // 'Feature-flags': 'svcSettings.sec.flags', // [주석 처리] 섹션을 숨겼다
   Danger: 'svcSettings.sec.danger',
 };
 const SECTIONS = Object.keys(SECTION_LABEL);
@@ -250,6 +256,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [deleting, setDeleting] = useState(false);
 
   const targetLocked = !!remote?.latestDeployment;
+  const [addingServer, setAddingServer] = useState(false);
   const save = async (changes: ServiceUpdate, message = t('svcSettings.saved')) => {
     try {
       await updateService(project.id, service.id, changes);
@@ -293,8 +300,12 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
     return () => { cancelled = true; };
   }, [service.repo]);
   const [filter, setFilter] = useState('');
-  const [cdn, setCdn] = useState(false);
-  const [teardown, setTeardown] = useState(false);
+  // [주석 처리] 아래 상태는 주석 처리한 항목(IPv6·CDN·이전 배포 정리·서버리스·빌드 건너뛰기)의 것이다.
+  // const [ipv6, setIpv6] = useState(false);
+  // const [cdn, setCdn] = useState(false);
+  // const [teardown, setTeardown] = useState(false);
+  // const [serverless, setServerless] = useState(false);
+  // const [skipped, setSkipped] = useState(false);
   const scale = useServiceScaling(service.id);
   const strategy = strategyOf(remote);
   // 온프레미스 타깃은 롤링만 지원한다. 타깃 목록을 아직 받지 못했으면 서버의 422 가 막는다.
@@ -324,9 +335,10 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
       return false;
     }
   };
-  const [retries, setRetries] = useState('10');
-  const [paths, setPaths] = useState<string[]>([]);
-  const [pathDraft, setPathDraft] = useState('');
+  // [주석 처리] 재시작 정책·감시 경로의 상태.
+  // const [retries, setRetries] = useState('10');
+  // const [paths, setPaths] = useState<string[]>([]);
+  // const [pathDraft, setPathDraft] = useState('');
   const [active, setActive] = useState('Source');
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -387,7 +399,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
 
       <div className="st-layout">
         <div className="st-main">
-          {show('Source', 'repo', 'branch', 'root directory') && (
+          {show('Source', 'repo', 'branch', 'root directory', 'upstream') && (
             <Section name="Source" icon={Code}>
               {remote && (
                 <Item title={t('svcSettings.serviceName.title')} desc={t('svcSettings.serviceName.desc')} id="service-name">
@@ -407,11 +419,16 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                       <span>{service.repo}</span>
                     </p>
                   </a>
+                  {/* [주석 처리] was 에 저장소 변경·연결 해제 API 가 없어 토스트만 뜬다.
                   <div className="st-repo-actions">
+                    <button type="button" className="st-icon-btn" aria-label={t('svcSettings.edit')} onClick={() => toast(t('svcSettings.repoPickerMock'))}>
+                      <PencilLine size={16} />
+                    </button>
                     <button type="button" className="st-mini-btn" onClick={() => toast(t('svcSettings.disconnectDisabled'))}>
                       <span>{t('svcSettings.disconnect')}</span>
                     </button>
                   </div>
+                  */}
                 </div>
                 {remote && (
                   <div className="st-gap12">
@@ -420,6 +437,47 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </div>
                 )}
               </Item>
+              {remote?.analysisGate && (
+                <Item
+                  title={t('svcSettings.gate.title')}
+                  desc={remote.analysisGate.decision === 'skip' ? t('svcSettings.gate.skippedDesc') : t('svcSettings.gate.analyzedDesc', { unit: remote.analysisGate.unitId ?? remote.name })}
+                  id="analysis-gate"
+                >
+                  <div className="st-gate">
+                    <AnalysisGateBadge gate={remote.analysisGate} />
+                    {remote.analysisGate.complexity && (
+                      <span className="st-muted">
+                        {t('svcSettings.gate.complexity')} <span className="mono">{remote.analysisGate.complexity}</span>
+                      </span>
+                    )}
+                    <span className="st-muted mono">#{remote.analysisGate.analysisId}</span>
+                  </div>
+                </Item>
+              )}
+              {/* [주석 처리] 업스트림은 Railway 템플릿 개념이라 was 에 대응 기능이 없다(분리·업데이트 확인은 토스트만).
+              <Item title={t('svcSettings.upstream')} id="upstream">
+                <div className="st-repo">
+                  <a href={`https://github.com/${service.repo}`} target="_blank" rel="noreferrer" className="st-repo-link">
+                    <RepoIcon size={20} />
+                    <p>
+                      <span>{service.repo}</span>
+                    </p>
+                  </a>
+                  <div className="st-repo-actions">
+                    <button type="button" className="st-mini-btn red" onClick={() => toast(t('svcSettings.ejectMock'))}>
+                      <LogOut size={14} />
+                      <span>{t('svcSettings.eject')}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="st-check">
+                  <button type="button" className="st-mini-btn primary" onClick={() => toast(t('svcSettings.latest'))}>
+                    <RefreshCw size={14} />
+                    <span>{t('svcSettings.checkUpdates')}</span>
+                  </button>
+                </div>
+              </Item>
+              */}
               <Item title={t('svcSettings.branch.title')} desc={t('svcSettings.branch.desc')} id="branch">
                 {remote && (
                   <>
@@ -437,8 +495,9 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
             </Section>
           )}
 
-          {show('Networking', 'domain', 'public') && (
+          {show('Networking', 'domain', 'public', 'private', 'ipv6', 'tcp') && (
             <Section name="Networking" icon={Network}>
+              {/* [주석 처리] was 는 service.port 를 저장만 하고 읽지 않는다. 컨테이너 포트는 APP_PORT=8080 고정이다.
               {remote && (
                 <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.desc')} id="port">
                   <ValueSetting
@@ -450,6 +509,8 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   />
                 </Item>
               )}
+              */}
+              <Item title={t('svcSettings.port.title')} desc={t('svcSettings.port.fixed')} id="port" />
               <Item title={t('svcSettings.public.title')} id="public-networking">
                 <h2 className="st-item-desc">{t('svcSettings.public.desc')}</h2>
                 {service.domains === undefined ? (
@@ -493,20 +554,73 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 ) : (
                   <p className="st-muted st-gap16">{t('svcSettings.notExposed')}</p>
                 )}
+                {/* [주석 처리] 도메인 생성·커스텀 도메인·TCP 프록시는 was 에 API 가 없다(공개 주소는 {이름}-{id}.likelion.uk 로 계산해 조회만 한다).
+                <div className="st-btn-row">
+                  <button type="button" className="btn btn-primary-outline st-plus-btn" onClick={() => toast(t('svcSettings.domainGenMock'))}>
+                    <Zap size={16} className="btn-icon" />
+                    <span>{t('svcSettings.generateDomain')}</span>
+                  </button>
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
+                    <Plus size={16} className="btn-icon" />
+                    <span>{t('svcSettings.customDomain')}</span>
+                  </button>
+                  <button type="button" className="btn btn-primary-outline st-plus-btn">
+                    <Plus size={16} className="btn-icon" />
+                    <span>{t('svcSettings.tcpProxy')}</span>
+                  </button>
+                </div>
+                */}
               </Item>
+              {/* [주석 처리] 비공개 네트워킹 호스트(.likelion.internal)는 코드에 박은 값이고, IPv6 토글은 화면 상태일 뿐이다.
+              <Item title={t('svcSettings.private.title')} desc={t('svcSettings.private.desc')} id="private-networking">
+                <div className="st-card">
+                  <div className="st-card-row private">
+                    <div className="st-card-icon green">
+                      <CircleCheck size={20} />
+                    </div>
+                    <div className="st-private-text">
+                      <div className="st-private-top">
+                        <div className="st-private-name">
+                          <span>{service.name.toLowerCase()}.likelion.internal</span>
+                          <div className="st-ip-tag">
+                            <Globe size={12} />
+                            IPv4 &amp; IPv6
+                          </div>
+                        </div>
+                        <div className="st-private-actions">
+                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.copy')} onClick={() => toast(t('svcSettings.privateCopied'))}>
+                            <Copy size={10} />
+                          </button>
+                          <button type="button" className="st-xs-btn" aria-label={t('svcSettings.edit')}>
+                            <Pencil size={10} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="st-private-sub">
+                        {t('svcSettings.privateReady')} · <span className="st-primary">{t('svcSettings.shortName')}</span> <code className="st-code-chip">{service.name}</code>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Item>
+              <Item title={t('svcSettings.ipv6.title')} desc={t('svcSettings.ipv6.desc')} id="ipv6">
+                <Toggle checked={ipv6} onChange={setIpv6} label={t('svcSettings.ipv6.toggle')} />
+              </Item>
+              */}
             </Section>
           )}
 
+          {/* [주석 처리] 엣지(공격 방어 모드·CDN)는 was 에 대응 기능이 없다.
           {show('Edge', 'cdn', 'attack', 'rules') && (
-            <Section name="Edge" icon={Shield} soon>
+            <Section name="Edge" icon={Shield}>
               <Item title={t('svcSettings.attack.title')} desc={t('svcSettings.attack.desc')} id="attack">
                 <div className="st-attack">
                   <div className="st-attack-row">
-                    <button type="button" className="st-select" disabled>
+                    <button type="button" className="st-select">
                       <span>{t('svcSettings.attack.until')}</span>
                       <ChevronDown size={16} className="st-region-chev" />
                     </button>
-                    <button type="button" className="btn st-activate" disabled>
+                    <button type="button" className="btn st-activate" onClick={() => toast(t('svcSettings.attack.activated'))}>
                       <ShieldAlert size={20} />
                       <span>{t('svcSettings.attack.activate')}</span>
                     </button>
@@ -515,36 +629,30 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 </div>
               </Item>
               <Item title={t('svcSettings.cdn.title')} desc={t('svcSettings.cdn.desc')} id="cdn">
-                <Toggle checked={cdn} onChange={setCdn} label={t('svcSettings.cdn.toggle')} disabled />
+                <Toggle checked={cdn} onChange={setCdn} label={t('svcSettings.cdn.toggle')} />
               </Item>
             </Section>
           )}
-
+          */}
           {show('Scale', 'region', 'replica', 'cpu', 'memory') && (
             <Section name="Scale" icon={Scaling}>
               <Item title={t('svcSettings.regions.title')} desc={t('svcSettings.regions.desc')} id="regions">
                 <div className="st-region-row">
                   <div className="st-checks" role="group" aria-label={t('svcSettings.regions.label')}>
                     <Earth size={16} />
-                    {targets.map((target) => {
-                      const supported = isTargetSupported(target);
-                      const checked = remote?.targetIds[0] === target.id;
-                      return (
-                        <label key={target.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : t('svcSettings.notSupported')}>
-                          <input
-                            type="radio"
-                            name="service-target"
-                            checked={checked}
-                            // 한 번 배포한 서비스는 타깃을 바꿀 수 없다.
-                            disabled={!supported || targetLocked}
-                            onChange={() => void save({ targetIds: [target.id] })}
-                          />
-                          {target.name}
-                          {!supported && <span className="st-note">{t('svcSettings.notSupported')}</span>}
-                        </label>
-                      );
-                    })}
+                    <TargetPicker
+                      name="service-target"
+                      value={remote?.targetIds[0]}
+                      onChange={(id) => void save({ targetIds: [id] })}
+                      // 한 번 배포한 서비스는 타깃을 바꿀 수 없다.
+                      disabled={targetLocked}
+                      onAddServer={targetLocked ? undefined : () => setAddingServer(true)}
+                      unsupportedClassName="st-unsupported"
+                      noteClassName="st-note"
+                      unsupportedLabel={t('svcSettings.notSupported')}
+                    />
                     {targetLocked && <span className="st-note">{t('svcSettings.targetLocked')}</span>}
+                    <OnpremServerDialog open={addingServer} onClose={() => setAddingServer(false)} onCreated={(server) => void save({ targetIds: [server.targetId] })} />
                   </div>
                   <label className="st-replicas">
                     <input
@@ -640,6 +748,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
               <Item title={t('svcSettings.buildCmd.title')} desc={t('svcSettings.buildCmd.desc')} id="build-cmd">
                 {remote && <ValueSetting label={t('svcSettings.buildCmd.label')} value={remote.buildCommand ?? ''} placeholder={t('svcSettings.buildCmd.placeholder')} onSave={(v) => save({ buildCommand: v })} />}
               </Item>
+              {/* [주석 처리] 감시 경로는 화면 상태일 뿐 저장·반영되지 않는다.
               <Item title={t('svcSettings.watch.title')} desc={t('svcSettings.watch.desc')} id="watch">
                 <div className="st-watch">
                   <input
@@ -675,26 +784,28 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   </div>
                 ))}
               </Item>
+              */}
             </Section>
           )}
 
-          {show('Deploy', 'start', 'strategy', 'rolling', 'canary', 'blue-green', 'teardown', 'cron', 'healthcheck', 'restart') && (
+          {show('Deploy', 'start', 'strategy', 'rolling', 'canary', 'blue-green', 'teardown', 'cron', 'healthcheck', 'serverless', 'restart') && (
             <Section name="Deploy" icon={Rocket}>
               <Item title={t('svcSettings.startCmd.title')} desc={t('svcSettings.startCmd.desc')} id="start-cmd">
                 {remote && <ValueSetting label={t('svcSettings.startCmd.label')} value={remote.startCommand ?? ''} placeholder={t('svcSettings.startCmd.placeholder')} onSave={(v) => save({ startCommand: v })} />}
-                <p className="st-muted">{t('svcSettings.preDeploy')}</p>
+                {/* [주석 처리] 배포 전 단계는 was 에서 아직 지원하지 않는다. <p className="st-muted">{t('svcSettings.preDeploy')}</p> */}
               </Item>
               {remote && (
                 <Item title={t('svcSettings.strategy.title')} desc={t('svcSettings.strategy.desc')} id="deployment-strategy">
                   <StrategyPicker value={strategy} savedReplicas={scale.savedReplicas} replicasUnknown={!!scale.error} rollingOnly={rollingOnly} onSave={saveStrategy} />
                 </Item>
               )}
+              {/* [주석 처리] 이전 배포 정리·Cron·헬스체크·서버리스·재시작 정책은 was 에 대응 기능이 없다(헬스체크는 저장소의 iris.json 으로만 지원).
               <Item title={t('svcSettings.teardown.title')} desc={t('svcSettings.teardown.desc')} id="teardown">
                 <Toggle checked={teardown} onChange={setTeardown} label={t('svcSettings.teardown.toggle')} />
               </Item>
-              <Item title={t('svcSettings.cron.title')} desc={t('svcSettings.cron.desc')} id="cron" soon>
+              <Item title={t('svcSettings.cron.title')} desc={t('svcSettings.cron.desc')} id="cron">
                 <div>
-                  <button type="button" className="btn btn-outline" disabled>
+                  <button type="button" className="btn btn-outline">
                     <Plus size={16} /> {t('svcSettings.cron.add')}
                   </button>
                 </div>
@@ -705,6 +816,9 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                     <Plus size={16} /> {t('svcSettings.health.title')}
                   </button>
                 </div>
+              </Item>
+              <Item title={t('svcSettings.serverless.title')} desc={t('svcSettings.serverless.desc')} id="serverless">
+                <Toggle checked={serverless} onChange={setServerless} label={t('svcSettings.serverless.toggle')} />
               </Item>
               <Item title={t('svcSettings.restart.title')} desc={t('svcSettings.restart.desc')} id="restart">
                 <button type="button" className="st-box st-policy">
@@ -719,9 +833,32 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                   <input value={retries} onChange={(e) => setRetries(e.target.value.replace(/\D/g, '').slice(0, 2))} />
                 </label>
               </Item>
+              */}
             </Section>
           )}
 
+          {/* [주석 처리] 설정 파일·빌드 건너뛰기는 버튼·토글이 동작하지 않는다.
+          {show('Config-as-code', 'file') && (
+            <Section name="Config-as-code" icon={FileCode2}>
+              <Item title={t('svcSettings.configFile.title')} desc={t('svcSettings.configFile.desc')} id="config-file">
+                <div>
+                  <button type="button" className="btn btn-outline">
+                    <Plus size={16} /> {t('svcSettings.configFile.add')}
+                  </button>
+                </div>
+              </Item>
+            </Section>
+          )}
+
+          {show('Feature-flags', 'skipped') && (
+            <Section name="Feature-flags" icon={Flag}>
+              <div className="st-item">
+                <Toggle checked={skipped} onChange={setSkipped} label={t('svcSettings.skipped.toggle')} />
+                <p className="st-muted">{t('svcSettings.skipped.desc')}</p>
+              </div>
+            </Section>
+          )}
+          */}
           {show('Danger', 'delete') && (
             <section className="st-section danger" id="set-Danger">
               <Item title={t('svcSettings.delete.title')} desc={t('svcSettings.delete.desc')} id="delete">

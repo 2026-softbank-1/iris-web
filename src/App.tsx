@@ -5,14 +5,15 @@ import { UIProvider } from './components/ui';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { Dashboard } from './pages/Dashboard';
-import { Templates } from './pages/Templates';
-// import { Usage } from './pages/Usage'; // Usage is disabled for now (non-MVP)
 import { WorkspaceSettings } from './pages/WorkspaceSettings';
+import { OnpremServersPage } from './pages/OnpremServers';
+// import { Templates } from './pages/Templates'; // [주석 처리] 샘플 화면이라 숨겼다
+// import { Usage } from './pages/Usage'; // Usage is disabled for now (non-MVP)
 import { ProjectCanvasPage } from './pages/project/ProjectCanvasPage';
 import { ProjectLogs } from './pages/project/ProjectLogs';
-import { Observability } from './pages/project/Observability';
+// import { Observability } from './pages/project/Observability'; // [주석 처리] 샘플 화면이라 숨겼다
 import { ProjectSettings } from './pages/project/ProjectSettings';
-import { Sandboxes } from './pages/project/Sandboxes';
+// import { Sandboxes } from './pages/project/Sandboxes'; // [주석 처리] 샘플 화면이라 숨겼다
 
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPages';
@@ -46,7 +47,9 @@ export function App() {
         <Route element={<RequireAuth />}>
         <Route element={<WorkspaceLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          {/* [주석 처리] 템플릿은 샘플 화면이라 숨겼다. 예전 주소는 아래 /workspace/:section 이 대시보드로 보낸다.
           <Route path="/workspace/templates" element={<Templates />} />
+          */}
           {/* Usage is disabled for now (non-MVP). To restore: uncomment this route and the import, remove the redirect below. */}
           {/* <Route path="/workspace/usage" element={<Usage />} /> */}
           <Route path="/workspace/usage" element={<Navigate to="/dashboard" replace />} />
@@ -55,6 +58,8 @@ export function App() {
           <Route path="/workspace/billing" element={<Navigate to="/dashboard" replace />} />
           {/* General is removed. /workspace goes back to the dashboard. */}
           <Route path="/workspace" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workspace/servers" element={<OnpremServersPage />} />
+          {/* 도메인·감사 로그·개발자는 '준비 중' 화면. 그 밖의 주소는 WorkspaceSettings 가 대시보드로 보낸다. */}
           <Route path="/workspace/:section" element={<WorkspaceSettings />} />
         </Route>
         <Route path="/project/:projectId" element={<ProjectLayout />}>
@@ -63,9 +68,15 @@ export function App() {
           <Route path="service/:serviceId/:tab" element={<ProjectCanvasPage />} />
           <Route path="service/:serviceId/deployment/:deploymentId" element={<ProjectCanvasPage />} />
           <Route path="service/:serviceId/deployment/:deploymentId/:dtab" element={<ProjectCanvasPage />} />
+          {/* [주석 처리] Observability 는 샘플 화면이라 숨겼다. 예전 주소는 프로젝트 첫 화면으로 보낸다.
           <Route path="observability" element={<Observability />} />
+          */}
+          <Route path="observability" element={<Navigate to=".." replace />} />
           <Route path="logs" element={<ProjectLogs />} />
+          {/* [주석 처리] Sandboxes 는 샘플 화면이라 숨겼다. 예전 주소는 프로젝트 첫 화면으로 보낸다.
           <Route path="sandboxes" element={<Sandboxes />} />
+          */}
+          <Route path="sandboxes" element={<Navigate to=".." replace />} />
           <Route path="settings" element={<ProjectSettings />} />
           <Route path="settings/:section" element={<ProjectSettings />} />
         </Route>

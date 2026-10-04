@@ -11,10 +11,13 @@ README 에서 옮긴 상세다. 엔드포인트는 모두 was 의 `/api/v1` 아�
 | Create → 프로젝트 만들기 | `POST /projects` |
 | Create → 저장소 검색·주소 확인 | `GET /github/repos`, `GET /github/repos/resolve`, `GET /github/installations` |
 | Create → 브랜치·배포 대상 | `GET /github/repos/{owner}/{repo}/branches`, `GET /targets` |
+| 사이드바 → 내 서버 (목록, 서버 추가·설치 명령, 명령 다시 받기, 삭제) | `GET·POST /onprem-servers`, `GET·DELETE /onprem-servers/{id}`, `POST /onprem-servers/{id}/registration-token` |
+| Create·서비스 Settings 의 온프레미스 서버 드롭다운(내 서버 이름·연결 상태) | `GET /targets` 의 `onpremServerId`·`onpremServerName`·`connectionStatus`, `GET /onprem-servers` |
 | Create → 서비스 만들기 | `POST /projects/{id}/services` |
+| Create → 레포 구성 확인(분석 게이트) | `POST /projects/{id}/repository-analyses`, `GET /projects/{id}/repository-analyses/{analysisId}`, `POST …/{analysisId}/apply` |
 | Configure GitHub App | `GET /github/install` |
 | 프로젝트 Settings 이름·설명, Danger | `GET·PATCH·DELETE /projects/{id}` |
-| 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 포트, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
+| 서비스 Settings (이름, 루트 디렉터리, 브랜치, 자동 배포, 배포 대상, 빌더, 빌드·시작 명령), Danger | `GET·PATCH·DELETE /services/{id}` |
 | Create 의 Deploy(첫 배포), Deploy·Redeploy·Restart·Rollback 버튼 | `POST /services/{id}/deployments` |
 | Deployments 탭, Activity 드로어 | `GET /services/{id}/deployments` |
 | 배포 패널 Details(상태 이력, 소스, 구성, 대체한 배포) | `GET /services/{id}/deployments/{deploymentId}` |
@@ -55,6 +58,10 @@ Public Network Traffic·Requests·Request Error Rate·Response Time 은 ALB 접�
 
 결과는 요약 · 원인 · 해결책 · 더 확인할 것 · 더 필요한 정보 · 근거 로그 · 한계 순입니다. 원인에는 확신 정도(`direct` 로그에 직접 나옴 / `supported` 근거로 추정)와 불확실한 점이 붙고, 해결책은 적용 조건 · 수정 예시 · 확인 방법 · 되돌리기 · 주의로 나눕니다. 수정 예시(`changes[].snippet`)는 **템플릿**이라 `{{NAME}}` 자리표시자를 눈에 띄게 하고 "채워서 쓰세요" 안내와 채울 값 목록을 같이 보여 주며, 복사 버튼은 템플릿 그대로 복사합니다(`targetKnown` 이 false 면 대상이 로그에서 확인되지 않았다고 알립니다). 근거 로그(`evidence[]`, 서버가 비밀값 패턴을 가린 줄)는 기본 접혀 있고, 원인·해결책의 근거 ID 를 누르면 펴지면서 그 줄이 강조됩니다(결과에 없는 ID 는 눌러지지 않게 흐리게 보입니다). `analysisStatus` 가 `insufficient_evidence`·`no_failure_evidence` 인 정상 응답은 원인·해결책이 비어 있어도 이유를 설명하는 안내를 보여 주고, 서버가 값이 없는 필드를 응답에서 빼므로 모든 배열은 없어도 그립니다. `errorCode` 는 코드를 그대로 노출하지 않고 문장으로 바꿉니다(`DIAGNOSIS_LOGS_UNAVAILABLE` 은 빌드·배포 로그 탭으로, 나머지는 다시 시도로 안내하고, 모르는 코드는 다시 시도로 받습니다). 진단 내용(요약·원인·해결책·근거)은 서버가 한국어로 주므로 일본어·영어 화면에서도 번역하지 않습니다. mock(`VITE_MOCK_API=1`)에는 시나리오를 넣어 두었습니다: 프로젝트 likelion-web 의 `web` 서비스에서 `feat: 대시보드 차트`(오래된 실패라 진단 없음 → `AI 진단` 버튼 → 진행 중 → 성공)와 `fix: 차트 빌드 오류 수정`(이미 성공한 진단), `sandbox` 서비스(프로젝트 playground)는 가장 최근 배포가 실패했고 성공한 진단이 있어 실패 배너 아래에 진단 요약이 보입니다. `worker` 서비스에서 `refactor: 재시도 정책`(3분 전 실패라 mock 이 4초 뒤 자동 시작한 것처럼 행동하고, 시작할 때마다 다른 오류로 실패. dev 서버를 켠 지 10분이 지나면 오래된 실패로 바뀝니다)·`chore: 의존성 정리`(근거 부족)·`fix: 헬스체크 경로 변경`(실패 흔적 없음), softbank-iris 의 `docs` 서비스에서 `docs: 배포 파이프라인 정리`(멈춘 진단)입니다.
 
+**레포 구성 확인(분석 게이트)**은 Create 의 GitHub 저장소 경로에서 배포 검토 다음 단계다. 검토의 기본 버튼 `레포 구성 확인`이 `POST /projects/{id}/repository-analyses`(`sourceRepositoryUrl`·`githubInstallationId`·`sourceBranch`·`rootDirectory`·`mode=auto`)로 분석을 맡기고, `GET …/{analysisId}` 를 1.5초마다 최대 3분 받는다(창을 닫거나 뒤로 가면 폴링과 진행 중 조회를 취소한다). 새 프로젝트로 만들 때는 분석이 프로젝트 아래에서 돌기 때문에 확인을 시작하면서 프로젝트를 먼저 만들고, 서비스를 하나도 만들지 않고 창을 닫거나 검토로 돌아가면 그 빈 프로젝트를 지운다. 결과는 세 가지다. `decision=skip` 이면 "단순 단일 이미지 — AI 분석 생략" 과 이유·빌더를 보여 주고 `배포`가 기존 `POST /services` 에 `analysisId` 를 붙여 서비스 하나를 만든 뒤 첫 배포를 요청한다(`그래도 AI 분석 실행`은 `mode=force` 로 다시 분석). `decision=analyze` 면 "멀티 이미지·복합 레포 감지 — AI Code Analyzer 활성화" 와 이유, 배포 단위 표(선택·이름·루트·빌더·Dockerfile·포트 편집, 역할·변수 키·의존), DB·Redis 는 플랫폼이 만들지 않는다는 안내, 확인이 필요한 항목을 보여 주고 `N개 서비스 생성 및 배포`가 `POST …/apply`(`units`·`deploy: true`·`targetIds`)를 보낸 뒤 프로젝트 캔버스로 간다. `FAILED`·시작 거절·조회 3회 연속 실패·3분 초과면 오류와 `분석 없이 단일 서비스로 생성`(분석 전과 같은 경로)을 준다. 검토의 `확인 없이 바로 배포`도 분석 전과 같은 경로다. 분석 결과의 `reasons`·`questions` 문장은 분석기가 만든 한국어라 번역하지 않는다. 서비스 응답의 `analysisGate` 가 있으면 서비스 패널 제목 옆과 Settings 의 Source 에 `AI 분석 생략` / `분석으로 생성됨 · unit` 배지를 단다. mock(`VITE_MOCK_API=1`)에는 `kylo-dev/single-app`(skip, force 면 unit 1개), `kylo-dev/multi-image-shop`(web·api·worker + postgres·redis), `kylo-dev/broken-repo`(FAILED `ANALYZER_FAILED`) 저장소가 있고, 분석은 접수 뒤 약 3초에 끝난다.
+
+**멀티 이미지 스택·관리형 DB·환경변수 검증**은 한 프로젝트가 여러 이미지를 반복해서 배포하는 흐름이다. 분석 apply 단계는 `dependencies[]` 마다 `플랫폼이 개발용 DB 자동 생성`(기본 켜짐, `other` 엔진·온프레미스 타깃은 꺼짐과 이유) 토글과 DB 서비스 이름을 두고, `POST …/apply` 에 `dependencies: [{dependencyId, provision, name?}]` 를 보낸다(응답의 `databases` 는 토스트 문구에 센다). unit 의 `env[].binding` 은 `DATABASE_URL ← postgres.url 자동 연결`, `hostAliases[]` 는 `api:8000 → api 서비스` 로 미리 보여 준다. 만들고 나면 서비스 응답의 `stack` 으로 캔버스가 스택을 그룹 상자로 묶고(`GET /projects/{id}/stacks`, 진행 중이면 3초·아니면 10초 폴링) 배포 순서(1 DB → 2 api/worker → 3 web)와 의존 화살표, 단계별 진행·보류 사유(`status=HELD`, `heldBy`)를 보여 주며, `스택 전체 재배포`는 `POST …/stacks/{stackId}/deployments` 를 부른다. 스택의 `pendingChanges` 가 있으면 `레포 구성 변경 감지` 배너가 뜨고 `변경 보기` 가 `pendingChanges.analysisId` 의 분석을 받아 diff(`UNIT_ADDED`·`UNIT_REMOVED`·`UNIT_CHANGED`·`DEPENDENCY_ADDED`·`DEPENDENCY_REMOVED`)를 보여 준 뒤 같은 분석을 apply 한다(증분: 기존 서비스는 이름을 그대로 보내 unitId 로 맞추고, 새 의존성만 provision). 캔버스 `생성` → `데이터베이스`(엔진·이름·저장 공간 1–20 GiB, 만든 뒤 변경 불가)는 `POST /projects/{id}/databases` 다. `kind=DATABASE` 서비스는 `연결 정보` 탭(내부 주소 `internalHost`·`internalPort`, 마스킹된 `connection.urlTemplate`, 속성 목록, 데모용·삭제 시 데이터 소실·백업 없음 경고)이 첫 탭이고 콘솔·빌드 로그·네트워크 탭과 앱 설정은 숨긴다. Variables 탭은 `reference: {serviceId, property}` 변수(`참조 변수` 버튼, `← postgres.url`)를 만들고, `GET /services/{id}/variables/validation` 의 `issues[]`(`REQUIRED_MISSING`·`LOCALHOST_ADDRESS`·`UNRESOLVABLE_HOST`·`SCHEME_MISMATCH`·`REFERENCE_BROKEN`)를 error/warning 패널로 보여 주며 `suggestion.reference` 는 `연결하기` 한 번으로 적용한다. 배포·재배포·재시작·스택 재배포가 `422 VARIABLES_INVALID`(`data.issues`)로 거절되면 이슈를 배포 탭이나 대화상자에 보여 주고 변수 탭으로 안내한다. mock 에는 `multi-image-shop`(postgres·redis 가 만들어진 스택, 구성 변경 감지 대기 중), `shop-validation`(검증 실패), `shop-stack-failing`(api 실패·web 보류) 프로젝트가 있다.
+
 **배포 패널의 Details와 로그 탭**은 배포 상세 `GET /services/{id}/deployments/{deploymentId}` 와 그 아래 `build-logs`·`deploy-logs`·`network-logs` 를 씁니다(was `docs/deployment-details-api.md`). 상세 응답은 패널이 한 번 받아서 Details·Deploy Logs·Network Logs 가 같이 쓰고(진행 중이면 3초마다 다시 받습니다), Details 는 `source`(저장소·브랜치), `configuration`(Configuration Pretty 의 빌더·루트 디렉터리·빌드 명령어 / 대상·포트·시작 명령어, `builder` 가 없으면 Auto-detect)과 `replacedBy`(상태 배너 아래에 `대체한 배포 #id` 링크와 시각)로 그립니다. `configuration` 의 값은 **배포 시점이 아니라 서비스의 지금 설정**이고, 응답을 받기 전에는 서비스의 지금 설정으로 채웁니다. `build`·`releases` 는 Code 보기에서 응답 JSON 그대로 볼 수 있습니다.
 
 Build Logs 는 처음부터 1000줄씩 `nextCursor` 로 이어 읽습니다. 끝난 빌드는 쉬지 않고 읽다가 서버가 `isComplete`(읽은 줄이 없는 응답)를 주면 멈추고, 진행 중인 빌드는 3초마다 새 로그를 기다립니다(숨은 탭에서는 요청하지 않고, 배포가 끝났는데 빌드가 시작하지 않았으면 멈춥니다). 롤백·재시작은 새로 빌드하지 않아서 `loggedDeploymentId` 가 이 배포가 아니면 원본 배포의 로그라는 안내와 그 배포의 Build Logs 로 가는 링크를 보여 주고, `isPartial` 이면 앞부분이 빠졌다는 안내를, 10,000줄에서는 읽기를 멈췄다는 안내를 보여 줍니다. CodeBuild 줄은 `[Container]` 앞머리까지 그대로 보여 주고 레벨은 본문으로 추정합니다. 검색창은 읽어 온 줄에서 거르고, 다운로드는 읽어 온 줄을 `build-logs-{서비스}-{배포}.txt` 로 내려받습니다(서버 다운로드 API 는 없습니다). 같은 시각(`timestampNs`)의 줄이 여럿이라 행의 키는 순번입니다.
@@ -63,17 +70,31 @@ Deploy Logs 는 이 배포의 release 가 붙은 앱 컨테이너 로그를 최�
 
 **AI 수정**은 진단할 수 있는 실패 배포에서 `AI 수정·재배포` 버튼(배포 행·배포 패널·실패 배너·AI 진단 탭)으로 시작한다. `POST …/auto-repair`(Idempotency-Key)로 요청하고, 진행 중인 작업이 있으면 `POST /repairs/{id}/auto` 로 이어 가며, 끝날 때까지 `GET /repairs/{id}` 를 2.5초마다 받는다. AI 진단 탭은 `repairs/latest`·`repair-access`(GitHub App 권한)·`artifacts`(패치)로 결과와 권한 안내를 보여 준다. 환경변수 값이 필요한 실패(`CONFIGURATION_VALUES_REQUIRED` 또는 진단이 사람 조치를 요구)는 AI 수정을 끄고 Variables 이동과 수동 재배포(`POST /deployments`, MANUAL)를 안내한다. 자동 머지·재배포 여부는 서버 응답(`autoMerge`·`autoRedeploy`)을 따른다. mock(`VITE_MOCK_API=1`)에는 AI 수정 시나리오가 없다.
 
-- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장), Templates, Settings
+- Workspace: 프로젝트 카드/리스트, 정렬, 즐겨찾기(브라우저에 저장) (Templates 는 샘플이라 숨겼다)
 - 프로젝트: React Flow 캔버스, 서비스 노드, 패닝/확대/축소
 - 서비스: Deployments, Variables, Metrics, Console, Settings
 - 배포: Details, Build/Deploy/Network Logs(검색, 다운로드, 상태 코드 필터)
-- 프로젝트 Logs, Observability, Sandboxes
+- 프로젝트 Logs (Observability, Sandboxes 는 샘플이라 숨겼다)
 - 커맨드 팔레트, 업그레이드 다이얼로그, 메뉴와 드로어
 
 `/traffic-metrics` 가 prod 의 was 에 나가기 전에는 Public Network Traffic·Requests·Request Error Rate·Response Time 카드가 '지표가 없어요' 빈 상태입니다.
 
 MVP 범위 밖이라 뺀 항목: 워크스페이스 People, 프로젝트 Members, 외부 문서 링크.
 워크스페이스 Usage는 코드만 남겨 두고 연결을 주석 처리했습니다.
+
+## 주석 처리한 설정 항목
+
+was 에 대응 기능이 없어서(토스트만 뜨거나 화면 상태일 뿐이라) 서비스 Settings 와 프로젝트 헤더에서 주석 처리했다. 코드(`ServiceSettings.tsx`, `ProjectLayout.tsx`)에 `[주석 처리]` 로 남겨 두었으니, was 가 지원하면 주석을 풀고 연결한다.
+
+- 소스 저장소의 편집·연결 해제, 업스트림 저장소(Railway 템플릿 개념), 프로젝트 헤더의 환경 생성
+- 포트: was 가 `service.port` 를 저장만 하고 읽지 않는다. 컨테이너 포트는 `APP_PORT = 8080` 고정이라 입력칸 대신 고정 안내만 보인다.
+- 도메인 생성·커스텀 도메인·TCP 프록시, 비공개 네트워킹, IPv6
+- 엣지(공격 방어 모드, CDN), 감시 경로
+- 이전 배포 정리, Cron, 헬스체크, 서버리스, 재시작 정책, 배포 전 단계 (헬스체크는 저장소의 `iris.json` 으로만 지원)
+- 설정 파일, 빌드 건너뛰기(기능 플래그)
+- 샘플 화면: Observability, Sandboxes(프로젝트 왼쪽 메뉴), Templates(커맨드 팔레트·대시보드). 페이지 파일은 그대로 두고 라우트·메뉴만 주석 처리했다. 예전 주소는 프로젝트 첫 화면·대시보드로 이동한다. 서비스 Console 은 샘플이지만 남겨 두었다.
+
+워크스페이스의 도메인·감사 로그·개발자 화면은 같은 이유로 주석이 아니라 삭제했다.
 
 ## 제한 사항
 
@@ -92,6 +113,8 @@ Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를
 - Dashboard New, 커맨드 팔레트 New Project, 프로젝트 Create는 Create 흐름을 엽니다. 선택할 수 있는 항목은 GitHub Repository뿐이고 나머지는 Coming soon으로 표시됩니다.
 - Create 에서는 GitHub App 이 접근할 수 있는 저장소만 보입니다. 저장소가 없으면 `Configure GitHub App` 으로 설치하고, 주소를 붙여넣으면 접근 권한까지 확인합니다. 브랜치와 배포 대상을 고르고(AWS·온프레미스(`ONPREM`) 타깃 중 하나. 그 밖의 종류는 비활성으로 표시) Deploy 를 누르면 프로젝트와 서비스를 만들고 첫 배포(MANUAL)를 요청합니다(서비스 생성이 실패하면 방금 만든 빈 프로젝트를 지우고, 첫 배포 요청만 실패하면 서비스는 남기고 알려 줍니다). Control API 는 배포 요청을 DB 에 기록하고, 빌드·배포는 Worker 가 합니다. Worker 가 없는 로컬에서는 배포가 Queued 에서 멈춥니다. 진행 중인 배포는 3초마다 다시 불러옵니다.
 - 프로젝트와 서비스 삭제(`DELETE`, 204)는 was 가 소프트 삭제하면서 떠 있는 앱도 클러스터에서 내립니다. 화면에서는 바로 사라지지만 앱이 내려가는 데 2~3분 걸리고 그동안 공개 주소가 응답할 수 있어서, Danger 설명에 몇 분 걸릴 수 있다고 안내합니다. 앱 내리기가 실패해도 화면에서는 알 수 없으니(서버 로그에만 남음) 즉시 내려간다고 단정하지 않습니다. 진행 중인 배포(QUEUED·BUILDING·DEPLOYING)가 있으면 was 가 아무것도 지우지 않고 409 `DEPLOYMENT_IN_PROGRESS` 를 주고(프로젝트는 소속 서비스 하나라도 진행 중이면 전체가 409), 삭제 화면은 이때 삭제 맥락의 문구("A deployment is in progress. Wait for it to finish, then delete the service.")를 토스트로 보여 주며 서비스·프로젝트를 화면에 그대로 둡니다. Deploy·Restart 등 다른 화면의 공용 오류 문구(`describeError`)는 바꾸지 않았습니다.
+- 내 서버(사이드바 → 내 서버)는 사용자가 자기 Ubuntu 서버를 배포 대상으로 붙이는 화면입니다. 서버 추가는 이름을 받아 설치 명령(등록 토큰 포함, 이 응답에서만 보임)을 보여 주고, 3초마다 상태를 받아 PENDING → REGISTERING → CONNECTED/FAILED 를 기다립니다. 토큰이 만료되거나 한 상태에서 20분이 지나면 기다림을 멈추고 명령 다시 받기·다시 확인을 보여 줍니다. 명령 다시 받기는 CONNECTED 가 아닌 서버에서만 되고, 서비스가 쓰는 서버는 지울 수 없습니다(409 `ONPREM_SERVER_IN_USE`). 이름 중복·5개 한도·서버 등록 미설정(503)은 번역된 문구로 알립니다.
+- 배포 대상은 AWS·온프레미스 라디오로 고르고, 온프레미스는 옆 드롭다운에서 공용 서버나 내 서버(연결 상태 표시, 연결된 서버 먼저, 끝에 내 서버 추가)를 고릅니다. 연결되지 않은 내 서버를 고르면 서비스만 만들고 첫 배포(구성 확인 뒤 적용 포함)는 하지 않습니다. 서비스의 서버가 CONNECTED 가 아니면 배포·재배포·재시작·롤백·수동 재배포 버튼을 막고 이유를 보여 주며(`src/data/useDeployBlock.ts`), 연결을 기다리는 서버가 있는 동안 타깃을 5초마다 다시 받아 연결되면 풀립니다. AI 수정 후보 만들기는 배포를 직접 만들지 않아 막지 않습니다.
 - 세션이 만료돼 API 가 401 을 주면 `/login` 으로 이동합니다.
 - 로그인 여부는 시작할 때 was 의 `GET /api/v1/me` 로 확인합니다. 로그인하지 않았으면 보호된 경로는 `/login` 으로 이동하고, 로그인한 상태로 `/login` 을 열면 대시보드로 이동합니다. 회원가입과 온보딩 흐름은 없습니다.
 - Logout은 was 의 `POST /api/v1/auth/logout` 으로 세션 쿠키를 지우고 `/login` 으로 이동합니다.
@@ -104,6 +127,7 @@ Restart 는 지금 떠 있는(가장 최근에 성공한) 배포의 이미지를
 - `src/data/ProjectsContext.tsx`: 프로젝트·서비스 목록과 생성·수정·삭제(was 응답을 화면 모델로 바꿈)
 - `src/data/useDeploymentLogs.ts`, `src/data/deploymentLogModel.ts`, `src/data/logLines.ts`, `src/pages/project/DeploymentLogs.tsx`, `src/pages/project/NetworkLogTable.tsx`: 배포 로그 탭의 조회(빌드 로그 이어 읽기·폴링, 한 번 받는 조회), 순수 함수(행 변환·바이트·응답 시간·오류 문구), 레벨 추정·스택 트레이스 묶기(프로젝트 Logs 와 공용), 탭 화면, Network 표
 - `src/data/useDiagnosis.ts`, `src/data/diagnosisModel.ts`, `src/pages/project/DiagnosisPanel.tsx`: AI 진단의 상태·폴링, 순수 함수(진단 가능 여부·오류 문구·자리표시자 분리), 화면
+- `src/pages/OnpremServers.tsx`, `src/components/OnpremServerDialog.tsx`, `src/components/TargetPicker.tsx`, `src/data/targetModel.ts`, `src/data/useDeployBlock.ts`: 내 서버 목록·추가 창, 배포 대상 선택(종류 라디오 + 온프레미스 서버 드롭다운), 서버 상태·폴링 기한·오류 문구, 연결되지 않은 서버의 배포 막기
 - `src/data/mock.ts`: 화면 모델 타입, 워크스페이스, 배포 및 로그 샘플
 - `src/layouts`: Workspace/Project 공통 레이아웃
 - `src/pages`: 페이지와 서비스/배포 패널

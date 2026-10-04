@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   LogOut,
   Moon,
+  Server,
   Settings,
   Sun,
   User,
@@ -20,6 +21,7 @@ import { getTheme, toggleTheme } from '../lib/theme';
 import { LanguageButton } from '../components/LanguageButton';
 import { useI18n, type MessageKey } from '../i18n';
 
+// 아직 서버 기능이 없어서 세 화면 모두 '준비 중'을 보여준다(WorkspaceSettings).
 const SETTINGS_LINKS: { to: string; label: MessageKey }[] = [
   { to: '/workspace/domains', label: 'nav.domains' },
   { to: '/workspace/audit-logs', label: 'nav.auditLogs' },
@@ -101,9 +103,8 @@ export function WorkspaceLayout() {
           <div className="side-section">
             <nav className="side-nav">
               <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label={t('nav.projects')} />
+              <SideItem to="/workspace/servers" icon={<Server size={16} />} label={t('nav.servers')} />
               <div className="side-divider inset" />
-              {/* Usage is disabled for now (non-MVP) */}
-              {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
               <button type="button" className={`side-item side-btn${settingsOpen ? ' open' : ''}`} onClick={() => setSettingsOpen((v) => !v)}>
                 <div className="side-icon">
                   <Settings size={16} />
@@ -128,6 +129,8 @@ export function WorkspaceLayout() {
                   ))}
                 </div>
               )}
+              {/* Usage is disabled for now (non-MVP) */}
+              {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
             </nav>
           </div>
           <div className="side-fill" />

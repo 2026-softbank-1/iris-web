@@ -11,6 +11,8 @@ import './styles/panes.css';
 import './styles/logs.css';
 import './styles/pages.css';
 import './styles/diagnosis.css';
+import './styles/stack.css';
+import './styles/servers.css';
 import { App } from './App';
 import { initTheme } from './lib/theme';
 

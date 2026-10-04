@@ -1,6 +1,6 @@
 // was(Control API) 엔드포인트와 요청·응답 타입. 필드는 서버 JSON 그대로(camelCase)다.
 // 값이 null 인 필드는 서버가 응답에서 빼므로 모두 optional 이다.
-import { apiUrl, request } from './api';
+import { ApiError, apiUrl, request } from './api';
 
 export type Page<T> = { items: T[]; total: number; page: number; size: number };
 
@@ -24,7 +24,7 @@ export type DeploymentStatus = 'QUEUED' | 'BUILDING' | 'DEPLOYING' | 'SUCCEEDED'
  * 웹이 직접 요청하는 것은 MANUAL·REDEPLOY·ROLLBACK·RESTART 뿐이다(DeploymentCreate).
  */
 export type DeploymentTrigger = 'MANUAL' | 'PUSH' | 'CLI' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART' | 'REMOVE';
-export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED';
+export type FailureCode = 'BUILD_CONFIG_REQUIRED' | 'BUILD_FAILED' | 'DEPLOY_FAILED' | 'VARIABLES_INVALID' | 'DEPENDENCY_FAILED';
 /**
  * 새 버전의 Pod 를 띄우는 방식. CANARY·BLUE_GREEN 은 저장된 레플리카가 2개 이상일 때만 저장할 수 있고(아니면 422 INVALID_INPUT),
  * 저장해도 배포를 만들지 않고 다음 배포부터 쓴다. 배포할 때 레플리카가 2개 미만이면 서버가 ROLLING 으로 대체한다.
@@ -105,6 +105,8 @@ export type DeploymentDetailDto = DeploymentDto & {
 };
 export type DeploymentCreate = {
   triggerType: 'MANUAL' | 'REDEPLOY' | 'ROLLBACK' | 'RESTART';
+  /** true 면 환경변수 검증 error 가 있어도 요청한다(MANUAL·REDEPLOY·RESTART 의 오탐 우회). */
+  skipVariableValidation?: boolean;
   /**
    * REDEPLOY·ROLLBACK 에서 필수. ROLLBACK 은 SUCCEEDED 인 배포여야 한다.
    * RESTART 는 지금 떠 있는(마지막으로 성공한) 배포의 이미지를 빌드 없이 다시 배포하며 보내지 않는다.
@@ -134,9 +136,39 @@ export type ServiceDto = {
   deploymentStrategy?: DeploymentStrategy;
   /** 가장 최근 배포 요청. 배포한 적이 없으면 없다. */
   latestDeployment?: LatestDeploymentDto;
+  /** 레포 구성 확인(분석 게이트)을 거쳐 만든 서비스면 그 결과. 거치지 않았거나 모르는 서버(구버전)면 null·없음. */
+  analysisGate?: AnalysisGateDto | null;
+  /** APP(기본) 또는 DATABASE(플랫폼이 고정 이미지로 띄우는 관리형 DB). 구버전 서버는 보내지 않는다. */
+  kind?: ServiceKind;
+  /** kind=DATABASE 일 때 엔진. */
+  databaseEngine?: DatabaseEngine;
+  /** 같은 프로젝트의 다른 서비스가 쓰는 클러스터 내부 주소(`app.svc-{id}.svc.cluster.local`). */
+  internalHost?: string;
+  internalPort?: number;
+  /** DB 서비스의 연결 정보. 비밀번호는 마스킹돼 있다. */
+  connection?: DatabaseConnectionDto;
+  /** 같은 레포 분석에서 함께 만들어진 스택. 단일 서비스는 없다. */
+  stack?: { id: number; unitId: string | null } | null;
+  /** 관리형 DB 설정. 저장 공간은 만든 뒤 바꿀 수 없다. */
+  database?: { image?: string; storageGi?: number; user?: string; database?: string; initScripts?: DatabaseInitScriptDto[] | null } | null;
+  /** 이 서비스를 참조 변수로 가리킬 때 고를 수 있는 속성(DB 는 엔진별, 앱은 url·host·port). */
+  referenceProperties?: ReferenceProperty[];
+  /** 같은 프로젝트 서비스로의 DNS 별칭(compose 호스트명). 수정은 PATCH /services/{id} 의 hostAliases(전체 교체). */
+  hostAliases?: HostAliasDto[] | null;
   createdAt: string;
   updatedAt: string;
 };
+
+/** DB 가 처음 만들어질 때 한 번 실행된 초기화 스크립트 메타데이터. */
+export type DatabaseInitScriptDto = { name: string; path?: string; sha256: string; size: number };
+export type HostAliasDto = { name: string; targetServiceId: number; port?: number | null };
+export type ServiceKind = 'APP' | 'DATABASE';
+export type DatabaseEngine = 'postgres' | 'mysql' | 'mongodb' | 'redis';
+export const DATABASE_ENGINES: DatabaseEngine[] = ['postgres', 'mysql', 'mongodb', 'redis'];
+/** 참조 변수가 가리킬 수 있는 연결 정보 속성. */
+export type ReferenceProperty = 'url' | 'host' | 'port' | 'user' | 'password' | 'database';
+export const REFERENCE_PROPERTIES: ReferenceProperty[] = ['url', 'host', 'port', 'user', 'password', 'database'];
+export type DatabaseConnectionDto = { urlTemplate: string; properties: ReferenceProperty[] };
 
 /**
  * 서비스가 한 타깃에서 열리는 공개 주소. 서비스가 연결한 타깃마다 한 건이다.
@@ -154,9 +186,49 @@ export type ServiceDomainDto = {
   isConnected: boolean;
 };
 
-export type TargetDto = { id: number; name: string; kind: 'AWS' | 'ONPREM'; region?: string; domainSuffix?: string };
+/**
+ * 사용자가 등록한 온프레미스 서버의 연결 상태. PENDING(명령 실행 전) → REGISTERING(서버가 연결을 보냄, 확인 중) →
+ * CONNECTED(배포 가능) / FAILED(15분 안에 연결되지 않음, 토큰을 다시 발급해 명령을 다시 실행한다).
+ */
+export type OnpremServerStatus = 'PENDING' | 'REGISTERING' | 'CONNECTED' | 'FAILED';
+export type OnpremServerFailureCode = 'CONNECT_TIMED_OUT' | 'GITOPS_COMMIT_FAILED';
+
+/**
+ * 공용 타깃(AWS·기존 onprem)과 내 서버 타깃. 내 서버 타깃은 onpremServerId·connectionStatus 가 있고 이름이 `onprem-{serverKey}` 다.
+ * 공용 타깃은 둘 다 없고 항상 배포할 수 있다.
+ */
+export type TargetDto = {
+  id: number;
+  name: string;
+  kind: 'AWS' | 'ONPREM';
+  region?: string;
+  domainSuffix?: string;
+  onpremServerId?: number;
+  /** 내 서버 타깃의 서버 이름(사용자가 붙인 이름). 화면은 타깃 이름 대신 이것을 보여 준다. */
+  onpremServerName?: string;
+  connectionStatus?: OnpremServerStatus;
+};
 /** 서버가 제공하는 AWS·온프레미스 타깃을 서비스 생성과 설정에서 선택할 수 있다. */
 export const isTargetSupported = (target: TargetDto) => target.kind === 'AWS' || target.kind === 'ONPREM';
+/** 지금 이 타깃으로 배포할 수 있는지. 내 서버 타깃은 연결(CONNECTED)된 뒤에만 된다(아니면 서버가 409 TARGET_NOT_CONNECTED). */
+export const isTargetDeployable = (target: TargetDto) => target.connectionStatus == null || target.connectionStatus === 'CONNECTED';
+
+export type OnpremServerDto = {
+  id: number;
+  name: string;
+  /** 8자 무작위 키. 타깃 이름(`onprem-{serverKey}`)과 서비스 주소에 쓰인다. 비밀이 아니다. */
+  serverKey: string;
+  status: OnpremServerStatus;
+  targetId: number;
+  tailnetFqdn?: string;
+  failureCode?: OnpremServerFailureCode;
+  /** 등록 토큰 만료 시각(발급 후 24시간). 지나면 토큰을 다시 발급해야 한다. */
+  registrationExpiresAt?: string;
+  connectedAt?: string;
+  createdAt: string;
+};
+/** 서버 등록·토큰 재발급 응답. registrationToken·installCommand 는 이 응답에서만 받을 수 있다. */
+export type OnpremServerRegistrationDto = { server: OnpremServerDto; registrationToken: string; installCommand: string };
 export type InstallationDto = { installationId: number; accountLogin: string; accountType: string };
 export type RepositoryDto = { fullName: string; url: string; defaultBranch: string; isPrivate: boolean; installationId: number };
 export type BranchDto = { name: string; isDefault: boolean };
@@ -171,6 +243,8 @@ export type ServiceCreate = {
   rootDirectory?: string;
   isAutoDeploy?: boolean;
   targetIds?: number[];
+  /** 레포 구성 확인이 skip 으로 끝났을 때 그 분석 id. 서버가 결과를 서비스에 남기고 빌더 기본값으로 쓴다. */
+  analysisId?: number;
 };
 export type ServiceUpdate = {
   name?: string;
@@ -184,6 +258,7 @@ export type ServiceUpdate = {
   startCommand?: string | null;
   targetIds?: number[];
   deploymentStrategy?: DeploymentStrategy;
+  hostAliases?: HostAliasDto[];
 };
 
 /* auth */
@@ -218,6 +293,139 @@ export const getService = (id: number | string) => request<ServiceDto>(`/service
 export const updateService = (id: number | string, json: ServiceUpdate) => request<ServiceDto>(`/services/${id}`, { method: 'PATCH', json });
 export const deleteService = (id: number | string) => request<void>(`/services/${id}`, { method: 'DELETE' });
 export const listServiceDomains = (serviceId: number | string) => request<ServiceDomainDto[]>(`/services/${serviceId}/domains`);
+
+/* repository analyses (레포 구성 확인 · 분석 게이트) */
+export type AnalysisRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'APPLIED';
+export type AnalysisDecision = 'skip' | 'analyze';
+export type AnalysisComplexity = 'simple' | 'complex' | 'unsupported';
+export type AnalysisMode = 'auto' | 'force';
+export type AnalysisRole = 'web' | 'api' | 'worker' | 'app';
+export type AnalysisEvidenceDto = { path: string; line?: number | null };
+export type AnalysisReasonDto = { code: string; message: string; paths?: string[] };
+/** env 값이 다른 unit/의존성의 연결 정보에서 온다는 분석기의 추정. 확인하지 못했으면 null. */
+export type AnalysisBindingDto =
+  | { kind: 'dependency'; targetId: string; property: ReferenceProperty }
+  | { kind: 'unit'; targetId: string; property: 'url' | 'host' | 'port' };
+export type AnalysisEnvDto = { key: string; stage: 'runtime' | 'build'; required: boolean; binding?: AnalysisBindingDto | null };
+/** 코드가 호스트명으로 쓰는 다른 unit/의존성(예: `api:3000`). apply 가 같은 이름의 호스트 별칭을 만든다. */
+export type AnalysisHostAliasDto = { host: string; port?: number | null; targetId: string; evidence?: AnalysisEvidenceDto[] };
+export type AnalysisUnitDto = {
+  id: string;
+  name: string;
+  /** 레포 루트 기준. */
+  rootDirectory: string;
+  builder: Builder;
+  /** 이 unit 의 rootDirectory 기준. */
+  dockerfilePath?: string | null;
+  port?: number | null;
+  startCommand?: string | null;
+  buildCommand?: string | null;
+  role: AnalysisRole;
+  public: boolean;
+  env: AnalysisEnvDto[];
+  hostAliases?: AnalysisHostAliasDto[];
+  dependsOn: string[];
+  evidence?: AnalysisEvidenceDto[];
+};
+/** compose 가 `/docker-entrypoint-initdb.d` 에 넣는 초기화 스크립트(내용은 오지 않는다). supported=false(.sh·너무 큼)는 플랫폼이 실행하지 않는다. */
+export type AnalysisInitScriptDto = { path: string; kind: string; sha256?: string | null; size: number; order: number; supported?: boolean };
+export type AnalysisDependencyDto = {
+  id: string;
+  engine: DatabaseEngine | 'other';
+  image?: string | null;
+  port?: number | null;
+  database?: string | null;
+  user?: string | null;
+  /** compose 에 비밀번호가 하드코딩돼 있다는 표시뿐이다. 값은 오지 않는다. */
+  passwordInSource?: boolean;
+  initScripts?: AnalysisInitScriptDto[];
+  evidence?: AnalysisEvidenceDto[];
+};
+export type AnalysisQuestionDto = { code: string; unitId?: string | null; message: string };
+/** 분석기 gate CLI 응답 원문(`iris.analysis-gate.v1`). */
+export type AnalysisGateResultDto = {
+  schemaVersion: string;
+  sourceSha?: string | null;
+  rootDirectory: string;
+  decision: AnalysisDecision;
+  complexity: AnalysisComplexity;
+  reasons: AnalysisReasonDto[];
+  signals?: Record<string, unknown>;
+  simpleBuild?: { builder: Builder; dockerfilePath?: string | null } | null;
+  units: AnalysisUnitDto[];
+  dependencies: AnalysisDependencyDto[];
+  questions: AnalysisQuestionDto[];
+  analysis?: { engine: string; durationMs?: number; modelCalls?: number };
+};
+export type RepositoryAnalysisDto = {
+  id: number;
+  projectId: number;
+  status: AnalysisRunStatus;
+  decision?: AnalysisDecision | null;
+  complexity?: AnalysisComplexity | null;
+  sourceRepositoryUrl: string;
+  sourceBranch: string;
+  sourceSha?: string | null;
+  rootDirectory?: string | null;
+  mode: AnalysisMode;
+  /** SUCCEEDED·APPLIED 일 때 분석기 응답 원문. */
+  result?: AnalysisGateResultDto | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  appliedServiceIds?: number[] | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type RepositoryAnalysisCreate = {
+  sourceRepositoryUrl: string;
+  githubInstallationId?: number;
+  sourceBranch: string;
+  rootDirectory?: string;
+  mode: AnalysisMode;
+};
+export type AnalysisUnitApply = {
+  unitId: string;
+  name: string;
+  rootDirectory?: string;
+  builder?: Builder;
+  dockerfilePath?: string;
+  port?: number;
+  startCommand?: string;
+  buildCommand?: string;
+};
+/** 분석된 의존성(DB)을 플랫폼이 만들지. 보내지 않으면 서버 기본값(지원 엔진은 전부 provision)을 쓴다. */
+export type AnalysisDependencyApply = { dependencyId: string; provision: boolean; name?: string; storageGi?: number };
+export type RepositoryAnalysisApply = {
+  units: AnalysisUnitApply[];
+  dependencies?: AnalysisDependencyApply[];
+  deploy: boolean;
+  /** true 면 환경변수 error 가 있어도 배포를 접수한다. */
+  skipVariableValidation?: boolean;
+  /** 배포 타깃 id. 정확히 1개다. 생략하면 서버가 `aws` 타깃을 쓴다. */
+  targetIds?: number[];
+};
+export type RepositoryAnalysisApplyDto = {
+  analysisId: number;
+  services: ServiceDto[];
+  /** 이 분석으로 만들었거나 이어 쓰는 관리형 DB 서비스. */
+  databases?: ServiceDto[];
+  stackId?: number | null;
+  /** 의존 순서 배포를 접수했으면 그 스택 배포 id. */
+  stackDeploymentId?: number | null;
+  /** 환경변수 error 로 배포를 접수하지 않았으면 서비스별 검증 결과. 서비스는 만들어져 있으니 고친 뒤 스택 재배포를 한다. */
+  variableIssues?: (VariablesValidationDto & { serviceId: number })[] | null;
+  /** 증분 apply 에서 이미 있는 DB 의 초기화 스크립트가 달라졌으면 DEPENDENCY_CHANGED. 다시 실행하지 않는다. */
+  changes?: StackChangeDto[] | null;
+};
+/** 서비스에 남은 분석 게이트 결과. */
+export type AnalysisGateDto = { analysisId: number; decision: AnalysisDecision; complexity?: AnalysisComplexity | null; unitId?: string | null };
+
+export const startRepositoryAnalysis = (projectId: number | string, json: RepositoryAnalysisCreate) =>
+  request<RepositoryAnalysisDto>(`/projects/${projectId}/repository-analyses`, { method: 'POST', json });
+export const getRepositoryAnalysis = (projectId: number | string, analysisId: number | string, signal?: AbortSignal) =>
+  request<RepositoryAnalysisDto>(`/projects/${projectId}/repository-analyses/${analysisId}`, { signal });
+export const applyRepositoryAnalysis = (projectId: number | string, analysisId: number | string, json: RepositoryAnalysisApply) =>
+  request<RepositoryAnalysisApplyDto>(`/projects/${projectId}/repository-analyses/${analysisId}/apply`, { method: 'POST', json });
 
 /* deployments */
 export const isDeploymentInProgress = (status: DeploymentStatus) => status === 'QUEUED' || status === 'BUILDING' || status === 'DEPLOYING';
@@ -405,8 +613,15 @@ export const updateServiceScaling = (serviceId: number | string, json: ScalingUp
   request<ScalingDto>(`/services/${serviceId}/scaling`, { method: 'PUT', json, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined });
 
 /* variables */
-/** 사용자가 등록한 환경변수. 값은 소유자에게 평문으로 온다. */
-export type VariableDto = { key: string; value: string };
+/** 참조 변수가 가리키는 같은 프로젝트 서비스의 연결 정보. */
+export type VariableReferenceDto = { serviceId: number; property: ReferenceProperty };
+/**
+ * 사용자가 등록한 환경변수. 값은 소유자에게 평문으로 온다.
+ * 참조 변수는 value 대신 reference 를 갖고, resolved 는 배포 때 들어갈 값의 미리보기(비밀은 마스킹)다.
+ */
+export type VariableDto = { key: string; value?: string; reference?: VariableReferenceDto; resolved?: string };
+/** 쓰기 요청 본문: 값 또는 참조 중 하나. */
+export type VariableWrite = { value: string } | { reference: VariableReferenceDto };
 /** 플랫폼이 배포할 때 앱에 넣는 변수. 서비스만으로 값이 정해지는 것만 value 가 있다. 사용자가 바꿀 수 없다. */
 export type SystemVariableDto = { key: string; description: string; value?: string };
 export type ServiceVariablesDto = {
@@ -422,11 +637,11 @@ export type ServiceVariablesDto = {
 export const getServiceVariables = (serviceId: number | string, signal?: AbortSignal) =>
   request<ServiceVariablesDto>(`/services/${serviceId}/variables`, { signal });
 /** 이미 있는 키면 409 VARIABLE_CONFLICT. */
-export const createServiceVariable = (serviceId: number | string, json: VariableDto) =>
+export const createServiceVariable = (serviceId: number | string, json: { key: string } & VariableWrite) =>
   request<VariableDto>(`/services/${serviceId}/variables`, { method: 'POST', json });
 /** 없는 키면 404 VARIABLE_NOT_FOUND. */
-export const updateServiceVariable = (serviceId: number | string, key: string, value: string) =>
-  request<VariableDto>(`/services/${serviceId}/variables/${encodeURIComponent(key)}`, { method: 'PUT', json: { value } });
+export const updateServiceVariable = (serviceId: number | string, key: string, write: VariableWrite) =>
+  request<VariableDto>(`/services/${serviceId}/variables/${encodeURIComponent(key)}`, { method: 'PUT', json: write });
 /** 없는 키면 404 VARIABLE_NOT_FOUND. */
 export const deleteServiceVariable = (serviceId: number | string, key: string) =>
   request<void>(`/services/${serviceId}/variables/${encodeURIComponent(key)}`, { method: 'DELETE' });
@@ -436,6 +651,94 @@ export const deleteServiceVariable = (serviceId: number | string, key: string) =
  */
 export const replaceServiceVariables = (serviceId: number | string, raw: string) =>
   request<ServiceVariablesDto>(`/services/${serviceId}/variables`, { method: 'PUT', json: { raw } });
+
+/* variables validation */
+export type VariableIssueCode = 'REQUIRED_MISSING' | 'LOCALHOST_ADDRESS' | 'UNRESOLVABLE_HOST' | 'SCHEME_MISMATCH' | 'REFERENCE_BROKEN';
+export type VariableIssueDto = {
+  /** 스택 배포 거절처럼 여러 서비스가 섞인 응답에서 어느 서비스의 이슈인지. 서비스 하나의 검증에서는 없다. */
+  serviceId?: number;
+  key: string;
+  severity: 'error' | 'warning';
+  /** 모르는 코드가 와도 화면이 죽지 않아야 한다. */
+  code: VariableIssueCode | (string & {});
+  message: string;
+  /** 같은 프로젝트에 맞는 DB·서비스가 있으면 이 변수를 그쪽 참조로 바꾸자는 제안. */
+  suggestion?: { reference: VariableReferenceDto };
+};
+export type VariablesValidationDto = { ok: boolean; issues: VariableIssueDto[] };
+/** 422 VARIABLES_INVALID 의 details(`{field: 키, reason: 코드}`)만 있을 때 이슈 목록으로 바꾼다. */
+const issuesFromDetails = (details: { field: string; reason: string }[]): VariableIssueDto[] =>
+  details.map((d) => ({ key: d.field, severity: 'error', code: d.reason, message: '' }));
+/** 배포하기 전에 환경변수가 맞는지 본다. 배포 요청은 error 가 있으면 422 VARIABLES_INVALID 로 거절된다. */
+export const getVariablesValidation = (serviceId: number | string, signal?: AbortSignal) =>
+  request<VariablesValidationDto>(`/services/${serviceId}/variables/validation`, { signal });
+/** 422 VARIABLES_INVALID 응답에서 issues 를 꺼낸다. 위치는 서버 구현에 따라 data.issues 또는 details 다. */
+export function variablesInvalidIssues(error: unknown): VariableIssueDto[] {
+  if (!(error instanceof ApiError) || error.code !== 'VARIABLES_INVALID') return [];
+  const data = error.data as { issues?: VariableIssueDto[]; serviceId?: number } | undefined;
+  const issues = Array.isArray(data?.issues) ? data.issues.filter((i) => i.severity === 'error') : issuesFromDetails(error.details);
+  return data?.serviceId ? issues.map((i) => ({ serviceId: data.serviceId, ...i })) : issues;
+}
+
+/* databases */
+export type DatabaseCreate = { name: string; engine: DatabaseEngine; storageGi?: number; targetIds?: number[] };
+/** 관리형 DB 서비스를 만들고 자동 배포를 접수한다(201). */
+export const createDatabase = (projectId: number | string, json: DatabaseCreate) =>
+  request<ServiceDto>(`/projects/${projectId}/databases`, { method: 'POST', json });
+
+/* stacks (한 레포 분석에서 나온 서비스 묶음의 반복 운영) */
+export type StackStepStatus = DeploymentStatus | 'HELD' | 'NOT_DEPLOYED';
+export type StackServiceDto = {
+  serviceId: number;
+  name: string;
+  unitId: string | null;
+  kind: ServiceKind;
+  /** 배포 순서(1 = DB, 2 = 의존 대상이 있는 앱, 3 = 나머지). */
+  order: number;
+  /** 이 서비스가 쓰는 같은 스택의 unitId. */
+  dependsOn: string[];
+  /** 이 스택 배포에서 이 서비스의 진행. 앞 단계가 실패해 시작하지 않았으면 HELD. */
+  status: StackStepStatus;
+  deploymentId?: number;
+  /** status=HELD 일 때 어느 서비스(unitId)가 막았는지. */
+  heldBy?: string;
+  /** QUEUED 로 앞 단계를 기다리는 중이면 기다리는 unitId. */
+  waitingFor?: string[];
+  failureCode?: FailureCode;
+};
+/** 레포 구성이 바뀐 것으로 감지된 항목. 분석기 결과와 현재 스택을 서버가 비교한다. */
+export type StackChangeDto = {
+  type: 'UNIT_ADDED' | 'UNIT_REMOVED' | 'UNIT_CHANGED' | 'DEPENDENCY_ADDED' | 'DEPENDENCY_REMOVED' | 'DEPENDENCY_CHANGED';
+  unitId: string;
+  /** UNIT_CHANGED 에서 바뀐 필드(port, rootDirectory …). */
+  field?: string;
+  from?: unknown;
+  to?: unknown;
+  /** DEPENDENCY_CHANGED 의 사유. init_scripts_changed = 초기화 스크립트가 바뀜. */
+  reason?: string | null;
+  /** 서버의 안내(영문). 초기화 스크립트는 DB 를 처음 만들 때만 실행된다. */
+  message?: string | null;
+  serviceId?: number | null;
+};
+export type StackPendingChangesDto = { analysisId: number; sourceSha?: string | null; detectedAt: string; changes: StackChangeDto[] };
+export type StackDto = {
+  id: number;
+  projectId: number;
+  repositoryUrl: string;
+  sourceBranch: string;
+  services: StackServiceDto[];
+  rootDirectory?: string | null;
+  analysisId?: number;
+  /** 스택 배포가 진행 중이다. */
+  isDeploying?: boolean;
+  latestStackDeploymentId?: number | null;
+  pendingChanges?: StackPendingChangesDto | null;
+};
+export const listStacks = (projectId: number | string, signal?: AbortSignal) => request<StackDto[]>(`/projects/${projectId}/stacks`, { signal });
+export const getStack = (projectId: number | string, stackId: number, signal?: AbortSignal) => request<StackDto>(`/projects/${projectId}/stacks/${encodeURIComponent(String(stackId))}`, { signal });
+/** 스택 전체(또는 serviceIds 만)를 DB → 앱 → 나머지 순서로 다시 배포한다. 환경변수에 error 가 있으면 422 VARIABLES_INVALID. */
+export const deployStack = (projectId: number | string, stackId: number, json: { serviceIds?: number[]; skipVariableValidation?: boolean } = {}) =>
+  request<StackDto>(`/projects/${projectId}/stacks/${encodeURIComponent(String(stackId))}/deployments`, { method: 'POST', json, headers: { 'Idempotency-Key': crypto.randomUUID() } });
 
 /* logs */
 /** 런타임 로그 한 줄. timestampNs 는 Unix 나노초이고, number 로는 정밀도가 모자라서 문자열로 온다. */
@@ -497,7 +800,26 @@ export const getServiceTrafficMetrics = (
 ) => request<TrafficMetricsDto>(`/services/${serviceId}/traffic-metrics`, { query, signal });
 
 /* targets */
+/** 공용 타깃과 내 서버 타깃. */
 export const listTargets = () => request<TargetDto[]>('/targets');
+
+/* on-prem servers */
+/**
+ * 이름은 1~63자이고 내 서버 안에서 유일해야 한다(409 ONPREM_SERVER_NAME_CONFLICT). 같은 트랜잭션에서 서버 타깃도 만든다.
+ * 한 사용자는 서버를 5개까지 둘 수 있다(409 ONPREM_SERVER_LIMIT_EXCEEDED). 서버 등록 설정이 없는 was 는 503 NOT_CONFIGURED 다.
+ */
+export const createOnpremServer = (name: string) => request<OnpremServerRegistrationDto>('/onprem-servers', { method: 'POST', json: { name } });
+/** 내 서버. 최신순. */
+export const listOnpremServers = (signal?: AbortSignal) => request<OnpremServerDto[]>('/onprem-servers', { signal });
+/** 남의 서버나 없는 서버는 404. */
+export const getOnpremServer = (id: number, signal?: AbortSignal) => request<OnpremServerDto>(`/onprem-servers/${id}`, { signal });
+/**
+ * PENDING·REGISTERING·FAILED 일 때만(CONNECTED 는 409 INVALID_STATUS_TRANSITION). 이전 토큰은 무효가 되고 상태는 PENDING 이 된다.
+ * 서버 등록 설정이 없는 was 는 503 NOT_CONFIGURED 다.
+ */
+export const reissueRegistrationToken = (id: number) => request<OnpremServerRegistrationDto>(`/onprem-servers/${id}/registration-token`, { method: 'POST' });
+/** 서비스가 이 서버를 쓰고 있으면 409 ONPREM_SERVER_IN_USE. */
+export const deleteOnpremServer = (id: number) => request<void>(`/onprem-servers/${id}`, { method: 'DELETE' });
 
 /* github */
 export const listInstallations = () => request<InstallationDto[]>('/github/installations');

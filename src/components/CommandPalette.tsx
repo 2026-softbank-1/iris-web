@@ -5,7 +5,7 @@ import {
   FolderKanban,
   Globe,
   Languages,
-  LayoutTemplate,
+  // LayoutTemplate, // [주석 처리] 템플릿 명령을 숨겼다
   Palette,
   Plus,
   Search,
@@ -77,7 +77,8 @@ export function CommandPalette() {
     () => [
       { id: 'new-project', label: t('cmd.newProject'), icon: Plus, group: t('cmd.group.dashboard'), shortcut: ['⌘', '/'], run: () => (close(), setCreateOpen(true)) },
       { id: 'new-ws', label: t('cmd.newWorkspace'), icon: Briefcase, group: t('cmd.group.dashboard'), run: () => (close(), toast(t('cmd.toast.workspaces'))) },
-      { id: 'templates', label: t('cmd.templates'), icon: LayoutTemplate, group: t('cmd.group.general'), run: go('/workspace/templates') },
+      // [주석 처리] 템플릿은 샘플 화면이라 숨겼다.
+      // { id: 'templates', label: t('cmd.templates'), icon: LayoutTemplate, group: t('cmd.group.general'), run: go('/workspace/templates') },
       // Usage is disabled for now (non-MVP)
       // { id: 'usage', label: 'Go to Usage', icon: ChartNoAxesColumn, group: 'General', run: go('/workspace/usage') },
       { id: 'search-projects', label: t('cmd.searchProjects'), icon: FolderKanban, group: t('cmd.group.general'), run: () => setQ('project ') },
