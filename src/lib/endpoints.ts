@@ -1,6 +1,6 @@
 // was(Control API) 엔드포인트와 요청·응답 타입. 필드는 서버 JSON 그대로(camelCase)다.
 // 값이 null 인 필드는 서버가 응답에서 빼므로 모두 optional 이다.
-import { ApiError, apiUrl, request } from './api';
+import { ApiError, apiUrl, request, requestGateway } from './api';
 
 export type Page<T> = { items: T[]; total: number; page: number; size: number };
 
@@ -756,6 +756,32 @@ export const logStreamUrl = (serviceId: number | string, targetId: number, curso
   if (cursor) params.set('cursor', cursor);
   return apiUrl(`/services/${serviceId}/logs/stream?${params}`);
 };
+
+/* console */
+/**
+ * 콘솔을 열 수 없는 이유. NO_RUNNING_DEPLOYMENT 는 그 타깃에 떠 있는 배포가 없는 것, TARGET_NOT_SUPPORTED 는 온프레미스 타깃,
+ * NOT_CONFIGURED 는 서버에 콘솔(Console Gateway)이 설정되지 않은 것이다. 서버가 값을 늘려도 화면이 죽지 않아야 한다.
+ */
+export type ConsoleUnavailableReason = 'NO_RUNNING_DEPLOYMENT' | 'TARGET_NOT_SUPPORTED' | 'NOT_CONFIGURED';
+export type ConsoleAvailabilityDto = { available: boolean; reason?: ConsoleUnavailableReason };
+/**
+ * 콘솔 세션 발급 결과. token 은 60초 안에 쓰는 ticket 이고 WebSocket 연결(첫 auth 프레임)에는 한 번만 쓸 수 있다.
+ * 그래서 Pod 목록을 볼 때와 연결할 때마다 새로 발급받는다. gateway 는 Console Gateway 의 base 주소다(`/v1/…` 접두 없음).
+ */
+export type ConsoleSessionDto = { sessionId: string; token: string; expiresAt: string; gateway: { httpUrl: string; wsUrl: string } };
+export type ConsolePodDto = { name: string; phase: string; ready: boolean; startedAt?: string; releaseId?: number | null };
+/** 그 타깃에 콘솔을 열 수 있는지. 토큰도 감사 기록도 만들지 않아서 화면을 열 때마다 불러도 된다. */
+export const getConsoleAvailability = (serviceId: number | string, targetId: number, signal?: AbortSignal) =>
+  request<ConsoleAvailabilityDto>(`/services/${serviceId}/console`, { query: { targetId }, signal });
+/**
+ * 콘솔 세션(ticket)을 발급한다. 실행 중인 배포가 없으면 409 NO_RUNNING_DEPLOYMENT, 온프레미스 타깃이면 409 CONSOLE_TARGET_NOT_SUPPORTED,
+ * 콘솔이 설정되지 않았으면 503 NOT_CONFIGURED 다.
+ */
+export const createConsoleSession = (serviceId: number | string, targetId: number, signal?: AbortSignal) =>
+  request<ConsoleSessionDto>(`/services/${serviceId}/console/sessions`, { method: 'POST', json: { targetId }, signal });
+/** Gateway 에서 서비스 namespace 의 Pod 목록(컨테이너 `app` 이 있는 것만, 최근 시작한 순서). ticket 은 만료 전까지 여러 번 쓸 수 있다. */
+export const listConsolePods = async (session: ConsoleSessionDto, signal?: AbortSignal) =>
+  (await requestGateway<{ pods: ConsolePodDto[] }>(session.gateway.httpUrl, '/v1/pods', session.token, signal)).pods;
 
 /* metrics */
 /** 지표 한 점. timestamp 는 Unix 초이고 소수일 수 있다. */

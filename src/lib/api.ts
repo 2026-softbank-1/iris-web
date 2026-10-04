@@ -60,6 +60,17 @@ export async function request<T>(path: string, { method = 'GET', query, json, he
   return body.data as T;
 }
 
+/**
+ * Console Gateway(Control API 와 다른 서버)를 부르는 요청. 인증은 쿠키가 아니라 Control API 가 발급한 1회성 ticket 의 Bearer 이고,
+ * 401 도 세션 만료가 아니라 ticket 문제이므로 로그아웃 핸들러를 부르지 않는다. 응답 봉투는 Control API 와 같다.
+ */
+export async function requestGateway<T>(baseUrl: string, path: string, token: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, { headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, credentials: 'omit', signal });
+  const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!res.ok || !body?.success) throw new ApiError(res.status, body?.code ?? 'UNKNOWN', body?.message ?? res.statusText, body?.details, body?.data);
+  return body.data as T;
+}
+
 /** 화면에 보여줄 오류 문장. 코드가 정해진 오류는 풀어서 쓰고, 나머지는 서버 메시지를 쓴다. */
 export function describeError(error: unknown): string {
   if (!(error instanceof ApiError)) return "Couldn't reach the server. Check that the API is running.";
