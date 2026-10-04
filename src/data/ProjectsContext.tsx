@@ -33,6 +33,8 @@ function toService(dto: api.ServiceDto, targets: api.TargetDto[], servers: api.O
 
 /** was 의 도메인 조회 결과를 서비스에 붙인다. 접속되는 주소가 있으면 그것을 대표 주소로 쓴다. */
 function withDomains(service: Service, dtos: api.ServiceDomainDto[] | undefined): Service {
+  // 관리형 DB 는 Ingress 가 없어 공개 주소가 없다. was 가 계산해 준 주소는 열리지 않으므로 쓰지 않는다.
+  if (service.remote?.kind === 'DATABASE') return { ...service, domains: [], domain: undefined };
   if (!dtos) return service;
   const domains = dtos.flatMap((d) => (d.host ? [{ host: d.host, targetName: d.targetName, isConnected: d.isConnected }] : []));
   return { ...service, domains, domain: (domains.find((d) => d.isConnected) ?? domains[0])?.host };
