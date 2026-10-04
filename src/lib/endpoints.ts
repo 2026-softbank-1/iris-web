@@ -186,9 +186,49 @@ export type ServiceDomainDto = {
   isConnected: boolean;
 };
 
-export type TargetDto = { id: number; name: string; kind: 'AWS' | 'ONPREM'; region?: string; domainSuffix?: string };
+/**
+ * 사용자가 등록한 온프레미스 서버의 연결 상태. PENDING(명령 실행 전) → REGISTERING(서버가 연결을 보냄, 확인 중) →
+ * CONNECTED(배포 가능) / FAILED(15분 안에 연결되지 않음, 토큰을 다시 발급해 명령을 다시 실행한다).
+ */
+export type OnpremServerStatus = 'PENDING' | 'REGISTERING' | 'CONNECTED' | 'FAILED';
+export type OnpremServerFailureCode = 'CONNECT_TIMED_OUT' | 'GITOPS_COMMIT_FAILED';
+
+/**
+ * 공용 타깃(AWS·기존 onprem)과 내 서버 타깃. 내 서버 타깃은 onpremServerId·connectionStatus 가 있고 이름이 `onprem-{serverKey}` 다.
+ * 공용 타깃은 둘 다 없고 항상 배포할 수 있다.
+ */
+export type TargetDto = {
+  id: number;
+  name: string;
+  kind: 'AWS' | 'ONPREM';
+  region?: string;
+  domainSuffix?: string;
+  onpremServerId?: number;
+  /** 내 서버 타깃의 서버 이름(사용자가 붙인 이름). 화면은 타깃 이름 대신 이것을 보여 준다. */
+  onpremServerName?: string;
+  connectionStatus?: OnpremServerStatus;
+};
 /** 서버가 제공하는 AWS·온프레미스 타깃을 서비스 생성과 설정에서 선택할 수 있다. */
 export const isTargetSupported = (target: TargetDto) => target.kind === 'AWS' || target.kind === 'ONPREM';
+/** 지금 이 타깃으로 배포할 수 있는지. 내 서버 타깃은 연결(CONNECTED)된 뒤에만 된다(아니면 서버가 409 TARGET_NOT_CONNECTED). */
+export const isTargetDeployable = (target: TargetDto) => target.connectionStatus == null || target.connectionStatus === 'CONNECTED';
+
+export type OnpremServerDto = {
+  id: number;
+  name: string;
+  /** 8자 무작위 키. 타깃 이름(`onprem-{serverKey}`)과 서비스 주소에 쓰인다. 비밀이 아니다. */
+  serverKey: string;
+  status: OnpremServerStatus;
+  targetId: number;
+  tailnetFqdn?: string;
+  failureCode?: OnpremServerFailureCode;
+  /** 등록 토큰 만료 시각(발급 후 24시간). 지나면 토큰을 다시 발급해야 한다. */
+  registrationExpiresAt?: string;
+  connectedAt?: string;
+  createdAt: string;
+};
+/** 서버 등록·토큰 재발급 응답. registrationToken·installCommand 는 이 응답에서만 받을 수 있다. */
+export type OnpremServerRegistrationDto = { server: OnpremServerDto; registrationToken: string; installCommand: string };
 export type InstallationDto = { installationId: number; accountLogin: string; accountType: string };
 export type RepositoryDto = { fullName: string; url: string; defaultBranch: string; isPrivate: boolean; installationId: number };
 export type BranchDto = { name: string; isDefault: boolean };
@@ -760,7 +800,26 @@ export const getServiceTrafficMetrics = (
 ) => request<TrafficMetricsDto>(`/services/${serviceId}/traffic-metrics`, { query, signal });
 
 /* targets */
+/** 공용 타깃과 내 서버 타깃. */
 export const listTargets = () => request<TargetDto[]>('/targets');
+
+/* on-prem servers */
+/**
+ * 이름은 1~63자이고 내 서버 안에서 유일해야 한다(409 ONPREM_SERVER_NAME_CONFLICT). 같은 트랜잭션에서 서버 타깃도 만든다.
+ * 한 사용자는 서버를 5개까지 둘 수 있다(409 ONPREM_SERVER_LIMIT_EXCEEDED). 서버 등록 설정이 없는 was 는 503 NOT_CONFIGURED 다.
+ */
+export const createOnpremServer = (name: string) => request<OnpremServerRegistrationDto>('/onprem-servers', { method: 'POST', json: { name } });
+/** 내 서버. 최신순. */
+export const listOnpremServers = (signal?: AbortSignal) => request<OnpremServerDto[]>('/onprem-servers', { signal });
+/** 남의 서버나 없는 서버는 404. */
+export const getOnpremServer = (id: number, signal?: AbortSignal) => request<OnpremServerDto>(`/onprem-servers/${id}`, { signal });
+/**
+ * PENDING·REGISTERING·FAILED 일 때만(CONNECTED 는 409 INVALID_STATUS_TRANSITION). 이전 토큰은 무효가 되고 상태는 PENDING 이 된다.
+ * 서버 등록 설정이 없는 was 는 503 NOT_CONFIGURED 다.
+ */
+export const reissueRegistrationToken = (id: number) => request<OnpremServerRegistrationDto>(`/onprem-servers/${id}/registration-token`, { method: 'POST' });
+/** 서비스가 이 서버를 쓰고 있으면 409 ONPREM_SERVER_IN_USE. */
+export const deleteOnpremServer = (id: number) => request<void>(`/onprem-servers/${id}`, { method: 'DELETE' });
 
 /* github */
 export const listInstallations = () => request<InstallationDto[]>('/github/installations');

@@ -4,12 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../data/ProjectsContext';
 import { ApiError, describeError } from '../lib/api';
 import * as api from '../lib/endpoints';
-import { isTargetSupported } from '../lib/endpoints';
+import { isTargetDeployable, isTargetSupported } from '../lib/endpoints';
+import { targetLabel } from '../data/targetModel';
 import { useI18n, type MessageKey } from '../i18n';
 import { networkingErrorKey } from '../data/networkingError';
 import { useRepositoryAnalysis } from '../data/useRepositoryAnalysis';
 import { RepoAnalysisStep, slugify, toApplyDependencies, toApplyUnits, toDepDrafts, toUnitDrafts, type DepDraft, type UnitDraft } from './RepoAnalysisStep';
 import { DataLossNotice, ENGINE_LABEL } from './DatabaseBits';
+import { OnpremServerDialog } from './OnpremServerDialog';
+import { TargetPicker } from './TargetPicker';
 import { Dialog, useUI } from './ui';
 import './CreateDialog.css';
 
@@ -33,7 +36,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   const navigate = useNavigate();
   const { toast } = useUI();
   const { t } = useI18n();
-  const { targets, createProject, createService, removeProject, refreshService, refreshProject } = useProjects();
+  const { targets, servers, createProject, createService, removeProject, refreshService, refreshProject } = useProjects();
   const [step, setStep] = useState<'create' | 'repos' | 'review' | 'analysis' | 'database'>('create');
   const [dbEngine, setDbEngine] = useState<api.DatabaseEngine>('postgres');
   const [dbName, setDbName] = useState('postgres');
@@ -62,9 +65,13 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
   // 레포 구성 확인은 프로젝트 아래에서 돈다. 새 프로젝트로 만들 때는 확인을 시작하면서 프로젝트를 먼저 만들고,
   // 서비스를 하나도 만들지 않은 채 창을 닫거나 검토로 돌아가면 그 빈 프로젝트를 지운다.
   const draftProject = useRef<string | null>(null);
+  // 내 서버 추가 창을 여는 동안 이 창은 숨긴다(상태는 그대로 두고, Esc 가 두 창을 한꺼번에 닫지 않게).
+  const [addingServer, setAddingServer] = useState(false);
 
   const isUrl = URL_LIKE.test(query.trim());
   const selectedTarget = targets.find((target) => target.id === targetId && isTargetSupported(target));
+  // 연결되지 않은 내 서버를 골랐으면 서비스만 만들고 첫 배포는 하지 않는다(서버가 409 TARGET_NOT_CONNECTED 로 거절한다).
+  const canDeployNow = !selectedTarget || isTargetDeployable(selectedTarget);
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +83,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
     setSubmitting(false);
     setDrafts([]);
     setDepDrafts([]);
+    setAddingServer(false);
     analysis.reset();
   }, [open, analysis.reset]);
 
@@ -201,13 +209,18 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       });
       draftProject.current = null; // 서비스가 생겼으니 프로젝트는 남긴다
       // 서비스를 만든 직후 첫 배포를 요청한다. 이것만 실패하면 서비스는 남겨 두고 알려 준다.
+      // 연결되지 않은 내 서버에는 아직 배포할 수 없어서 서비스만 만든다.
       let deploymentId: number | null = null;
-      try {
-        const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
-        deploymentId = deployment.id;
-        void refreshService(targetProject, service.id).catch(() => undefined);
-      } catch (e) {
-        toast(t('create.firstDeployFailed', { error: describeError(e) }));
+      if (!canDeployNow) {
+        toast(t('servers.createdWaiting'));
+      } else {
+        try {
+          const deployment = await api.createDeployment(service.id, { triggerType: 'MANUAL' }, crypto.randomUUID());
+          deploymentId = deployment.id;
+          void refreshService(targetProject, service.id).catch(() => undefined);
+        } catch (e) {
+          toast(t('create.firstDeployFailed', { error: describeError(e) }));
+        }
       }
       analysis.reset();
       onClose();
@@ -288,13 +301,14 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
       const applied = await api.applyRepositoryAnalysis(targetProject, doneAnalysis.id, {
         units: built.units,
         ...(deps.dependencies.length > 0 && { dependencies: deps.dependencies }),
-        deploy: true,
+        // 연결되지 않은 내 서버면 서비스만 만들고 배포는 서버가 연결된 뒤에 한다.
+        deploy: canDeployNow,
         targetIds: selectedTarget ? [selectedTarget.id] : undefined,
       });
       draftProject.current = null;
       await refreshProject(targetProject).catch(() => undefined);
       const blocked = applied.variableIssues?.some((v) => v.issues.some((i) => i.severity === 'error')) ? applied.variableIssues : null;
-      toast(blocked ? t('create.gate.appliedNoDeploy', { n: applied.services.length }) : applied.databases?.length ? t('create.gate.appliedWithDb', { n: applied.services.length, db: applied.databases.length }) : t('create.gate.applied', { n: applied.services.length }));
+      toast(!canDeployNow ? t('servers.appliedWaiting', { n: applied.services.length }) : blocked ? t('create.gate.appliedNoDeploy', { n: applied.services.length }) : applied.databases?.length ? t('create.gate.appliedWithDb', { n: applied.services.length, db: applied.databases.length }) : t('create.gate.applied', { n: applied.services.length }));
       analysis.reset();
       onClose();
       navigate(`/project/${targetProject}`, blocked ? { state: { variableIssues: blocked } } : undefined);
@@ -319,7 +333,7 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
 
   const title: MessageKey = step === 'review' ? 'create.reviewTitle' : step === 'analysis' ? 'create.gate.title' : step === 'database' ? 'create.db.title' : 'create.title';
   const wide = step === 'analysis' && analysis.state.phase === 'done' && analysis.state.analysis.result.decision === 'analyze';
-  return <Dialog open={open} onClose={close} className={`create-dialog${wide ? ' wide' : ''}`} label={t('create.title')}>
+  return <><Dialog open={open && !addingServer} onClose={close} className={`create-dialog${wide ? ' wide' : ''}`} label={t('create.title')}>
     <header><h2>{t(title)}</h2><button className="create-icon" aria-label={t('create.dismiss')} onClick={close}><X size={18} /></button></header>
     {step !== 'create' && <button className="create-back" disabled={submitting} onClick={() => { if (step === 'analysis') { backToReview(); return; } setStep(step === 'review' ? 'repos' : 'create'); setNotice(''); }}><ArrowLeft size={15} /> {t('create.back')}</button>}
     {step === 'create' && <><input autoFocus role="combobox" aria-expanded="true" aria-controls="create-options" aria-label={t('create.prompt')} placeholder={t('create.prompt')} value={query} onChange={e => setQuery(e.target.value)} /><div id="create-options" className="create-options">{options.filter(o => t(o).toLowerCase().includes(query.toLowerCase())).map(option => option === GITHUB
@@ -367,12 +381,15 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         <label>{t('create.branch')}<select required value={branch} onChange={e => setBranch(e.target.value)}>{branchOptions.map(b => <option key={b}>{b}</option>)}</select></label>
         <label>{t('create.rootDir')}<input value={root} onChange={e => setRoot(e.target.value)} /></label>
       </div>
-      {targets.length > 0 && <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>{targets.map(tg => { const supported = isTargetSupported(tg); return <label key={tg.id} className={supported ? undefined : 'create-unsupported'} title={supported ? undefined : t('create.notSupported')}><input type="radio" name="create-target" disabled={!supported} checked={supported && targetId === tg.id} onChange={() => setTargetId(tg.id)} />{tg.name}{!supported && <span className="create-soon">{t('create.notSupported')}</span>}</label>; })}</fieldset>}
+      <fieldset className="create-checks"><legend>{t('create.deployTo')}</legend>
+        <TargetPicker name="create-target" value={targetId} onChange={setTargetId} onAddServer={() => setAddingServer(true)} unsupportedClassName="create-unsupported" noteClassName="create-soon" unsupportedLabel={t('create.notSupported')} />
+      </fieldset>
       <label className="create-check"><input type="checkbox" checked={autoDeploy} onChange={e => setAutoDeploy(e.target.checked)} />{t('create.autoDeploy')}</label>
       {!selectedTarget && <p className="create-notice" role="status">{t('create.targetsUnavailable')}</p>}
+      {selectedTarget && !canDeployNow && <p className="create-notice" role="status">{t('servers.notConnectedNotice', { name: targetLabel(selectedTarget, servers) })}</p>}
       <p className="create-hint">{t('create.checkRepoHint')}</p>
       <div className="create-submit">
-        <button type="button" className="btn btn-ghost" disabled={reviewInvalid} onClick={e => { const form = e.currentTarget.form; if (form?.reportValidity()) void deploy(); }}>{t(submitting ? 'create.deploying' : 'create.skipCheck')}</button>
+        <button type="button" className="btn btn-ghost" disabled={reviewInvalid} onClick={e => { const form = e.currentTarget.form; if (form?.reportValidity()) void deploy(); }}>{t(submitting ? 'create.deploying' : canDeployNow ? 'create.skipCheck' : 'servers.createOnlySkipCheck')}</button>
         <button type="submit" className="btn btn-primary" disabled={reviewInvalid}>{t('create.checkRepo')}</button>
       </div>
     </form>}
@@ -392,7 +409,10 @@ export function CreateDialog({ open, onClose, projectId }: { open: boolean; onCl
         onRetry={() => void checkRepo(analysis.state.phase === 'failed' && analysis.state.analysis?.mode === 'force' ? 'force' : 'auto')}
         onApply={() => void applyUnits()}
       />
+      {selectedTarget && !canDeployNow && <p className="create-notice" role="status">{t('servers.notConnectedNotice', { name: targetLabel(selectedTarget, servers) })}</p>}
     </div>}
     {notice && <p className="create-notice" role="status">{notice}</p>}
-  </Dialog>;
+  </Dialog>
+  <OnpremServerDialog open={open && addingServer} onClose={() => setAddingServer(false)} onCreated={(server) => setTargetId(server.targetId)} closeLabel="servers.dialog.backToCreate" />
+  </>;
 }

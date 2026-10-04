@@ -4,6 +4,7 @@ import {
   LayoutGrid,
   LogOut,
   Moon,
+  Server,
   Sun,
   User,
 } from 'lucide-react';
@@ -86,6 +87,7 @@ export function WorkspaceLayout() {
           <div className="side-section">
             <nav className="side-nav">
               <SideItem to="/dashboard" icon={<LayoutGrid size={16} />} label={t('nav.projects')} />
+              <SideItem to="/workspace/servers" icon={<Server size={16} />} label={t('nav.servers')} />
               {/* Usage is disabled for now (non-MVP) */}
               {/* <SideItem to="/workspace/usage" icon={<ChartNoAxesColumn size={16} />} label="Usage" /> */}
             </nav>

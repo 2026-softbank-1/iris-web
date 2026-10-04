@@ -9,6 +9,7 @@ import { MIN_REPLICAS_FOR_PROGRESSIVE, isRollingOnlyTarget, strategyLabel } from
 import { canDiagnose } from '../../data/diagnosisModel';
 import { fmtKst, fmtKstFull, type Deployment, type Project, type Service } from '../../data/mock';
 import { useI18n, type MessageKey } from '../../i18n';
+import { useDeployBlock } from '../../data/useDeployBlock';
 import { useDeploymentDetail, useRunner, type DeploymentsApi } from '../../data/useDeployments';
 import type { DeploymentDetailDto } from '../../lib/endpoints';
 import { AuthorAvatar, DeploymentActions } from './DeploymentRow';
@@ -230,6 +231,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
   const serviceBase = `/project/${project.id}/service/${service.id}`;
   const base = `${serviceBase}/deployment/${deployment.id}`;
   const status = deploymentLabel(deployment.status);
+  const deployBlock = useDeployBlock(service.id);
 
   return (
     <div className="pane deployment-pane">
@@ -270,6 +272,7 @@ export function DeploymentPane({ project, service, deployment, tab, deps }: { pr
                   onDiagnose={diagnosable ? () => navigate(`${base}/diagnosis`) : undefined}
                   onRedeploy={canRedeploy(deployment) ? () => void run(() => deps.redeploy(deployment.id), t('service.redeployRequested')) : undefined}
                   onRollback={deployment.status === 'REMOVED' ? () => void run(() => deps.rollback(deployment.id), t('service.rollbackRequested')) : undefined}
+                  deployBlockedReason={deployBlock.reason}
                 />
                 <time title={fmtKstFull(deployment.createdAt)} className="dp-time">
                   {fmtKst(deployment.createdAt, false)} GMT+9

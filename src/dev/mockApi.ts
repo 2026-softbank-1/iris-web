@@ -38,6 +38,9 @@ import type {
   MetricSeriesDto,
   NetworkLogEntryDto,
   NetworkLogsDto,
+  OnpremServerDto,
+  OnpremServerRegistrationDto,
+  OnpremServerStatus,
   ProjectDto,
   RepositoryAnalysisDto,
   RepositoryDto,
@@ -65,10 +68,72 @@ const fail = (status: number, code: string, message: string, details?: { field: 
 const user: SessionUser = { id: 1, githubId: 1, login: 'kylo-dev' };
 let loggedIn = true;
 
-const targets: TargetDto[] = [
+const sharedTargets: TargetDto[] = [
   { id: 1, name: 'aws-seoul', kind: 'AWS', region: 'ap-northeast-2', domainSuffix: 'likelion.uk' },
   { id: 2, name: 'onprem', kind: 'ONPREM', domainSuffix: 'internal.likelion.uk' },
 ];
+
+/**
+ * 사용자가 등록한 온프레미스 서버. status 가 정해진 시드 서버는 상태가 고정이고, 새로 만들거나 토큰을 다시 발급한 서버는
+ * 명령을 실행했다고 치고 시간이 지나면 PENDING(10초) → REGISTERING(12초) → CONNECTED 로 넘어간다.
+ */
+type MockServer = Omit<OnpremServerDto, 'status'> & { fixedStatus?: OnpremServerStatus; startedAt?: number; isDeleted?: boolean };
+const seededAt = Date.now();
+const servers: MockServer[] = [
+  { id: 1, name: 'home-lab', serverKey: 'k3x9q2ma', targetId: 3, fixedStatus: 'CONNECTED', tailnetFqdn: 'iris-k3x9q2ma.tailb046e8.ts.net', connectedAt: iso(seededAt - 3 * DAY), createdAt: iso(seededAt - 3 * DAY - 10 * MIN) },
+  { id: 2, name: 'office-nuc', serverKey: 'n7p2w8fd', targetId: 4, fixedStatus: 'PENDING', registrationExpiresAt: iso(seededAt + 20 * HOUR), createdAt: iso(seededAt - 4 * HOUR) },
+  { id: 3, name: 'old-pi', serverKey: 'q4m8z1ra', targetId: 5, fixedStatus: 'FAILED', failureCode: 'CONNECT_TIMED_OUT', registrationExpiresAt: iso(seededAt - HOUR), createdAt: iso(seededAt - 2 * DAY) },
+  // 명령 다시 받기가 503 NOT_CONFIGURED 로 실패하는 서버(아래 NOT_CONFIGURED_NAMES).
+  { id: 4, name: 'legacy-vm', serverKey: 'v2c7h5ke', targetId: 6, fixedStatus: 'FAILED', failureCode: 'GITOPS_COMMIT_FAILED', registrationExpiresAt: iso(seededAt - 3 * HOUR), createdAt: iso(seededAt - 5 * DAY) },
+];
+/** was 와 같다: 사용자 한 명이 둘 수 있는 서버 수. 시드가 4개라 하나 더 추가한 뒤 다음 추가가 409 다. */
+const MAX_SERVERS = 5;
+/** 서버 등록 설정이 없는 was 를 흉내 내는 이름. 이 이름으로 추가하거나 이 서버의 명령을 다시 받으면 503 NOT_CONFIGURED 다. */
+const NOT_CONFIGURED_NAMES = ['not-configured', 'legacy-vm'];
+const SERVER_PENDING_MS = 10_000;
+const SERVER_REGISTERING_MS = 12_000;
+
+function serverStatusOf(m: MockServer): OnpremServerStatus {
+  if (m.fixedStatus) return m.fixedStatus;
+  const elapsed = Date.now() - (m.startedAt ?? 0);
+  if (elapsed < SERVER_PENDING_MS) return 'PENDING';
+  if (elapsed < SERVER_PENDING_MS + SERVER_REGISTERING_MS) return 'REGISTERING';
+  return 'CONNECTED';
+}
+
+function toServerDto(m: MockServer): OnpremServerDto {
+  const { fixedStatus: _f, startedAt, isDeleted: _d, ...rest } = m;
+  const status = serverStatusOf(m);
+  const connected = status === 'CONNECTED' && startedAt !== undefined;
+  return {
+    ...rest,
+    status,
+    ...(status !== 'PENDING' && { tailnetFqdn: m.tailnetFqdn ?? `iris-${m.serverKey}.tailb046e8.ts.net` }),
+    ...(connected && { connectedAt: iso(startedAt + SERVER_PENDING_MS + SERVER_REGISTERING_MS) }),
+  };
+}
+
+const liveServers = () => servers.filter((m) => !m.isDeleted);
+/** 공용 타깃 + 내 서버 타깃. 서버 타깃은 서버의 지금 연결 상태를 싣는다. */
+const targetsNow = (): TargetDto[] => [
+  ...sharedTargets,
+  ...liveServers().map((m) => ({ id: m.targetId, name: `onprem-${m.serverKey}`, kind: 'ONPREM' as const, domainSuffix: 'internal.likelion.uk', onpremServerId: m.id, onpremServerName: m.name, connectionStatus: serverStatusOf(m) })),
+];
+
+const randomToken = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[b % 64]).join('').slice(0, 43);
+/** 등록 토큰을 새로 발급한다. 이전 토큰은 무효가 되고, 명령을 실행했다고 치고 연결을 다시 시작한다. */
+function issueToken(m: MockServer): OnpremServerRegistrationDto {
+  m.fixedStatus = undefined;
+  m.failureCode = undefined;
+  m.startedAt = Date.now();
+  m.registrationExpiresAt = iso(Date.now() + DAY);
+  const registrationToken = randomToken();
+  return {
+    server: toServerDto(m),
+    registrationToken,
+    installCommand: `curl -fsSL https://api.likelion.uk/api/v1/onprem-servers/install.sh | sudo bash -s -- --token ${registrationToken}`,
+  };
+}
 
 type MockProject = Omit<ProjectDto, 'serviceCount' | 'onlineServiceCount'>;
 /**
@@ -114,6 +179,8 @@ const services: MockService[] = [
   // 온프레미스 타깃이라 레플리카가 2개여도 롤링만 쓴다.
   service(23, 2, 'edge', 'softbank/iris-edge', { targetIds: [2] }),
   service(31, 3, 'sandbox', 'kylo-dev/playground'),
+  // 아직 연결되지 않은 내 서버(office-nuc)에 배포하는 서비스. 배포 버튼이 막힌다.
+  service(32, 3, 'edge-api', 'kylo-dev/playground', { targetIds: [4], createdAt: iso(t0 - 3 * HOUR) }),
 ];
 
 /** 저장된 Pod 수·자원. 설정한 적 없는 서비스는 서버 기본값(레플리카 1)이다. */
@@ -127,14 +194,14 @@ const scalingOf = (s: MockService): ScalingDto => ({
   ...(scalings.get(s.id) ?? { replicas: 1, resources: { requests: { cpu: '250m', memory: '256Mi' }, limits: { cpu: '500m', memory: '512Mi' } } }),
 });
 const STRATEGIES: DeploymentStrategy[] = ['ROLLING', 'CANARY', 'BLUE_GREEN'];
-const isOnPrem = (s: MockService) => targets.find((x) => x.id === s.targetIds[0])?.kind === 'ONPREM';
+const isOnPrem = (s: MockService) => targetsNow().find((x) => x.id === s.targetIds[0])?.kind === 'ONPREM';
 /** was 와 같다: 요청 시점의 방식을 남기고, 온프레미스 타깃이거나 레플리카가 2개 미만이면 실제로는 롤링으로 배포한다. */
 const strategySnapshot = (s: MockService) => {
   const requested = s.deploymentStrategy ?? 'ROLLING';
   return { requestedDeploymentStrategy: requested, deploymentStrategy: isOnPrem(s) || scalingOf(s).replicas < 2 ? 'ROLLING' : requested } satisfies Pick<DeploymentDto, 'requestedDeploymentStrategy' | 'deploymentStrategy'>;
 };
 
-const isSingleTarget = (v: unknown): v is number[] => Array.isArray(v) && v.length === 1 && targets.some((x) => x.id === v[0]);
+const isSingleTarget = (v: unknown): v is number[] => Array.isArray(v) && v.length === 1 && targetsNow().some((x) => x.id === v[0]);
 
 let nextDeploymentId = 1000;
 const deployment = (
@@ -319,7 +386,7 @@ function detailExtras(d: MockDeployment, dto: DeploymentDto, reached: number, st
       build: { builder: s.builder, rootDirectory: s.rootDirectory, buildCommand: s.buildCommand },
       deploy: {
         targets: s.targetIds.map((id) => {
-          const target = targets.find((x) => x.id === id)!;
+          const target = targetsNow().find((x) => x.id === id)!;
           return { id, name: target.name, kind: target.kind };
         }),
         port: s.port,
@@ -342,8 +409,11 @@ function detailExtras(d: MockDeployment, dto: DeploymentDto, reached: number, st
 function domainsOf(s: MockService): ServiceDomainDto[] {
   const connected = deploymentsOf(s.id).some((d) => statusOf(d) === 'SUCCEEDED');
   return s.targetIds.map((id) => {
-    const target = targets.find((tg) => tg.id === id)!;
-    const host = target.domainSuffix ? `${s.name}-${s.id}.${target.domainSuffix}` : undefined;
+    const target = targetsNow().find((tg) => tg.id === id)!;
+    // was 와 같다: 내 서버 타깃은 라벨 뒤에 서버 키를 붙여 게이트웨이가 서버를 고르게 한다.
+    const serverKey = servers.find((m) => m.targetId === id)?.serverKey;
+    const label = serverKey ? `${s.name}-${s.id}-${serverKey}` : `${s.name}-${s.id}`;
+    const host = target.domainSuffix ? `${label}.${target.domainSuffix}` : undefined;
     return { targetId: id, targetName: target.name, targetKind: target.kind, host, url: host && `https://${host}`, isConnected: connected && !!host };
   });
 }
@@ -1027,7 +1097,43 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   }
   if (!loggedIn) return fail(401, 'UNAUTHORIZED', 'Not logged in');
   if (path === '/me') return ok(user);
-  if (path === '/targets') return ok(targets);
+  if (path === '/targets') return ok(targetsNow());
+
+  // on-prem servers
+  if (path === '/onprem-servers' && method === 'GET') return ok(liveServers().map(toServerDto).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)));
+  if (path === '/onprem-servers' && method === 'POST') {
+    const name = String(body?.name ?? '').trim();
+    if (name.length < 1 || name.length > 63) return fail(422, 'VALIDATION_ERROR', 'invalid input', [{ field: 'name', reason: 'must be 1 to 63 characters' }]);
+    if (NOT_CONFIGURED_NAMES.includes(name)) return fail(503, 'NOT_CONFIGURED', 'On-prem server registration is not configured.');
+    if (liveServers().some((m) => m.name === name)) return fail(409, 'ONPREM_SERVER_NAME_CONFLICT', 'A server with this name already exists.');
+    if (liveServers().length >= MAX_SERVERS) return fail(409, 'ONPREM_SERVER_LIMIT_EXCEEDED', `You can register up to ${MAX_SERVERS} servers.`);
+    const id = Math.max(0, ...servers.map((m) => m.id)) + 1;
+    const m: MockServer = {
+      id,
+      name,
+      serverKey: `s${Math.random().toString(36).slice(2, 9).padEnd(7, '0')}`,
+      targetId: Math.max(0, ...sharedTargets.map((x) => x.id), ...servers.map((x) => x.targetId)) + 1,
+      createdAt: iso(Date.now()),
+    };
+    servers.push(m);
+    return ok(issueToken(m), 201);
+  }
+  if (seg[0] === 'onprem-servers' && seg.length >= 2) {
+    const m = liveServers().find((x) => x.id === id(1));
+    if (!m) return fail(404, 'NOT_FOUND', 'Server not found');
+    if (seg.length === 2 && method === 'GET') return ok(toServerDto(m));
+    if (seg.length === 2 && method === 'DELETE') {
+      if (services.some((x) => x.targetIds.includes(m.targetId))) return fail(409, 'ONPREM_SERVER_IN_USE', 'A service still uses this server.');
+      m.isDeleted = true;
+      return { status: 204 };
+    }
+    if (seg[2] === 'registration-token' && method === 'POST') {
+      const status = serverStatusOf(m);
+      if (status === 'CONNECTED') return fail(409, 'INVALID_STATUS_TRANSITION', `Cannot reissue a token for a ${status} server.`);
+      if (NOT_CONFIGURED_NAMES.includes(m.name)) return fail(503, 'NOT_CONFIGURED', 'On-prem server registration is not configured.');
+      return ok(issueToken(m));
+    }
+  }
 
   // github
   if (path === '/github/installations') return ok(installations);
@@ -1151,6 +1257,10 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
     if (method === 'POST') {
       if (deploymentsOf(s.id).some((d) => IN_PROGRESS.includes(statusOf(d)))) {
         return fail(409, 'DEPLOYMENT_IN_PROGRESS', 'Deployment in progress');
+      }
+      // was 와 같다: 연결되지 않은 내 서버로는 배포하지 않는다.
+      if (targetsNow().some((tg) => s.targetIds.includes(tg.id) && tg.connectionStatus && tg.connectionStatus !== 'CONNECTED')) {
+        return fail(409, 'TARGET_NOT_CONNECTED', 'Target server is not connected');
       }
       // 환경변수에 error 가 있으면 배포 요청을 만들기 전에 거절한다(RESTART 포함).
       const invalid = validate(s.id).issues.filter((i) => i.severity === 'error');
@@ -1492,7 +1602,7 @@ function handleVariables(s: MockService, method: string, seg: string[], body: Re
 /* --- DB 생성 · apply(스택) ------------------------------------------- */
 
 const networkingRejected = (targetIds: number[] | undefined) =>
-  (targetIds ?? [1]).some((id) => targets.find((x) => x.id === id)?.kind === 'ONPREM')
+  (targetIds ?? [1]).some((id) => targetsNow().find((x) => x.id === id)?.kind === 'ONPREM')
     ? fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'targetIds', reason: 'networking_unsupported_target' }])
     : null;
 

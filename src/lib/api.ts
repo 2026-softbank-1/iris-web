@@ -71,6 +71,8 @@ export function describeError(error: unknown): string {
     case 'DEPLOYMENT_IN_PROGRESS': return 'A deployment is already in progress for this service.';
     case 'NO_SUCCEEDED_DEPLOYMENT': return 'This service has no running deployment. Deploy it successfully first.';
     case 'DEPLOYMENT_REQUEST_NOT_FOUND': return 'That deployment no longer exists.';
+    case 'TARGET_NOT_CONNECTED': return 'The server for this service is not connected yet. Deploy after it connects.';
+    case 'ONPREM_SERVER_IN_USE': return 'A service still deploys to this server. Move or delete that service first.';
     case 'NOT_CONFIGURED': return 'The server is missing configuration for this feature.';
     case 'EXTERNAL_ERROR': return 'GitHub request failed. Try again in a moment.';
     case 'VALIDATION_ERROR': return error.details.map((d) => `${d.field}: ${d.reason}`).join(' · ') || 'Invalid input.';

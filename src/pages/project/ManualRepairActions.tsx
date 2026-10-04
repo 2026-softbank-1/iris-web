@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
+import { useDeployBlock } from '../../data/useDeployBlock';
 import { useI18n } from '../../i18n';
 import { ApiError, describeError } from '../../lib/api';
 import { createDeployment } from '../../lib/endpoints';
@@ -15,6 +16,7 @@ export function ManualRepairActions({ serviceId, names, variablesUrl, reason, co
   const requestKey = useRef<string | null>(null);
   const mounted = useRef(true);
   const interventionReason = reason?.trim() || t('repair.manual.reason');
+  const deployBlock = useDeployBlock(serviceId);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function redeploy() {
     if (submitting.current) return;
@@ -29,7 +31,7 @@ export function ManualRepairActions({ serviceId, names, variablesUrl, reason, co
   }
   const actions = <>
     <button type="button" className="btn btn-outline btn-sm" disabled title={interventionReason}><Sparkles size={14} />{t('repair.title')}</button>
-    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={e => { e.preventDefault(); e.stopPropagation(); void redeploy(); }}><RefreshCw size={14} />{t(busy ? 'repair.loading' : 'repair.manual.redeploy')}</button>
+    <button type="button" className="btn btn-primary btn-sm" disabled={busy || deployBlock.blocked} title={deployBlock.reason} onClick={e => { e.preventDefault(); e.stopPropagation(); void redeploy(); }}><RefreshCw size={14} />{t(busy ? 'repair.loading' : 'repair.manual.redeploy')}</button>
   </>;
   if (compact) return <span className="failed-repair-action" onClick={e => e.stopPropagation()}>{actions}{error && <span className="failed-repair-error" role="alert">{error}</span>}</span>;
   return <div className="repair-access" role="status"><b>{t('repair.manual.title')}</b><p>{interventionReason}</p>{names.length > 0 && <p className="mono">{names.join(', ')}</p>}<p className="diag-muted">{t('repair.manual.note')}</p><div className="diag-brief-actions">{actions}{names.length > 0 && <Link className="btn btn-outline btn-sm" to={variablesUrl}>{t('repair.manual.variables')}</Link>}</div>{error && <p role="alert">{error}</p>}</div>;

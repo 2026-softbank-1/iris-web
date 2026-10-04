@@ -5,6 +5,7 @@ import { UIProvider } from './components/ui';
 import { ProjectLayout } from './layouts/ProjectLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 import { Dashboard } from './pages/Dashboard';
+import { OnpremServersPage } from './pages/OnpremServers';
 // import { Templates } from './pages/Templates'; // [주석 처리] 샘플 화면이라 숨겼다
 // import { Usage } from './pages/Usage'; // Usage is disabled for now (non-MVP)
 import { ProjectCanvasPage } from './pages/project/ProjectCanvasPage';
@@ -56,6 +57,7 @@ export function App() {
           <Route path="/workspace/billing" element={<Navigate to="/dashboard" replace />} />
           {/* General is removed. /workspace goes back to the dashboard. */}
           <Route path="/workspace" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/workspace/servers" element={<OnpremServersPage />} />
           {/* 도메인·감사 로그·개발자 화면은 없앴다. 예전 주소는 대시보드로 보낸다. */}
           <Route path="/workspace/:section" element={<Navigate to="/dashboard" replace />} />
         </Route>

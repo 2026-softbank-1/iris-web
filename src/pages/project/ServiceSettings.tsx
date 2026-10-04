@@ -28,6 +28,8 @@ import { useNavigate } from 'react-router-dom';
 import { AnalysisGateBadge } from '../../components/AnalysisGateBadge';
 import { RepoIcon } from '../../components/brand';
 
+import { OnpremServerDialog } from '../../components/OnpremServerDialog';
+import { TargetPicker } from '../../components/TargetPicker';
 import { ConfirmDialog, useUI } from '../../components/ui';
 import { DEPLOYMENT_STRATEGIES, MIN_REPLICAS_FOR_PROGRESSIVE, fallsBackToRolling, isRollingOnlyTarget, isStrategyRejected, needsReplicas, strategyDescKey, strategyLabel, strategyOf } from '../../data/deploymentStrategyModel';
 import type { Project, Service } from '../../data/mock';
@@ -35,7 +37,7 @@ import { useProjects } from '../../data/ProjectsContext';
 import { MAX_REPLICAS, MIN_REPLICAS, cpuCores, cpuLabel, memoryLabel, memoryMiB, stopIndex, type Stop } from '../../data/scalingModel';
 import { useServiceScaling } from '../../data/useServiceScaling';
 import { ApiError, describeError } from '../../lib/api';
-import { isTargetSupported, listBranches, type Builder, type DeploymentStrategy, type ServiceUpdate } from '../../lib/endpoints';
+import { listBranches, type Builder, type DeploymentStrategy, type ServiceUpdate } from '../../lib/endpoints';
 import { useI18n, type MessageKey } from '../../i18n';
 
 /* ------------------------------------------------------------------ */
@@ -239,6 +241,7 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
   const [deleting, setDeleting] = useState(false);
 
   const targetLocked = !!remote?.latestDeployment;
+  const [addingServer, setAddingServer] = useState(false);
   const save = async (changes: ServiceUpdate, message = t('svcSettings.saved')) => {
     try {
       await updateService(project.id, service.id, changes);
@@ -630,25 +633,19 @@ export function ServiceSettings({ project, service, onScaled }: { project: Proje
                 <div className="st-region-row">
                   <div className="st-checks" role="group" aria-label={t('svcSettings.regions.label')}>
                     <Earth size={16} />
-                    {targets.map((target) => {
-                      const supported = isTargetSupported(target);
-                      const checked = remote?.targetIds[0] === target.id;
-                      return (
-                        <label key={target.id} className={supported ? undefined : 'st-unsupported'} title={supported ? undefined : t('svcSettings.notSupported')}>
-                          <input
-                            type="radio"
-                            name="service-target"
-                            checked={checked}
-                            // 한 번 배포한 서비스는 타깃을 바꿀 수 없다.
-                            disabled={!supported || targetLocked}
-                            onChange={() => void save({ targetIds: [target.id] })}
-                          />
-                          {target.name}
-                          {!supported && <span className="st-note">{t('svcSettings.notSupported')}</span>}
-                        </label>
-                      );
-                    })}
+                    <TargetPicker
+                      name="service-target"
+                      value={remote?.targetIds[0]}
+                      onChange={(id) => void save({ targetIds: [id] })}
+                      // 한 번 배포한 서비스는 타깃을 바꿀 수 없다.
+                      disabled={targetLocked}
+                      onAddServer={targetLocked ? undefined : () => setAddingServer(true)}
+                      unsupportedClassName="st-unsupported"
+                      noteClassName="st-note"
+                      unsupportedLabel={t('svcSettings.notSupported')}
+                    />
                     {targetLocked && <span className="st-note">{t('svcSettings.targetLocked')}</span>}
+                    <OnpremServerDialog open={addingServer} onClose={() => setAddingServer(false)} onCreated={(server) => void save({ targetIds: [server.targetId] })} />
                   </div>
                   <label className="st-replicas">
                     <input
