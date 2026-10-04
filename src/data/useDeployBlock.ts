@@ -13,8 +13,11 @@ export function useDeployBlock(serviceId?: string): { blocked: boolean; reason?:
   const service = serviceId ? projects.flatMap((p) => p.services).find((s) => s.id === serviceId) : undefined;
   const target = service?.remote?.targetIds.map((id) => targets.find((tg) => tg.id === id)).find((tg) => tg && !isTargetDeployable(tg));
   if (!target?.connectionStatus) return { blocked: false };
+  const name = targetLabel(target, servers);
   return {
     blocked: true,
-    reason: t('servers.deployBlocked', { name: targetLabel(target, servers), status: t(SERVER_STATUS_LABEL[target.connectionStatus]) }),
+    reason: target.connectionStatus === 'DISCONNECTED'
+      ? t('servers.deployDisconnected', { name })
+      : t('servers.deployBlocked', { name, status: t(SERVER_STATUS_LABEL[target.connectionStatus]) }),
   };
 }

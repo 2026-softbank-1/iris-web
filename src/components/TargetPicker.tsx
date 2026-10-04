@@ -11,6 +11,7 @@ const SHORT_STATUS: Record<OnpremServerStatus, MessageKey> = {
   REGISTERING: 'servers.short.REGISTERING',
   CONNECTED: 'servers.short.CONNECTED',
   FAILED: 'servers.short.FAILED',
+  DISCONNECTED: 'servers.short.DISCONNECTED',
 };
 
 /** 내 서버 타깃은 연결 상태(점 + 짧은 말)를 붙인다. 공용 온프레미스 타깃은 상태가 없다. */

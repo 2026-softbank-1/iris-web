@@ -190,7 +190,7 @@ export type ServiceDomainDto = {
  * 사용자가 등록한 온프레미스 서버의 연결 상태. PENDING(명령 실행 전) → REGISTERING(서버가 연결을 보냄, 확인 중) →
  * CONNECTED(배포 가능) / FAILED(15분 안에 연결되지 않음, 토큰을 다시 발급해 명령을 다시 실행한다).
  */
-export type OnpremServerStatus = 'PENDING' | 'REGISTERING' | 'CONNECTED' | 'FAILED';
+export type OnpremServerStatus = 'PENDING' | 'REGISTERING' | 'CONNECTED' | 'FAILED' | 'DISCONNECTED';
 export type OnpremServerFailureCode = 'CONNECT_TIMED_OUT' | 'GITOPS_COMMIT_FAILED';
 
 /**
@@ -225,6 +225,11 @@ export type OnpremServerDto = {
   /** 등록 토큰 만료 시각(발급 후 24시간). 지나면 토큰을 다시 발급해야 한다. */
   registrationExpiresAt?: string;
   connectedAt?: string;
+  /**
+   * 서버가 마지막으로 신호(heartbeat)를 보낸 시각. 연결된 서버가 3분 넘게 신호를 보내지 않으면 status 가 DISCONNECTED 가 되고,
+   * 신호가 다시 오면 CONNECTED 로 돌아간다(서버가 계산하는 상태다). 신호를 받은 적 없으면 없다.
+   */
+  lastSeenAt?: string;
   createdAt: string;
 };
 /** 서버 등록·토큰 재발급 응답. registrationToken·installCommand 는 이 응답에서만 받을 수 있다. */
