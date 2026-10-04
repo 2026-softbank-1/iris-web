@@ -1,0 +1,56 @@
+/* 레포 구성 확인: 요약 카드 + 접이식 상세 */
+.gate-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.gate-card{border:1px solid var(--border);border-radius:10px;background:var(--bg);min-width:0}
+.gate-card.db{background:var(--bg-2)}
+.gate-card.off{background:var(--bg-2);opacity:.6}
+.gate-card-label{display:flex;align-items:center;gap:10px;padding:10px 12px;min-width:0;cursor:default}
+label.gate-card-label{cursor:pointer}
+.create-dialog .gate-card-label input[type=checkbox]{flex:none;width:16px;height:16px;margin:0;padding:0;accent-color:var(--primary)}
+.gate-card-label>svg{flex:none;color:var(--primary-text)}
+.gate-card-text{display:grid;gap:2px;min-width:0}
+.gate-card-name{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate-card-meta,.gate-card-dep{font-size:12px;color:var(--fg-subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate-card-dep{display:flex;align-items:center;gap:4px}
+.gate-card-dep svg{flex:none}
+.gate-auto,.gate-warn{display:flex;align-items:flex-start;gap:8px;margin:0;font-size:13px;line-height:1.5;color:var(--fg-muted)}
+.gate-auto svg,.gate-warn svg{flex:none;margin-top:3px}
+.gate-auto svg{color:var(--primary-text)}
+.gate-auto b{flex:none;color:var(--fg)}
+.gate-warn{color:var(--yellow)}
+.gate-warn.input{color:var(--fg)}
+.gate-warn.input svg{color:var(--yellow)}
+.gate-actions.split{justify-content:space-between;align-items:center}
+.gate-link{padding:4px 2px;border:0;background:none;color:var(--fg-subtle);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.gate-link:hover:not(:disabled){color:var(--fg)}
+.gate-link:disabled{opacity:.5;cursor:not-allowed}
+.gate-disclosure-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 2px;border:0;background:none;color:var(--fg-muted);font-size:13px;cursor:pointer}
+.gate-disclosure-btn:hover{color:var(--fg)}
+.gate-disclosure-btn svg{transition:transform .15s}
+.gate-disclosure-btn svg.open{transform:rotate(180deg)}
+.gate-disclosure-body{display:grid;gap:14px;margin-top:10px;padding-top:12px;border-top:1px solid var(--border)}
+.gate-disclosure-body[hidden]{display:none}
+.gate-code-faint{font-size:11px;color:var(--fg-faint)}
+.gate-code.optional{background:none;border:1px dashed var(--border-strong);color:var(--fg-subtle)}
+.gate-env{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px}
+.gate-dep-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-bottom:6px}
+.gate-dep-toggle span{font-size:13px}
+.gate-dep-state{margin-left:26px}
+.create-dialog .gate-dep-fields .gate-dep-name{flex:0 1 260px}
+.gate-reasons{font-size:13px}
+@media (prefers-reduced-motion:reduce){.gate-disclosure-btn svg{transition:none}}
+/* .create-review label{display:grid} 보다 앞서도록 한 단계 더 좁힌다 */
+.create-review .gate-dep-toggle,.create-review label.gate-card-label{display:flex;align-items:center;gap:10px;font-size:13px}
+.gate-info{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;margin-left:4px;border:0;border-radius:50%;background:none;color:var(--fg-faint);cursor:help;vertical-align:middle}
+.gate-info:hover,.gate-info:focus-visible{color:var(--fg);background:var(--bg-4)}
+.gate-banner .gate-info{margin-left:auto;margin-top:0}
+.gate-tips,.gate-dep-state{display:flex;align-items:center;gap:4px;margin:0;font-size:12px;color:var(--fg-subtle)}
+.gate-tip-list{margin:0;padding-left:14px;display:grid;gap:4px;text-align:left}
+.gate-init p{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.gate-unit .gate-unit-meta{display:grid;gap:6px;align-items:start}
+.gate-unit-meta .gate-role{justify-self:start}
+.gate-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.gate-row.top{align-items:flex-start}
+.gate-row .gate-meta-label{flex:none;min-width:34px}
+.gate-keyitem{display:inline-flex;align-items:center;gap:4px}
+.gate-tag{padding:0 6px;border-radius:999px;background:var(--bg-3,var(--bg-4));color:var(--fg-subtle);font-size:11px;line-height:18px}
+.gate-row .gate-map{flex-basis:auto}
