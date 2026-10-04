@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CircleCheckBig, Clock, Copy, Server, TriangleAlert, X } from 'lucide-react';
 import { useProjects } from '../data/ProjectsContext';
 import { fmtKst } from '../data/mock';
+import { SERVER_NAME_ISSUE_MESSAGE, serverNameErrorMessage, validateServerName } from '../data/serverNameModel';
 import { isRegistrationExpired, isServerConnecting, serverErrorMessage, shouldPollServer } from '../data/targetModel';
 import { useI18n, type MessageKey } from '../i18n';
 import { describeError } from '../lib/api';
@@ -39,6 +40,8 @@ export function OnpremServerDialog({
   const [server, setServer] = useState<api.OnpremServerDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // 서버가 이름 때문에 거절한 사유(규칙 위반·중복). 이름을 고치면 사라진다.
+  const [nameRejection, setNameRejection] = useState<MessageKey | null>(null);
   // 기다림을 멈춘 이유. expired 는 토큰이 만료돼 명령을 다시 받아야 하고, stalled 는 20분이 지나 다시 확인을 눌러야 한다.
   const [stopped, setStopped] = useState<'expired' | 'stalled' | null>(null);
   const [resumedAt, setResumedAt] = useState(0);
@@ -50,6 +53,7 @@ export function OnpremServerDialog({
     setServer(initial?.server ?? null);
     setBusy(false);
     setError('');
+    setNameRejection(null);
     setStopped(null);
     setResumedAt(0);
   }, [open, initial]);
@@ -83,10 +87,15 @@ export function OnpremServerDialog({
     return () => { ctrl.abort(); window.clearInterval(timer); };
   }, [open, serverId, waiting, resumedAt, reloadTargets]);
 
+  // 서버와 같은 규칙으로 입력 중에 검사한다. 비어 있는 입력은 아직 에러로 칠하지 않지만 등록은 막는다.
+  const nameIssue = validateServerName(name);
+  const nameMessage = name !== '' && nameIssue ? SERVER_NAME_ISSUE_MESSAGE[nameIssue] : nameRejection;
+
   const create = async () => {
-    if (busy || !name.trim()) return;
+    if (busy || validateServerName(name)) return;
     setBusy(true);
     setError('');
+    setNameRejection(null);
     try {
       const created = await api.createOnpremServer(name.trim());
       setRegistration(created);
@@ -94,8 +103,14 @@ export function OnpremServerDialog({
       await reloadTargets().catch(() => undefined);
       onCreated?.(created.server);
     } catch (e) {
-      const key = serverErrorMessage(e);
-      setError(key ? t(key) : describeError(e));
+      // 이름 때문에 거절됐으면 입력란 아래에, 아니면 창 아래 알림에 보인다. 서버가 항상 최종 판정이다.
+      const nameKey = serverNameErrorMessage(e);
+      if (nameKey) {
+        setNameRejection(nameKey);
+      } else {
+        const key = serverErrorMessage(e);
+        setError(key ? t(key) : describeError(e));
+      }
     } finally {
       setBusy(false);
     }
@@ -135,11 +150,21 @@ export function OnpremServerDialog({
         <form className="create-review" onSubmit={(e) => { e.preventDefault(); void create(); }}>
           <label>
             {t('servers.dialog.nameLabel')}
-            <input autoFocus required maxLength={63} placeholder="home-lab" value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              autoFocus
+              required
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="home-lab"
+              value={name}
+              aria-invalid={!!nameMessage}
+              onChange={(e) => { setName(e.target.value); setNameRejection(null); }}
+            />
+            {nameMessage && <span className="server-hint error" role={nameMessage === nameRejection ? 'alert' : undefined}>{t(nameMessage)}</span>}
             <span className="server-hint">{t('servers.dialog.nameHint')}</span>
           </label>
           <Requirements />
-          <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>{t(busy ? 'servers.dialog.creating' : 'servers.dialog.create')}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy || nameIssue !== null}>{t(busy ? 'servers.dialog.creating' : 'servers.dialog.create')}</button>
         </form>
       ) : (
         <div className="server-install">

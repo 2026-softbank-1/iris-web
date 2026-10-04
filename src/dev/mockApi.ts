@@ -93,6 +93,21 @@ const NOT_CONFIGURED_NAMES = ['not-configured', 'legacy-vm'];
 const SERVER_PENDING_MS = 10_000;
 const SERVER_REGISTERING_MS = 12_000;
 
+/** was 의 서버 이름 규칙(2026-10-04 반영). 앞뒤 공백을 자른 이름이 이 정규식을 지켜야 하고, 이름은 만들 때만 검사한다. */
+const SERVER_NAME_RULE = /^(?![0-9]+$)[A-Za-z0-9가-힣][A-Za-z0-9가-힣._-]{0,62}$/;
+/**
+ * 규칙을 어긴 이름의 이유. was 가 details[].reason 으로 보내는 고정 영어 문구이고, 비어 있음 → 너무 김 → 숫자만 → 첫 글자 → 문자 순으로 판정한다.
+ * 규칙을 지키면 null 이다. 웹의 검증(src/data/serverNameModel.ts)과 일부러 따로 쓴다: 웹이 서버와 어긋나면 mock 에서 드러나야 한다.
+ */
+function serverNameViolation(name: string): string | null {
+  if (SERVER_NAME_RULE.test(name)) return null;
+  if (name === '') return 'must not be blank';
+  if (name.length > 63) return 'must be at most 63 characters';
+  if (/^[0-9]+$/.test(name)) return 'must not be only digits';
+  if (!/^[A-Za-z0-9가-힣]/.test(name)) return 'must start with a letter, digit or Hangul syllable';
+  return "may contain only letters, digits, Hangul syllables, '.', '_' and '-' (no spaces)";
+}
+
 function serverStatusOf(m: MockServer): OnpremServerStatus {
   if (m.fixedStatus) return m.fixedStatus;
   const elapsed = Date.now() - (m.startedAt ?? 0);
@@ -1103,7 +1118,8 @@ export function handle(method: string, path: string, q: Query, body: Record<stri
   if (path === '/onprem-servers' && method === 'GET') return ok(liveServers().map(toServerDto).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)));
   if (path === '/onprem-servers' && method === 'POST') {
     const name = String(body?.name ?? '').trim();
-    if (name.length < 1 || name.length > 63) return fail(422, 'VALIDATION_ERROR', 'invalid input', [{ field: 'name', reason: 'must be 1 to 63 characters' }]);
+    const violation = serverNameViolation(name);
+    if (violation) return fail(422, 'INVALID_INPUT', 'invalid input', [{ field: 'name', reason: violation }]);
     if (NOT_CONFIGURED_NAMES.includes(name)) return fail(503, 'NOT_CONFIGURED', 'On-prem server registration is not configured.');
     if (liveServers().some((m) => m.name === name)) return fail(409, 'ONPREM_SERVER_NAME_CONFLICT', 'A server with this name already exists.');
     if (liveServers().length >= MAX_SERVERS) return fail(409, 'ONPREM_SERVER_LIMIT_EXCEEDED', `You can register up to ${MAX_SERVERS} servers.`);
